@@ -1,0 +1,27 @@
+{
+  "conjunction": {
+    "angle": 0,
+    "tone": "fusion",
+    "meaning": "their meanings merge and intensify; they operate as one combined unit"
+  },
+  "opposition": {
+    "angle": 180,
+    "tone": "polarity",
+    "meaning": "tension through polarity, projection, externalization, and difficulty integrating both sides at once"
+  },
+  "square": {
+    "angle": 90,
+    "tone": "friction",
+    "meaning": "friction, pressure, conflict, stress, and development through effort"
+  },
+  "trine": {
+    "angle": 120,
+    "tone": "flow",
+    "meaning": "ease, natural flow, support, talent, and low resistance"
+  },
+  "sextile": {
+    "angle": 60,
+    "tone": "opportunity",
+    "meaning": "opportunity, cooperation, and helpful coordination"
+  }
+}

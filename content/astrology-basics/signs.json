@@ -1,0 +1,182 @@
+{
+  "Aries": {
+    "element": "Fire",
+    "modality": "Cardinal",
+    "style": "direct, fast, impulsive, initiating, assertive",
+    "strengths": [
+      "courage",
+      "initiative",
+      "honesty"
+    ],
+    "shadow": [
+      "impulsiveness",
+      "impatience",
+      "reactivity"
+    ]
+  },
+  "Taurus": {
+    "element": "Earth",
+    "modality": "Fixed",
+    "style": "steady, sensual, resistant to change, practical, stabilizing",
+    "strengths": [
+      "stability",
+      "loyalty",
+      "patience"
+    ],
+    "shadow": [
+      "stubbornness",
+      "resistance to change",
+      "over-attachment"
+    ]
+  },
+  "Gemini": {
+    "element": "Air",
+    "modality": "Mutable",
+    "style": "curious, verbal, changeable, mental, communicative",
+    "strengths": [
+      "versatility",
+      "wit",
+      "communication"
+    ],
+    "shadow": [
+      "scatteredness",
+      "restlessness",
+      "inconsistency"
+    ]
+  },
+  "Cancer": {
+    "element": "Water",
+    "modality": "Cardinal",
+    "style": "emotional, protective, sensitive, cautious, defensive",
+    "strengths": [
+      "care",
+      "memory",
+      "empathy"
+    ],
+    "shadow": [
+      "defensiveness",
+      "moodiness",
+      "withdrawal"
+    ]
+  },
+  "Leo": {
+    "element": "Fire",
+    "modality": "Fixed",
+    "style": "expressive, proud, dramatic, visible, attention-seeking",
+    "strengths": [
+      "confidence",
+      "generosity",
+      "creativity"
+    ],
+    "shadow": [
+      "ego sensitivity",
+      "dramatic reactions",
+      "need for validation"
+    ]
+  },
+  "Virgo": {
+    "element": "Earth",
+    "modality": "Mutable",
+    "style": "analytical, corrective, precise, modest, improvement-oriented",
+    "strengths": [
+      "discernment",
+      "service",
+      "skill"
+    ],
+    "shadow": [
+      "overthinking",
+      "perfectionism",
+      "self-criticism"
+    ]
+  },
+  "Libra": {
+    "element": "Air",
+    "modality": "Cardinal",
+    "style": "relational, diplomatic, balanced, socially aware, approval-seeking",
+    "strengths": [
+      "fairness",
+      "grace",
+      "cooperation"
+    ],
+    "shadow": [
+      "indecision",
+      "people-pleasing",
+      "avoidance of conflict"
+    ]
+  },
+  "Scorpio": {
+    "element": "Water",
+    "modality": "Fixed",
+    "style": "intense, controlled, suspicious, deep, all-or-nothing",
+    "strengths": [
+      "depth",
+      "resilience",
+      "focus"
+    ],
+    "shadow": [
+      "control",
+      "suspicion",
+      "extremes"
+    ]
+  },
+  "Sagittarius": {
+    "element": "Fire",
+    "modality": "Mutable",
+    "style": "expansive, freedom-seeking, idealistic, adventurous, belief-driven",
+    "strengths": [
+      "vision",
+      "enthusiasm",
+      "honesty"
+    ],
+    "shadow": [
+      "excess",
+      "restlessness",
+      "bluntness"
+    ]
+  },
+  "Capricorn": {
+    "element": "Earth",
+    "modality": "Cardinal",
+    "style": "disciplined, serious, restrained, strategic, achievement-oriented",
+    "strengths": [
+      "endurance",
+      "competence",
+      "maturity"
+    ],
+    "shadow": [
+      "rigidity",
+      "emotional restraint",
+      "work fixation"
+    ]
+  },
+  "Aquarius": {
+    "element": "Air",
+    "modality": "Fixed",
+    "style": "unconventional, detached, future-oriented, intellectual, independent",
+    "strengths": [
+      "innovation",
+      "individuality",
+      "vision"
+    ],
+    "shadow": [
+      "detachment",
+      "contrariness",
+      "distance"
+    ]
+  },
+  "Pisces": {
+    "element": "Water",
+    "modality": "Mutable",
+    "style": "porous, imaginative, emotional, idealistic, diffuse",
+    "strengths": [
+      "intuition",
+      "empathy",
+      "creativity"
+    ],
+    "shadow": [
+      "escapism",
+      "confusion",
+      "lack of boundaries"
+    ]
+  }
+}

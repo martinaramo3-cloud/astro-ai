@@ -1,0 +1,42 @@
+{
+  "Sun": {
+    "function": "identity, will, core self",
+    "category": "personal"
+  },
+  "Moon": {
+    "function": "emotions, instinct, security needs",
+    "category": "personal"
+  },
+  "Mercury": {
+    "function": "mind, speech, learning, interpretation",
+    "category": "personal"
+  },
+  "Venus": {
+    "function": "attraction, liking, pleasure, relating, values",
+    "category": "personal"
+  },
+  "Mars": {
+    "function": "action, desire, conflict, initiative",
+    "category": "personal"
+  },
+  "Jupiter": {
+    "function": "growth, meaning, expansion, confidence",
+    "category": "social"
+  },
+  "Saturn": {
+    "function": "structure, discipline, fear, restriction, responsibility",
+    "category": "social"
+  },
+  "Uranus": {
+    "function": "disruption, rebellion, individuality, sudden change",
+    "category": "transpersonal"
+  },
+  "Neptune": {
+    "function": "idealization, dissolution, fantasy, sensitivity",
+    "category": "transpersonal"
+  },
+  "Pluto": {
+    "function": "intensity, power, control, transformation",
+    "category": "transpersonal"
+  }
+}

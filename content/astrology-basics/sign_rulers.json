@@ -1,0 +1,41 @@
+{
+  "Aries": [
+    "Mars"
+  ],
+  "Taurus": [
+    "Venus"
+  ],
+  "Gemini": [
+    "Mercury"
+  ],
+  "Cancer": [
+    "Moon"
+  ],
+  "Leo": [
+    "Sun"
+  ],
+  "Virgo": [
+    "Mercury"
+  ],
+  "Libra": [
+    "Venus"
+  ],
+  "Scorpio": [
+    "Mars",
+    "Pluto"
+  ],
+  "Sagittarius": [
+    "Jupiter"
+  ],
+  "Capricorn": [
+    "Saturn"
+  ],
+  "Aquarius": [
+    "Saturn",
+    "Uranus"
+  ],
+  "Pisces": [
+    "Jupiter",
+    "Neptune"
+  ]
+}
