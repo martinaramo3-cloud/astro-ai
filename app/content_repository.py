@@ -74,3 +74,8 @@ def get_career_rules() -> list[str]:
 @lru_cache(maxsize=None)
 def get_emotional_rules() -> list[str]:
     return _read_json("engine/emotional_rules.json")
+
+
+@lru_cache(maxsize=None)
+def get_synastry_rules() -> dict[str, Any]:
+    return _read_json("engine/synastry_rules.json")

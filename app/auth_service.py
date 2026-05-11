@@ -49,7 +49,10 @@ def create_account(name: str, email: str, password: str, birth_date: str, birth_
 
     user_id = cursor.lastrowid
 
-    cursor.execute("SELECT id, name, email, birth_date, birth_time, birth_place FROM users WHERE id = ?", (user_id,))
+    cursor.execute(
+        "SELECT id, name, email, birth_date, birth_time, birth_place, subscription_tier FROM users WHERE id = ?",
+        (user_id,),
+    )
     user = cursor.fetchone()
 
     conn.close()
@@ -79,5 +82,6 @@ def login_user(email: str, password: str):
         "email": user["email"],
         "birth_date": user["birth_date"],
         "birth_time": user["birth_time"],
-        "birth_place": user["birth_place"]
+        "birth_place": user["birth_place"],
+        "subscription_tier": user.get("subscription_tier", "free"),
     }

@@ -1,47 +1,57 @@
 import os
 from dotenv import load_dotenv
-
-load_dotenv()
+from fastapi import HTTPException
 from openai import OpenAI
 
-api_key = os.getenv("OPENAI_API_KEY")
+load_dotenv()
 
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY is not set.")
+_client: OpenAI | None = None
 
-client = OpenAI(api_key=api_key)
+# Default model used when a caller doesn't specify a tier model. Kept for
+# backward compatibility with anywhere that still calls these without a model.
+DEFAULT_MODEL = "gpt-4.1-mini"
 
 
-def generate_chart_summary(prompt: str):
-    response = client.responses.create(
-        model="gpt-4.1-mini",
+def _get_client() -> OpenAI:
+    """Lazily initialize the OpenAI client.
+
+    Returning a clear HTTPException here (instead of crashing the process at
+    import time) means non-AI endpoints keep working when the key is missing,
+    and AI endpoints fail with a useful message.
+    """
+    global _client
+    if _client is None:
+        api_key = os.getenv("OPENAI_API_KEY")
+        if not api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="OPENAI_API_KEY is not configured on the server.",
+            )
+        _client = OpenAI(api_key=api_key)
+    return _client
+
+
+def _create_response(prompt: str, model: str, max_output_tokens: int) -> tuple[str, int]:
+    response = _get_client().responses.create(
+        model=model,
         input=prompt,
-        max_output_tokens=180
+        max_output_tokens=max_output_tokens,
     )
-    return response.output_text
+    tokens = response.usage.total_tokens if response.usage else 0
+    return response.output_text, tokens
 
 
-def generate_astrologer_answer(prompt: str):
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt,
-        max_output_tokens=220
-    )
-    return response.output_text
+def generate_chart_summary(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=180)
 
-def generate_compatibility_reading(prompt: str):
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt,
-        max_output_tokens=220
-    )
 
-    return response.output_text
+def generate_astrologer_answer(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=220)
 
-def generate_compatibility_answer(prompt: str):
-    response = client.responses.create(
-        model="gpt-4.1-mini",
-        input=prompt,
-        max_output_tokens=220
-    )
-    return response.output_text 
+
+def generate_compatibility_reading(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=220)
+
+
+def generate_compatibility_answer(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=220)

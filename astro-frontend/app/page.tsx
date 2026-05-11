@@ -42,7 +42,7 @@ export default function Home() {
         window.location.href = "/chat";
       }, 700);
     } catch {
-      setMessage("Could not connect to the backend.");
+      setMessage("Taking a moment to wake up — please try again in 30 seconds.");
     }
     setLoading(false);
   };

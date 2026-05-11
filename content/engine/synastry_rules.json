@@ -1,0 +1,192 @@
+{
+  "interpretation_layers": ["planet", "house", "sign", "aspect"],
+  "interpretation_priority": [
+    "house_overlays",
+    "aspects",
+    "saturn_pluto_involvement",
+    "moon_condition",
+    "venus_mars",
+    "signs"
+  ],
+  "orb_rules": {
+    "default_max": 8,
+    "luminary_max": 10,
+    "outer_planet_max": 3,
+    "strength_bands": [
+      { "max_orb": 2, "label": "extreme", "multiplier": 1.5 },
+      { "max_orb": 4, "label": "very_strong", "multiplier": 1.25 },
+      { "max_orb": 6, "label": "moderate", "multiplier": 1.0 },
+      { "max_orb": 8, "label": "weak", "multiplier": 0.5 }
+    ]
+  },
+  "planet_weights": {
+    "Sun": 9,
+    "Moon": 10,
+    "Mercury": 7,
+    "Venus": 9,
+    "Mars": 9,
+    "Jupiter": 6,
+    "Saturn": 8,
+    "Uranus": 5,
+    "Neptune": 6,
+    "Pluto": 9
+  },
+  "house_overlay_rules": {
+    "1": {
+      "tier": 2,
+      "keywords": ["physical attraction", "strong presence"],
+      "scores": { "attraction": 3 }
+    },
+    "4": {
+      "tier": 2,
+      "keywords": ["emotional bonding", "family feeling"],
+      "scores": { "emotional": 4 }
+    },
+    "5": {
+      "tier": 1,
+      "keywords": ["romance", "flirting", "dating energy"],
+      "scores": { "attraction": 4 }
+    },
+    "7": {
+      "tier": 1,
+      "keywords": ["partnership", "relationship potential"],
+      "scores": { "long_term": 4, "emotional": 2 }
+    },
+    "8": {
+      "tier": 1,
+      "keywords": ["sexual chemistry", "obsession", "intensity"],
+      "scores": { "attraction": 6, "toxicity": 3 }
+    },
+    "12": {
+      "tier": 1,
+      "keywords": ["hidden feelings", "confusion", "karmic pull"],
+      "scores": { "toxicity": 6 }
+    }
+  },
+  "aspect_base_scores": {
+    "trine": 3,
+    "sextile": 2,
+    "conjunction": 5,
+    "square": -4,
+    "opposition": -5
+  },
+  "pair_rules": [
+    {
+      "planets": ["Venus", "Mars"],
+      "effects": { "attraction": 5 },
+      "label": "sexual chemistry"
+    },
+    {
+      "planets": ["Sun", "Moon"],
+      "effects": { "emotional": 4, "long_term": 2 },
+      "label": "core compatibility"
+    },
+    {
+      "planets": ["Venus", "Venus"],
+      "effects": { "attraction": 3 },
+      "label": "similar love style"
+    },
+    {
+      "planets": ["Moon", "Moon"],
+      "allowed_aspects": ["trine", "sextile", "conjunction"],
+      "effects": { "emotional": 6 },
+      "label": "emotional harmony"
+    },
+    {
+      "planets": ["Moon", "Venus"],
+      "effects": { "emotional": 5 },
+      "label": "affectionate bonding"
+    },
+    {
+      "planets": ["Moon", "Saturn"],
+      "effects": { "emotional": -5, "long_term": 5 },
+      "label": "heavy emotional commitment"
+    },
+    {
+      "planets": ["Saturn", "Venus"],
+      "effects": { "long_term": 6 },
+      "label": "commitment potential"
+    },
+    {
+      "planets": ["Jupiter", "Venus"],
+      "effects": { "long_term": 4, "attraction": 2 },
+      "label": "joy and ease"
+    },
+    {
+      "planets": ["Moon", "Uranus"],
+      "effects": { "emotional": -4, "toxicity": 5 },
+      "label": "instability"
+    },
+    {
+      "planets": ["Moon", "Neptune"],
+      "effects": { "emotional": -6, "toxicity": 6 },
+      "label": "confusion or illusion"
+    },
+    {
+      "planets": ["Venus", "Pluto"],
+      "effects": { "attraction": 8, "toxicity": 4 },
+      "label": "obsessive magnetism"
+    },
+    {
+      "planets": ["Mars", "Pluto"],
+      "effects": { "attraction": 6, "toxicity": 4 },
+      "label": "intense sexual force"
+    }
+  ],
+  "index_thresholds": {
+    "attraction": [
+      { "max": 5, "label": "weak" },
+      { "max": 12, "label": "moderate" },
+      { "max": 20, "label": "strong" },
+      { "max": 999, "label": "obsessive" }
+    ],
+    "toxicity": [
+      { "max": 5, "label": "safe" },
+      { "max": 12, "label": "unstable" },
+      { "max": 999, "label": "toxic" }
+    ]
+  },
+  "classifiers": {
+    "strong_relationship": {
+      "conditions": {
+        "attraction_min": 13,
+        "long_term_min": 10,
+        "toxicity_max": 12
+      },
+      "label": "strong relationship potential"
+    },
+    "toxic_attraction": {
+      "conditions": {
+        "attraction_min": 13,
+        "toxicity_min": 13
+      },
+      "label": "toxic attraction"
+    },
+    "stable_but_low_chemistry": {
+      "conditions": {
+        "attraction_max": 5,
+        "long_term_min": 10
+      },
+      "label": "stable but low-chemistry"
+    },
+    "chaotic_on_off": {
+      "conditions": {
+        "toxicity_min": 13,
+        "long_term_max": 5
+      },
+      "label": "chaotic / on-off"
+    }
+  },
+  "green_flags": [
+    "5th house overlays",
+    "7th house overlays",
+    "Venus-Mars aspects",
+    "Moon harmony"
+  ],
+  "red_flags": [
+    "heavy 12th house overlays",
+    "Neptune hard aspects",
+    "Pluto hard aspects",
+    "harsh Saturn contacts"
+  ]
+}

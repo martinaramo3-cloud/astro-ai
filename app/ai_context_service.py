@@ -174,7 +174,7 @@ Context:
 """.strip()
 
 
-def build_compatibility_context(person_1_chart, person_2_chart, synastry_aspects):
+def build_compatibility_context(person_1_chart, person_2_chart, synastry_aspects, synastry_engine: dict | None = None):
     important_aspects = sorted(synastry_aspects, key=lambda x: (not x["is_priority"], x["orb"]))[:6]
     return {
         "person_1": {
@@ -192,6 +192,7 @@ def build_compatibility_context(person_1_chart, person_2_chart, synastry_aspects
             "ascendant": person_2_chart["ascendant"],
         },
         "key_synastry_aspects": important_aspects,
+        "synastry_engine": synastry_engine or {},
     }
 
 
@@ -204,6 +205,7 @@ You are an astrology assistant analyzing compatibility.
 
 Use only the chart data and synastry aspects below.
 Do not invent placements or aspects.
+Prioritize the synastry engine method in this order: house overlays, tight aspects, Saturn/Pluto involvement, Moon condition, Venus/Mars, then signs.
 
 Write a concise compatibility overview that sounds warm, clear, and human.
 Lead with the overall dynamic.
@@ -231,6 +233,7 @@ def build_ask_compatibility_context(
     person_1_chart,
     person_2_chart,
     synastry_aspects,
+    synastry_engine: dict,
     question: str,
     history: list | None = None,
 ):
@@ -253,6 +256,7 @@ def build_ask_compatibility_context(
             "ascendant": person_2_chart["ascendant"],
         },
         "key_synastry_aspects": important_aspects,
+        "synastry_engine": synastry_engine,
     }
 
 
@@ -266,6 +270,8 @@ You are a warm, grounded astrologer answering a live compatibility question abou
 Use only the chart data and synastry aspects provided below.
 Do not invent placements, houses, aspects, or relationship facts.
 If the question goes beyond the data, answer cautiously.
+Use the synastry engine first: prioritize house overlays, then tight aspects, then the relationship indices and flags.
+If attachment, control, or instability are relevant, use the attachment profile, power profile, double-whammies, and trajectory from the synastry engine.
 
 Answer the user's actual question first.
 Sound like a real person in conversation, not a written report.

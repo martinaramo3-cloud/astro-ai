@@ -10,6 +10,16 @@ type User = {
   birth_date: string;
   birth_time: string;
   birth_place: string;
+  subscription_tier?: string;
+};
+
+type UsageStatus = {
+  tier: string;
+  tier_label: string;
+  model: string;
+  daily_limit: number | null;
+  used_today: number;
+  remaining_today: number | null;
 };
 
 type SavedProfile = {
@@ -24,6 +34,21 @@ type SavedProfile = {
 };
 
 type Message = { role: "user" | "assistant"; content: string };
+type ChatSession = {
+  id: number;
+  owner_user_id: number;
+  profile_id: number | null;
+  title: string;
+  messages: Message[];
+  created_at: string;
+  updated_at: string;
+};
+
+const DEFAULT_MESSAGE: Message = {
+  role: "assistant",
+  content:
+    "Welcome back. Ask about love, timing, emotional patterns, or your life direction.",
+};
 
 const API_BASE = getBrowserApiBase();
 
@@ -35,8 +60,11 @@ export default function ChatPage() {
   });
 
   const [profiles, setProfiles] = useState<SavedProfile[]>([]);
+  const [sessions, setSessions] = useState<ChatSession[]>([]);
+  const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<SavedProfile | null>(null);
   const [showAddProfile, setShowAddProfile] = useState(false);
+  const [usage, setUsage] = useState<UsageStatus | null>(null);
   const [newProfile, setNewProfile] = useState({
     label: "",
     person_name: "",
@@ -46,13 +74,7 @@ export default function ChatPage() {
     birth_place: "",
   });
 
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: "assistant",
-      content:
-        "Welcome back. Ask about love, timing, emotional patterns, or your life direction.",
-    },
-  ]);
+  const [messages, setMessages] = useState<Message[]>([DEFAULT_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
@@ -68,27 +90,96 @@ export default function ChatPage() {
   }, [messages, loading]);
 
   useEffect(() => {
-    const loadProfiles = async () => {
+    const loadData = async () => {
       if (!user) return;
 
       try {
-        const res = await fetch(`${API_BASE}/profiles/${user.id}`);
-        const data = await res.json();
-        if (res.ok) {
-          setProfiles(data);
-        }
+        const [profilesRes, sessionsRes] = await Promise.all([
+          fetch(`${API_BASE}/profiles/${user.id}`),
+          fetch(`${API_BASE}/chat-sessions/${user.id}`),
+        ]);
+        const profilesData = await profilesRes.json();
+        const sessionsData = await sessionsRes.json();
+        if (profilesRes.ok) setProfiles(profilesData);
+        if (sessionsRes.ok) setSessions(sessionsData);
       } catch (e) {
-        console.error("Failed to load profiles", e);
+        console.error("Failed to load chat data", e);
       }
     };
 
-    loadProfiles();
+    loadData();
   }, [user]);
 
   const profileLine = useMemo(() => {
     if (!user) return "Loading chart profile...";
     return `${user.name} · ${user.birth_date} · ${user.birth_time} · ${user.birth_place}`;
   }, [user]);
+
+  const buildSessionTitle = (history: Message[]) => {
+    const firstUserMessage = history.find((message) => message.role === "user")?.content?.trim();
+    if (!firstUserMessage) {
+      return selectedProfile ? `Chat with ${selectedProfile.label}` : "New chart chat";
+    }
+
+    const compact = firstUserMessage.replace(/\s+/g, " ").trim();
+    return compact.length > 52 ? `${compact.slice(0, 52)}...` : compact;
+  };
+
+  const persistSession = async (history: Message[]) => {
+    if (!user) return;
+
+    const title = buildSessionTitle(history);
+    const payload = {
+      title,
+      profile_id: selectedProfile?.id ?? null,
+      messages: history,
+    };
+
+    try {
+      const response = await fetch(
+        currentSessionId
+          ? `${API_BASE}/chat-sessions/${currentSessionId}`
+          : `${API_BASE}/chat-sessions`,
+        {
+          method: currentSessionId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(
+            currentSessionId
+              ? payload
+              : {
+                  owner_user_id: user.id,
+                  ...payload,
+                },
+          ),
+        },
+      );
+      const data = await response.json();
+      if (!response.ok) return;
+
+      setCurrentSessionId(data.id);
+      setSessions((prev) => {
+        const next = [data, ...prev.filter((session) => session.id !== data.id)];
+        return next;
+      });
+    } catch (error) {
+      console.error("Failed to persist session", error);
+    }
+  };
+
+  const startNewChat = (profile: SavedProfile | null = selectedProfile) => {
+    setCurrentSessionId(null);
+    setSelectedProfile(profile);
+    setMessages([DEFAULT_MESSAGE]);
+    setInput("");
+  };
+
+  const openSession = (session: ChatSession) => {
+    setCurrentSessionId(session.id);
+    setMessages(session.messages.length ? session.messages : [DEFAULT_MESSAGE]);
+    setInput("");
+    const matchingProfile = profiles.find((profile) => profile.id === session.profile_id) ?? null;
+    setSelectedProfile(matchingProfile);
+  };
 
   const sendMessage = async () => {
     if (!input.trim() || !user || loading) return;
@@ -128,23 +219,27 @@ export default function ChatPage() {
 
       const data = await response.json();
 
-      setMessages((prev) => [
-        ...prev,
+      const finalMessages = [
+        ...nextHistory,
         {
-          role: "assistant",
+          role: "assistant" as const,
           content: response.ok
             ? data.answer || "No answer came back."
             : data.detail || "The astrologer service returned an error.",
         },
-      ]);
+      ];
+      setMessages(finalMessages);
+      await persistSession(finalMessages);
     } catch {
-      setMessages((prev) => [
-        ...prev,
+      const fallbackMessages = [
+        ...nextHistory,
         {
-          role: "assistant",
+          role: "assistant" as const,
           content: "Something went wrong connecting to the backend.",
         },
-      ]);
+      ];
+      setMessages(fallbackMessages);
+      await persistSession(fallbackMessages);
     }
 
     setLoading(false);
@@ -219,6 +314,49 @@ export default function ChatPage() {
           <div className="mt-6">
             <div className="flex items-center justify-between">
               <p className="text-sm uppercase tracking-[0.24em] text-white/45">
+                Chats
+              </p>
+              <button
+                onClick={() => startNewChat()}
+                className="rounded-full border border-white/15 px-3 py-1 text-xs hover:bg-white/10"
+              >
+                + New
+              </button>
+            </div>
+
+            <div className="mt-3 space-y-2">
+              {sessions.length === 0 ? (
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/55">
+                  Your saved chat history will appear here.
+                </div>
+              ) : (
+                sessions.map((session) => {
+                  const profile = profiles.find((item) => item.id === session.profile_id);
+                  const isActive = session.id === currentSessionId;
+                  return (
+                    <button
+                      key={session.id}
+                      onClick={() => openSession(session)}
+                      className={`w-full rounded-2xl px-4 py-3 text-left text-sm ${
+                        isActive
+                          ? "bg-white text-slate-950"
+                          : "border border-white/10 bg-white/5 text-white"
+                      }`}
+                    >
+                      <div className="font-medium">{session.title}</div>
+                      <div className="text-xs opacity-75">
+                        {profile ? `You + ${profile.label}` : "Just me"}
+                      </div>
+                    </button>
+                  );
+                })
+              )}
+            </div>
+          </div>
+
+          <div className="mt-6">
+            <div className="flex items-center justify-between">
+              <p className="text-sm uppercase tracking-[0.24em] text-white/45">
                 Saved people
               </p>
               <button
@@ -231,7 +369,7 @@ export default function ChatPage() {
 
             <div className="mt-3 space-y-2">
               <button
-                onClick={() => setSelectedProfile(null)}
+                onClick={() => startNewChat(null)}
                 className={`w-full rounded-2xl px-4 py-3 text-left text-sm ${
                   !selectedProfile
                     ? "bg-white text-slate-950"
@@ -244,7 +382,7 @@ export default function ChatPage() {
               {profiles.map((profile) => (
                 <button
                   key={profile.id}
-                  onClick={() => setSelectedProfile(profile)}
+                  onClick={() => startNewChat(profile)}
                   className={`w-full rounded-2xl px-4 py-3 text-left text-sm ${
                     selectedProfile?.id === profile.id
                       ? "bg-white text-slate-950"
