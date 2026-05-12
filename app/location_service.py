@@ -32,32 +32,37 @@ def _normalize_location_result(place_name: str, latitude: float, longitude: floa
 
 
 def get_nominatim_location_data(place_name: str) -> Optional[dict]:
+    """Try Photon (Komoot) first — same OSM data, different servers, no rate-limit issues."""
     try:
-        url = "https://nominatim.openstreetmap.org/search"
-        params = {"q": place_name, "format": "json", "addressdetails": 1, "limit": 1}
+        url = "https://photon.komoot.io/api/"
+        params = {"q": place_name, "limit": 1}
         headers = {"User-Agent": USER_AGENT}
         response = requests.get(url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
-        results = response.json()
-        if not results:
+        data = response.json()
+        features = data.get("features", [])
+        if not features:
             return None
 
-        place = results[0]
-        latitude = float(place["lat"])
-        longitude = float(place["lon"])
-        address = place.get("address", {})
+        feature = features[0]
+        coords = feature["geometry"]["coordinates"]
+        longitude = float(coords[0])
+        latitude = float(coords[1])
+        props = feature.get("properties", {})
         timezone = get_timezone_from_coordinates(latitude, longitude)
-        city = address.get("city") or address.get("town") or address.get("village") or address.get("municipality")
+        city = props.get("city") or props.get("name")
+        country = props.get("country")
+        display = ", ".join(filter(None, [props.get("name"), props.get("city"), props.get("state"), country]))
         return _normalize_location_result(
-            place_name=place.get("display_name", place_name),
+            place_name=display or place_name,
             latitude=latitude,
             longitude=longitude,
             timezone=timezone,
-            country=address.get("country"),
+            country=country,
             city=city,
         )
     except Exception as exc:
-        print("Nominatim error:", exc)
+        print("Photon error:", exc)
         return None
 
 
