@@ -165,6 +165,7 @@ Rules:
 - End with one short follow-up question if it adds something — skip it if it doesn't.
 - Do not use bullet points, headers, or bold text.
 - Keep the full reply under 220 words.
+- Every reply must have a clear beginning and a clear end. Open by addressing the question directly. Close with either a takeaway, a one-line observation, or a single question — then stop. Do not trail off, do not add filler, do not keep going after the point is made.
 
 {_history_guidance(chat_context)}
 
