@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getBrowserApiBase } from "../../lib/api";
+import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 
 type User = {
   id: number;
@@ -441,12 +442,10 @@ export default function ChatPage() {
                   }
                   className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
                 />
-                <input
-                  placeholder="Birth place"
+                <PlaceAutocomplete
                   value={newProfile.birth_place}
-                  onChange={(e) =>
-                    setNewProfile({ ...newProfile, birth_place: e.target.value })
-                  }
+                  onChange={(v) => setNewProfile({ ...newProfile, birth_place: v })}
+                  placeholder="Birth place"
                   className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
                 />
                 <button

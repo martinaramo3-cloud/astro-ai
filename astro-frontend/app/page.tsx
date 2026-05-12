@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { getBrowserApiBase } from "../lib/api";
+import PlaceAutocomplete from "../components/PlaceAutocomplete";
 
 const API_BASE = getBrowserApiBase();
 
@@ -155,7 +156,7 @@ export default function Home() {
                   <input name="birth_date" type="date" value={form.birth_date} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
                   <input name="birth_time" type="time" value={form.birth_time} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
                 </div>
-                <input name="birth_place" placeholder="Birth place, e.g. Paris, France" value={form.birth_place} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
+                <PlaceAutocomplete value={form.birth_place} onChange={(v) => setForm({ ...form, birth_place: v })} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
                 <button onClick={handleSignup} disabled={loading} className="w-full rounded-2xl bg-gradient-to-r from-violet-200 to-white px-5 py-3 font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60">
                   {loading ? "Creating account..." : "Create account"}
                 </button>
