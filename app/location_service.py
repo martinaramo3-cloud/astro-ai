@@ -10,7 +10,7 @@ from timezonefinder import TimezoneFinder
 GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY")
 TIMEZONE_FINDER = TimezoneFinder()
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-USER_AGENT = "ai-horoscope-backend/1.0"
+USER_AGENT = "AstraeaStudio/1.0 (astrology chart app; github.com/martinaramo3-cloud/astro-ai)"
 
 
 def get_timezone_from_coordinates(latitude: float, longitude: float) -> Optional[str]:
@@ -33,18 +33,25 @@ def _normalize_location_result(place_name: str, latitude: float, longitude: floa
 
 def get_nominatim_location_data(place_name: str) -> Optional[dict]:
     try:
-        geolocator = Nominatim(user_agent=USER_AGENT, ssl_context=SSL_CONTEXT)
-        location = geolocator.geocode(place_name, addressdetails=True, timeout=10)
-        if not location:
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {"q": place_name, "format": "json", "addressdetails": 1, "limit": 1}
+        headers = {"User-Agent": USER_AGENT}
+        response = requests.get(url, params=params, headers=headers, timeout=10)
+        response.raise_for_status()
+        results = response.json()
+        if not results:
             return None
 
-        address = location.raw.get("address", {})
-        timezone = get_timezone_from_coordinates(location.latitude, location.longitude)
+        place = results[0]
+        latitude = float(place["lat"])
+        longitude = float(place["lon"])
+        address = place.get("address", {})
+        timezone = get_timezone_from_coordinates(latitude, longitude)
         city = address.get("city") or address.get("town") or address.get("village") or address.get("municipality")
         return _normalize_location_result(
-            place_name=location.address,
-            latitude=location.latitude,
-            longitude=location.longitude,
+            place_name=place.get("display_name", place_name),
+            latitude=latitude,
+            longitude=longitude,
             timezone=timezone,
             country=address.get("country"),
             city=city,
