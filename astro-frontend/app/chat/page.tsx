@@ -209,6 +209,7 @@ export default function ChatPage() {
             birth_place: user.birth_place,
             question: userText,
             history: nextHistory,
+            user_id: user.id,
           };
 
       const response = await fetch(endpoint, {
