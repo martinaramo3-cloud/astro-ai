@@ -86,6 +86,11 @@ export default function ChatPage() {
     }
   }, [user]);
 
+  // Ping backend immediately so Render wakes up before the user sends a message
+  useEffect(() => {
+    fetch(`${API_BASE}/health`).catch(() => {});
+  }, []);
+
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, loading]);
@@ -195,58 +200,70 @@ export default function ChatPage() {
     setInput("");
     setLoading(true);
 
-    try {
-      const endpoint = selectedProfile
-        ? `${API_BASE}/ask-saved-compatibility`
-        : `${API_BASE}/ask-astrologer`;
+    const endpoint = selectedProfile
+      ? `${API_BASE}/ask-saved-compatibility`
+      : `${API_BASE}/ask-astrologer`;
 
-      const body = selectedProfile
-        ? {
-            owner_user_id: user.id,
-            profile_id: selectedProfile.id,
-            question: userText,
-            history: nextHistory,
-          }
-        : {
-            birth_date: user.birth_date,
-            birth_time: user.birth_time,
-            birth_place: user.birth_place,
-            question: userText,
-            history: nextHistory,
-            user_id: user.id,
-          };
+    const body = selectedProfile
+      ? {
+          owner_user_id: user.id,
+          profile_id: selectedProfile.id,
+          question: userText,
+          history: nextHistory,
+        }
+      : {
+          birth_date: user.birth_date,
+          birth_time: user.birth_time,
+          birth_place: user.birth_place,
+          question: userText,
+          history: nextHistory,
+          user_id: user.id,
+        };
 
-      const response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+    const attemptFetch = async (attemptsLeft: number): Promise<void> => {
+      try {
+        const response = await fetch(endpoint, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
 
-      const data = await response.json();
+        const data = await response.json();
 
-      const finalMessages = [
-        ...nextHistory,
-        {
-          role: "assistant" as const,
-          content: response.ok
-            ? data.answer || "No answer came back."
-            : data.detail || "The astrologer service returned an error.",
-        },
-      ];
-      setMessages(finalMessages);
-      await persistSession(finalMessages);
-    } catch {
-      const fallbackMessages = [
-        ...nextHistory,
-        {
-          role: "assistant" as const,
-          content: "Something went wrong connecting to the backend.",
-        },
-      ];
-      setMessages(fallbackMessages);
-      await persistSession(fallbackMessages);
-    }
+        const finalMessages = [
+          ...nextHistory,
+          {
+            role: "assistant" as const,
+            content: response.ok
+              ? data.answer || "No answer came back."
+              : data.detail || "The astrologer service returned an error.",
+          },
+        ];
+        setMessages(finalMessages);
+        await persistSession(finalMessages);
+      } catch {
+        if (attemptsLeft > 1) {
+          // Server may be waking up — wait 8s and retry
+          setMessages([
+            ...nextHistory,
+            { role: "assistant" as const, content: "Waking up the server, one moment..." },
+          ]);
+          await new Promise((r) => setTimeout(r, 8000));
+          return attemptFetch(attemptsLeft - 1);
+        }
+        const fallbackMessages = [
+          ...nextHistory,
+          {
+            role: "assistant" as const,
+            content: "The server is taking too long to respond. Please try again in a moment.",
+          },
+        ];
+        setMessages(fallbackMessages);
+        await persistSession(fallbackMessages);
+      }
+    };
 
+    await attemptFetch(3);
     setLoading(false);
   };
 
