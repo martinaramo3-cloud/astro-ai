@@ -18,9 +18,9 @@ type UsageStatus = {
   tier: string;
   tier_label: string;
   model: string;
-  daily_limit: number | null;
-  used_today: number;
-  remaining_today: number | null;
+  daily_token_limit: number | null;
+  tokens_used_today: number;
+  tokens_remaining_today: number | null;
 };
 
 type SavedProfile = {
@@ -95,14 +95,17 @@ export default function ChatPage() {
       if (!user) return;
 
       try {
-        const [profilesRes, sessionsRes] = await Promise.all([
+        const [profilesRes, sessionsRes, usageRes] = await Promise.all([
           fetch(`${API_BASE}/profiles/${user.id}`),
           fetch(`${API_BASE}/chat-sessions/${user.id}`),
+          fetch(`${API_BASE}/subscription/usage/${user.id}`),
         ]);
         const profilesData = await profilesRes.json();
         const sessionsData = await sessionsRes.json();
+        const usageData = await usageRes.json();
         if (profilesRes.ok) setProfiles(profilesData);
         if (sessionsRes.ok) setSessions(sessionsData);
+        if (usageRes.ok) setUsage(usageData);
       } catch (e) {
         console.error("Failed to load chat data", e);
       }
@@ -485,6 +488,26 @@ export default function ChatPage() {
                   : "Clear, premium guidance grounded in your chart."}
               </p>
             </div>
+            {usage && (
+              <div className="flex flex-col items-end gap-1">
+                <span
+                  className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide ${
+                    usage.tier === "premium"
+                      ? "bg-violet-400/20 text-violet-200"
+                      : usage.tier === "standard"
+                      ? "bg-sky-400/20 text-sky-200"
+                      : "bg-white/10 text-white/60"
+                  }`}
+                >
+                  {usage.tier === "premium" ? "✦ Premium" : usage.tier === "standard" ? "◈ Standard" : "Free"}
+                </span>
+                <span className="text-xs text-white/35">
+                  {usage.daily_token_limit
+                    ? `${usage.tokens_used_today.toLocaleString()} / ${usage.daily_token_limit.toLocaleString()} tokens`
+                    : "Unlimited tokens"}
+                </span>
+              </div>
+            )}
           </div>
 
           <div className="flex-1 space-y-4 overflow-y-auto px-2 pb-4">

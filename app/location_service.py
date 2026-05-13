@@ -32,22 +32,40 @@ def _normalize_location_result(place_name: str, latitude: float, longitude: floa
 
 
 def get_nominatim_location_data(place_name: str) -> Optional[dict]:
-    """Try Photon (Komoot) first — same OSM data, different servers, no rate-limit issues."""
+    try:
+        geolocator = Nominatim(user_agent=USER_AGENT, ssl_context=SSL_CONTEXT)
+        location = geolocator.geocode(place_name, addressdetails=True, timeout=10)
+        if not location:
+            return None
+        address = location.raw.get("address", {})
+        timezone = get_timezone_from_coordinates(location.latitude, location.longitude)
+        city = address.get("city") or address.get("town") or address.get("village") or address.get("municipality")
+        return _normalize_location_result(
+            place_name=location.address,
+            latitude=location.latitude,
+            longitude=location.longitude,
+            timezone=timezone,
+            country=address.get("country"),
+            city=city,
+        )
+    except Exception as exc:
+        print("Nominatim error:", exc)
+        return None
+
+
+def get_photon_location_data(place_name: str) -> Optional[dict]:
     try:
         url = "https://photon.komoot.io/api/"
         params = {"q": place_name, "limit": 1}
         headers = {"User-Agent": USER_AGENT}
         response = requests.get(url, params=params, headers=headers, timeout=10)
         response.raise_for_status()
-        data = response.json()
-        features = data.get("features", [])
+        features = response.json().get("features", [])
         if not features:
             return None
-
         feature = features[0]
         coords = feature["geometry"]["coordinates"]
-        longitude = float(coords[0])
-        latitude = float(coords[1])
+        longitude, latitude = float(coords[0]), float(coords[1])
         props = feature.get("properties", {})
         timezone = get_timezone_from_coordinates(latitude, longitude)
         city = props.get("city") or props.get("name")
