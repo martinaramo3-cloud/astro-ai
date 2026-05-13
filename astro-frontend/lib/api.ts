@@ -1,6 +1,7 @@
 const PRODUCTION_BACKEND = "https://ai-horoscope-api.onrender.com";
 const PUBLIC_API_BASE = process.env.NEXT_PUBLIC_API_URL?.trim();
 const PRIVATE_BACKEND_URL = process.env.BACKEND_URL?.trim();
+const PRODUCTION_BACKEND = "https://ai-horoscope-api.onrender.com";
 
 function normalize(url: string) {
   return url.replace(/\/$/, "");
