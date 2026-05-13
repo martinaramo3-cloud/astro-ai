@@ -96,13 +96,12 @@ def get_location_data(place_name: str) -> Optional[dict]:
 
     clean_place = place_name.strip()
 
-    # Prefer the free/open lookup first so the app still works even without Geoapify.
+    geoapify_data = get_geoapify_location_data(clean_place)
+    if geoapify_data and geoapify_data.get("timezone"):
+        return geoapify_data
+
     location_data = get_nominatim_location_data(clean_place)
     if location_data and location_data.get("timezone"):
         return location_data
 
-    geoapify_data = get_geoapify_location_data(clean_place)
-    if geoapify_data:
-        return geoapify_data
-
-    return location_data
+    return geoapify_data or location_data
