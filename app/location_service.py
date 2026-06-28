@@ -130,8 +130,12 @@ def get_location_data(place_name: str) -> Optional[dict]:
     if geoapify_data and geoapify_data.get("timezone"):
         return geoapify_data
 
-    location_data = get_nominatim_location_data(clean_place)
-    if location_data and location_data.get("timezone"):
-        return location_data
+    nominatim_data = get_nominatim_location_data(clean_place)
+    if nominatim_data and nominatim_data.get("timezone"):
+        return nominatim_data
 
-    return geoapify_data or location_data
+    photon_data = get_photon_location_data(clean_place)
+    if photon_data and photon_data.get("timezone"):
+        return photon_data
+
+    return geoapify_data or nominatim_data or photon_data

@@ -1,17 +1,10 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { getBrowserApiBase } from "../lib/api";
 import PlaceAutocomplete from "../components/PlaceAutocomplete";
 
 const API_BASE = getBrowserApiBase();
-
-const highlights = [
-  "Chart readings grounded in real placement logic, not generic copy",
-  "A premium astrology experience with a clean, modern interface",
-  "A growing interpretation system you can keep expanding over time",
-];
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -97,31 +90,16 @@ export default function Home() {
   return (
     <main className="px-6 pb-20 pt-10 text-white">
       <section className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="space-y-8 py-10">
-          <div className="inline-flex rounded-full border border-violet-300/20 bg-violet-200/10 px-4 py-2 text-xs uppercase tracking-[0.28em] text-violet-100/80">
-            Luxury astrology, modern delivery
+        <div className="flex flex-col justify-center space-y-6 py-10">
+          <div className="inline-flex w-fit rounded-full border border-violet-300/20 bg-violet-200/10 px-4 py-2 text-xs uppercase tracking-[0.28em] text-violet-100/80">
+            Astraea Studio
           </div>
-          <div className="space-y-5">
-            <h1 className="max-w-3xl text-5xl font-semibold leading-tight md:text-6xl">
-              Cosmic insight, designed like a premium product.
-            </h1>
-            <p className="max-w-2xl text-lg leading-8 text-white/72">
-              Astraea Studio combines your birth data, a structured astrology engine, and elegant AI writing to create readings that feel elevated, personal, and clear.
-            </p>
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3">
-            {highlights.map((item) => (
-              <div key={item} className="glass rounded-3xl p-5 text-sm leading-7 text-white/78">{item}</div>
-            ))}
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <Link href="/chat" className="rounded-full bg-white px-6 py-3 font-medium text-slate-950 transition hover:opacity-90">
-              Open astrologer chat
-            </Link>
-            <Link href="/content" className="rounded-full border border-white/15 bg-white/5 px-6 py-3 font-medium text-white transition hover:bg-white/10">
-              Explore the method
-            </Link>
-          </div>
+          <h1 className="max-w-xl text-5xl font-semibold leading-tight md:text-6xl">
+            The stars have always known.
+          </h1>
+          <p className="max-w-md text-lg leading-8 text-white/60">
+            Ask your astrologer anything — love, timing, patterns. Every answer comes from your chart.
+          </p>
         </div>
 
         <div className="glass rounded-[2rem] p-6 shadow-2xl shadow-violet-950/30">
@@ -183,20 +161,6 @@ export default function Home() {
         </div>
       </section>
 
-      <section className="mx-auto mt-14 max-w-6xl">
-        <div className="glass rounded-[2rem] p-8">
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div>
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">What makes it different</p>
-              <h3 className="mt-3 text-3xl font-semibold">A real interpretation system behind the interface.</h3>
-            </div>
-            <div className="space-y-4 text-sm leading-7 text-white/72 lg:col-span-2">
-              <p>This site is built to evolve into a true astrology product, not just a single prompt box. The frontend is designed to feel polished and premium, while the backend keeps your chart logic, sign meanings, house meanings, and reading structure in one growing system.</p>
-              <p>That means you can keep adding your own knowledge over time while the website stays clean and easy to use.</p>
-            </div>
-          </div>
-        </div>
-      </section>
     </main>
   );
 }

@@ -1,11 +1,15 @@
 @import "tailwindcss";
 
 :root {
-  --background: #050816;
-  --foreground: #f6f0ff;
+  --background: #030611;
+  --foreground: #f8f4ff;
   --muted: #a7a7c7;
-  --panel: rgba(13, 18, 40, 0.72);
-  --border: rgba(255, 255, 255, 0.12);
+  --panel: rgba(8, 12, 32, 0.78);
+  --border: rgba(255, 255, 255, 0.09);
+  --gold: #c9a84c;
+  --gold-light: #e8d5a3;
+  --rose: #d4a0a8;
+  --violet: #9b79ff;
 }
 
 @theme inline {
@@ -15,42 +19,55 @@
   --font-mono: var(--font-geist-mono);
 }
 
-* {
-  box-sizing: border-box;
-}
-
-html {
-  scroll-behavior: smooth;
-}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
 
 body {
   min-height: 100vh;
   background:
-    radial-gradient(circle at top, rgba(126, 87, 255, 0.22), transparent 30%),
-    radial-gradient(circle at 20% 20%, rgba(55, 180, 255, 0.14), transparent 22%),
-    radial-gradient(circle at 80% 10%, rgba(255, 214, 102, 0.08), transparent 18%),
-    linear-gradient(180deg, #070b1f 0%, #060814 44%, #04060e 100%);
+    radial-gradient(ellipse 90% 55% at 50% -5%, rgba(110, 70, 255, 0.2), transparent),
+    radial-gradient(ellipse 45% 35% at 85% 15%, rgba(180, 140, 255, 0.1), transparent),
+    radial-gradient(ellipse 55% 40% at 8% 65%, rgba(70, 100, 255, 0.07), transparent),
+    radial-gradient(ellipse 35% 25% at 30% 90%, rgba(200, 100, 180, 0.06), transparent),
+    linear-gradient(180deg, #07091d 0%, #050810 50%, #030611 100%);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+a { color: inherit; text-decoration: none; }
+input, textarea, button { font: inherit; }
+::selection { background: rgba(171, 130, 255, 0.35); }
+
+/* Thin luxury scrollbar */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, rgba(155, 121, 255, 0.4), rgba(200, 140, 200, 0.3));
+  border-radius: 2px;
 }
 
-input, textarea, button {
-  font: inherit;
-}
-
-::selection {
-  background: rgba(171, 130, 255, 0.35);
-}
-
+/* ─── Glass panels ─── */
 .glass {
   background: var(--panel);
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
   border: 1px solid var(--border);
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+
+/* ─── Twinkling stars ─── */
+@keyframes twinkle-a {
+  0%, 100% { opacity: 0.2; }
+  50% { opacity: 1; }
+}
+@keyframes twinkle-b {
+  0%, 100% { opacity: 0.7; }
+  50% { opacity: 0.05; }
+}
+@keyframes twinkle-c {
+  0%, 100% { opacity: 0.5; }
+  35% { opacity: 1; }
+  70% { opacity: 0.15; }
 }
 
 .starfield::before {
@@ -58,12 +75,135 @@ input, textarea, button {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.45;
+  z-index: 0;
   background-image:
-    radial-gradient(2px 2px at 20px 30px, rgba(255,255,255,0.75), transparent),
-    radial-gradient(2px 2px at 40px 70px, rgba(255,255,255,0.55), transparent),
-    radial-gradient(1.5px 1.5px at 50px 160px, rgba(255,255,255,0.4), transparent),
-    radial-gradient(2px 2px at 90px 40px, rgba(255,255,255,0.65), transparent),
-    radial-gradient(1.5px 1.5px at 130px 80px, rgba(255,255,255,0.35), transparent);
-  background-size: 200px 200px;
+    radial-gradient(1.5px 1.5px at 8%  12%, rgba(255,255,255,0.95), transparent),
+    radial-gradient(1px   1px   at 17% 55%, rgba(255,255,255,0.7),  transparent),
+    radial-gradient(2px   2px   at 27% 8%,  rgba(255,255,255,0.85), transparent),
+    radial-gradient(1px   1px   at 38% 33%, rgba(255,255,255,0.6),  transparent),
+    radial-gradient(1.5px 1.5px at 49% 72%, rgba(255,255,255,0.8),  transparent),
+    radial-gradient(1px   1px   at 61% 18%, rgba(255,255,255,0.55), transparent),
+    radial-gradient(2px   2px   at 73% 45%, rgba(255,255,255,0.9),  transparent),
+    radial-gradient(1px   1px   at 82% 80%, rgba(255,255,255,0.5),  transparent),
+    radial-gradient(1.5px 1.5px at 91% 28%, rgba(255,255,255,0.75), transparent),
+    radial-gradient(1px   1px   at 5%  88%, rgba(255,255,255,0.6),  transparent),
+    radial-gradient(1px   1px   at 44% 50%, rgba(200,180,255,0.9),  transparent),
+    radial-gradient(1px   1px   at 23% 40%, rgba(255,230,200,0.7),  transparent),
+    radial-gradient(1px   1px   at 66% 92%, rgba(200,220,255,0.65), transparent),
+    radial-gradient(1px   1px   at 88% 60%, rgba(255,200,220,0.6),  transparent);
+  background-size: 100vw 100vh;
+  animation: twinkle-a 4.5s ease-in-out infinite;
+}
+
+.starfield::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image:
+    radial-gradient(1px   1px   at 12% 42%, rgba(255,255,255,0.65), transparent),
+    radial-gradient(1.5px 1.5px at 32% 15%, rgba(255,255,255,0.85), transparent),
+    radial-gradient(1px   1px   at 53% 67%, rgba(255,255,255,0.5),  transparent),
+    radial-gradient(2px   2px   at 71% 28%, rgba(255,255,255,0.8),  transparent),
+    radial-gradient(1px   1px   at 87% 75%, rgba(255,255,255,0.45), transparent),
+    radial-gradient(1px   1px   at 19% 92%, rgba(255,255,255,0.6),  transparent),
+    radial-gradient(1.5px 1.5px at 64% 95%, rgba(255,255,255,0.7),  transparent),
+    radial-gradient(1px   1px   at 41% 78%, rgba(200,180,255,0.7),  transparent),
+    radial-gradient(1px   1px   at 79% 52%, rgba(255,240,200,0.55), transparent),
+    radial-gradient(1px   1px   at 96% 18%, rgba(255,255,255,0.5),  transparent),
+    radial-gradient(1px   1px   at 3%  35%, rgba(255,255,255,0.65), transparent);
+  background-size: 100vw 100vh;
+  animation: twinkle-b 6.5s ease-in-out infinite 2.2s;
+}
+
+/* ─── Floating moon ─── */
+@keyframes moon-float {
+  0%, 100% {
+    transform: translateY(0px) rotate(-4deg);
+    filter: drop-shadow(0 0 16px rgba(190, 160, 255, 0.4));
+  }
+  50% {
+    transform: translateY(-16px) rotate(4deg);
+    filter: drop-shadow(0 0 32px rgba(190, 160, 255, 0.65));
+  }
+}
+
+.moon-decor {
+  position: fixed;
+  top: 10%;
+  right: 5%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  box-shadow:
+    inset -14px -5px 0 3px rgba(220, 200, 255, 0.75),
+    0 0 0 1px rgba(200, 170, 255, 0.12);
+  pointer-events: none;
+  z-index: 1;
+  animation: moon-float 10s ease-in-out infinite;
+  opacity: 0.5;
+}
+
+/* ─── Ambient drifting orbs ─── */
+@keyframes orb-a {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  33% { transform: translate(60px, -40px) scale(1.08); }
+  66% { transform: translate(-30px, 50px) scale(0.94); }
+}
+@keyframes orb-b {
+  0%, 100% { transform: translate(0px, 0px) scale(1); }
+  40% { transform: translate(-50px, 30px) scale(1.05); }
+  80% { transform: translate(40px, -20px) scale(0.97); }
+}
+
+.orb {
+  position: fixed;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+.orb-1 {
+  width: 420px;
+  height: 420px;
+  top: -80px;
+  left: -100px;
+  background: radial-gradient(circle, rgba(100, 70, 220, 0.12) 0%, transparent 70%);
+  filter: blur(60px);
+  animation: orb-a 22s ease-in-out infinite;
+}
+.orb-2 {
+  width: 380px;
+  height: 380px;
+  bottom: -60px;
+  right: -80px;
+  background: radial-gradient(circle, rgba(180, 80, 160, 0.1) 0%, transparent 70%);
+  filter: blur(55px);
+  animation: orb-b 28s ease-in-out infinite 4s;
+}
+.orb-3 {
+  width: 300px;
+  height: 300px;
+  top: 40%;
+  left: 35%;
+  background: radial-gradient(circle, rgba(80, 120, 220, 0.07) 0%, transparent 70%);
+  filter: blur(70px);
+  animation: orb-a 35s ease-in-out infinite 8s;
+}
+
+/* ─── Floating particles ─── */
+@keyframes particle-rise {
+  0%   { transform: translateY(0px) translateX(0px) scale(1);   opacity: 1; }
+  40%  { opacity: 0.8; }
+  100% { transform: translateY(-110px) translateX(var(--drift, 8px)) scale(0.5); opacity: 0; }
+}
+
+.particle {
+  position: absolute;
+  pointer-events: none;
+  animation: particle-rise var(--dur, 2.8s) ease-out forwards;
+  animation-delay: var(--delay, 0s);
+  font-size: var(--sz, 15px);
+  z-index: 20;
+  user-select: none;
 }

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { getBrowserApiBase } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
+import FloatingParticles from "../../components/FloatingParticles";
 
 type User = {
   id: number;
@@ -78,7 +79,11 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([DEFAULT_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [particleTrigger, setParticleTrigger] = useState<string | null>(null);
+  const [wakingUp, setWakingUp] = useState(false);
+  const [wakeSeconds, setWakeSeconds] = useState(0);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const wakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (user === null) {
@@ -86,9 +91,39 @@ export default function ChatPage() {
     }
   }, [user]);
 
-  // Ping backend immediately so Render wakes up before the user sends a message
+  // Ping backend on load; if it doesn't respond quickly, show a waking-up banner
   useEffect(() => {
-    fetch(`${API_BASE}/health`).catch(() => {});
+    let cancelled = false;
+    let secondsElapsed = 0;
+
+    const tryPing = () => {
+      fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) })
+        .then(() => {
+          if (cancelled) return;
+          setWakingUp(false);
+          if (wakeIntervalRef.current) clearInterval(wakeIntervalRef.current);
+        })
+        .catch(() => {
+          if (cancelled) return;
+          setWakingUp(true);
+        });
+    };
+
+    tryPing();
+
+    const poll = setInterval(() => {
+      if (cancelled) return;
+      secondsElapsed += 1;
+      setWakeSeconds(secondsElapsed);
+      tryPing();
+    }, 5000);
+
+    wakeIntervalRef.current = poll;
+
+    return () => {
+      cancelled = true;
+      clearInterval(poll);
+    };
   }, []);
 
   useEffect(() => {
@@ -229,33 +264,31 @@ export default function ChatPage() {
         });
 
         const data = await response.json();
+        setWakingUp(false);
+
+        const answerText = response.ok
+          ? data.answer || "No answer came back."
+          : data.detail || "The astrologer service returned an error.";
 
         const finalMessages = [
           ...nextHistory,
-          {
-            role: "assistant" as const,
-            content: response.ok
-              ? data.answer || "No answer came back."
-              : data.detail || "The astrologer service returned an error.",
-          },
+          { role: "assistant" as const, content: answerText },
         ];
         setMessages(finalMessages);
+        setParticleTrigger(answerText + "|" + Date.now());
         await persistSession(finalMessages);
       } catch {
         if (attemptsLeft > 1) {
-          // Server may be waking up — wait 8s and retry
-          setMessages([
-            ...nextHistory,
-            { role: "assistant" as const, content: "Waking up the server, one moment..." },
-          ]);
-          await new Promise((r) => setTimeout(r, 8000));
+          setWakingUp(true);
+          await new Promise((r) => setTimeout(r, 12000));
           return attemptFetch(attemptsLeft - 1);
         }
+        setWakingUp(false);
         const fallbackMessages = [
           ...nextHistory,
           {
             role: "assistant" as const,
-            content: "The server is taking too long to respond. Please try again in a moment.",
+            content: "The server is still waking up. Wait a moment and try again — it usually takes under a minute.",
           },
         ];
         setMessages(fallbackMessages);
@@ -263,7 +296,7 @@ export default function ChatPage() {
       }
     };
 
-    await attemptFetch(3);
+    await attemptFetch(4);
     setLoading(false);
   };
 
@@ -493,7 +526,8 @@ export default function ChatPage() {
           </button>
         </aside>
 
-        <section className="glass flex min-h-[72vh] flex-col rounded-[2rem] p-5">
+        <section className="glass relative flex min-h-[72vh] flex-col rounded-[2rem] p-5">
+          <FloatingParticles trigger={particleTrigger} />
           <div className="mb-4 flex items-center justify-between border-b border-white/10 px-2 pb-4">
             <div>
               <p className="text-sm uppercase tracking-[0.24em] text-white/45">
@@ -526,6 +560,13 @@ export default function ChatPage() {
               </div>
             )}
           </div>
+
+          {wakingUp && (
+            <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-200">
+              <span className="font-semibold">Server is waking up</span> — Render spins down after inactivity. Usually ready in 30–60 seconds.
+              {wakeSeconds > 0 && <span className="ml-2 opacity-60">({wakeSeconds}s)</span>}
+            </div>
+          )}
 
           <div className="flex-1 space-y-4 overflow-y-auto px-2 pb-4">
             {messages.map((message, index) => (
