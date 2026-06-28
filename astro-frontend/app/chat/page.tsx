@@ -80,51 +80,13 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [particleTrigger, setParticleTrigger] = useState<string | null>(null);
-  const [wakingUp, setWakingUp] = useState(false);
-  const [wakeSeconds, setWakeSeconds] = useState(0);
   const endRef = useRef<HTMLDivElement | null>(null);
-  const wakeIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (user === null) {
       window.location.href = "/";
     }
   }, [user]);
-
-  // Ping backend on load; if it doesn't respond quickly, show a waking-up banner
-  useEffect(() => {
-    let cancelled = false;
-    let secondsElapsed = 0;
-
-    const tryPing = () => {
-      fetch(`${API_BASE}/health`, { signal: AbortSignal.timeout(4000) })
-        .then(() => {
-          if (cancelled) return;
-          setWakingUp(false);
-          if (wakeIntervalRef.current) clearInterval(wakeIntervalRef.current);
-        })
-        .catch(() => {
-          if (cancelled) return;
-          setWakingUp(true);
-        });
-    };
-
-    tryPing();
-
-    const poll = setInterval(() => {
-      if (cancelled) return;
-      secondsElapsed += 1;
-      setWakeSeconds(secondsElapsed);
-      tryPing();
-    }, 5000);
-
-    wakeIntervalRef.current = poll;
-
-    return () => {
-      cancelled = true;
-      clearInterval(poll);
-    };
-  }, []);
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -264,7 +226,6 @@ export default function ChatPage() {
         });
 
         const data = await response.json();
-        setWakingUp(false);
 
         const answerText = response.ok
           ? data.answer || "No answer came back."
@@ -279,16 +240,14 @@ export default function ChatPage() {
         await persistSession(finalMessages);
       } catch {
         if (attemptsLeft > 1) {
-          setWakingUp(true);
-          await new Promise((r) => setTimeout(r, 12000));
+          await new Promise((r) => setTimeout(r, 4000));
           return attemptFetch(attemptsLeft - 1);
         }
-        setWakingUp(false);
         const fallbackMessages = [
           ...nextHistory,
           {
             role: "assistant" as const,
-            content: "The server is still waking up. Wait a moment and try again — it usually takes under a minute.",
+            content: "Something went wrong. Please try again.",
           },
         ];
         setMessages(fallbackMessages);
@@ -561,14 +520,7 @@ export default function ChatPage() {
             )}
           </div>
 
-          {wakingUp && (
-            <div className="mb-4 rounded-2xl border border-amber-400/20 bg-amber-400/10 px-5 py-3 text-sm text-amber-200">
-              <span className="font-semibold">Server is waking up</span> — Render spins down after inactivity. Usually ready in 30–60 seconds.
-              {wakeSeconds > 0 && <span className="ml-2 opacity-60">({wakeSeconds}s)</span>}
-            </div>
-          )}
-
-          <div className="flex-1 space-y-4 overflow-y-auto px-2 pb-4">
+<div className="flex-1 space-y-4 overflow-y-auto px-2 pb-4">
             {messages.map((message, index) => (
               <div
                 key={index}
