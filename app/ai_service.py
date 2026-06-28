@@ -41,11 +41,12 @@ def _create_response(prompt: str, model: str, max_output_tokens: int) -> tuple[s
     except HTTPException:
         raise
     except Exception as exc:  # surface the real OpenAI error to the client/logs
-        print("OpenAI error:", repr(exc))
-        raise HTTPException(
-            status_code=502,
-            detail=f"AI service error: {exc}",
-        )
+        cause = getattr(exc, "__cause__", None)
+        detail = f"AI service error: {type(exc).__name__}: {exc}"
+        if cause is not None:
+            detail += f" | underlying: {type(cause).__name__}: {cause}"
+        print("OpenAI error:", repr(exc), "| cause:", repr(cause))
+        raise HTTPException(status_code=502, detail=detail)
     tokens = response.usage.total_tokens if response.usage else 0
     return response.output_text, tokens
 
