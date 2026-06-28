@@ -21,7 +21,8 @@ def _get_client() -> OpenAI:
     """
     global _client
     if _client is None:
-        api_key = os.getenv("OPENAI_API_KEY")
+        # .strip() removes stray whitespace/newlines that break the auth header
+        api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
         if not api_key:
             raise HTTPException(
                 status_code=503,
@@ -40,13 +41,15 @@ def _create_response(prompt: str, model: str, max_output_tokens: int) -> tuple[s
         )
     except HTTPException:
         raise
-    except Exception as exc:  # surface the real OpenAI error to the client/logs
+    except Exception as exc:
+        # Log full detail server-side (Render logs) but never leak it — including
+        # the API key, which can appear in header errors — to the client.
         cause = getattr(exc, "__cause__", None)
-        detail = f"AI service error: {type(exc).__name__}: {exc}"
-        if cause is not None:
-            detail += f" | underlying: {type(cause).__name__}: {cause}"
         print("OpenAI error:", repr(exc), "| cause:", repr(cause))
-        raise HTTPException(status_code=502, detail=detail)
+        raise HTTPException(
+            status_code=502,
+            detail="The astrologer is temporarily unavailable. Please try again in a moment.",
+        )
     tokens = response.usage.total_tokens if response.usage else 0
     return response.output_text, tokens
 
