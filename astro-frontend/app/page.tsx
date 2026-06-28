@@ -24,12 +24,28 @@ export default function Home() {
   };
 
   const validate = () => {
+    if (!form.name.trim()) {
+      setMessage("Please enter your full name.");
+      return false;
+    }
     if (!EMAIL_RE.test(form.email)) {
       setMessage("Please enter a valid email address.");
       return false;
     }
     if (form.password.length < 6) {
       setMessage("Password must be at least 6 characters.");
+      return false;
+    }
+    if (!form.birth_date) {
+      setMessage("Please enter your birth date.");
+      return false;
+    }
+    if (!form.birth_time) {
+      setMessage("Please enter your birth time.");
+      return false;
+    }
+    if (!form.birth_place.trim()) {
+      setMessage("Please enter your birth place.");
       return false;
     }
     return true;
