@@ -32,11 +32,20 @@ def _get_client() -> OpenAI:
 
 
 def _create_response(prompt: str, model: str, max_output_tokens: int) -> tuple[str, int]:
-    response = _get_client().responses.create(
-        model=model,
-        input=prompt,
-        max_output_tokens=max_output_tokens,
-    )
+    try:
+        response = _get_client().responses.create(
+            model=model,
+            input=prompt,
+            max_output_tokens=max_output_tokens,
+        )
+    except HTTPException:
+        raise
+    except Exception as exc:  # surface the real OpenAI error to the client/logs
+        print("OpenAI error:", repr(exc))
+        raise HTTPException(
+            status_code=502,
+            detail=f"AI service error: {exc}",
+        )
     tokens = response.usage.total_tokens if response.usage else 0
     return response.output_text, tokens
 
