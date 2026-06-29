@@ -4,6 +4,16 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { getBrowserApiBase } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import FloatingParticles from "../../components/FloatingParticles";
+import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
+
+const SIGN_GLYPH: Record<string, string> = {
+  Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
+  Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
+};
+const PLANET_GLYPH: Record<string, string> = {
+  Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
+  Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+};
 
 type User = {
   id: number;
@@ -85,6 +95,10 @@ export default function ChatPage() {
   const [particleTrigger, setParticleTrigger] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
+  const [chartOpen, setChartOpen] = useState(false);
+  const [chart, setChart] = useState<NatalChart | null>(null);
+  const [chartLoading, setChartLoading] = useState(false);
+  const [chartError, setChartError] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -133,6 +147,33 @@ export default function ChatPage() {
   const selectModel = (key: string) => {
     setSelectedModel(key);
     if (typeof window !== "undefined") window.localStorage.setItem("model", key);
+  };
+
+  // Fetch and show the user's natal chart wheel (cached after first open).
+  const openChart = async () => {
+    if (!user) return;
+    setSidebarOpen(false);
+    setChartOpen(true);
+    if (chart || chartLoading) return;
+    setChartLoading(true);
+    setChartError("");
+    try {
+      const res = await fetch(`${API_BASE}/natal-chart`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          birth_date: user.birth_date,
+          birth_time: user.birth_time,
+          birth_place: user.birth_place,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) setChart(data);
+      else setChartError(data.detail || "Could not build your chart.");
+    } catch {
+      setChartError("Could not reach the chart service. Try again in a moment.");
+    }
+    setChartLoading(false);
   };
 
   // Re-fetch token usage so the counter reflects what was just spent.
@@ -393,6 +434,13 @@ export default function ChatPage() {
           <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-white/75">
             {profileLine}
           </div>
+
+          <button
+            onClick={openChart}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-violet-300/10 px-4 py-3 text-sm font-medium text-violet-100 transition hover:bg-violet-300/20"
+          >
+            <span className="text-base">✦</span> View my chart
+          </button>
 
           <div className="mt-6">
             <div className="flex items-center justify-between">
@@ -667,6 +715,73 @@ export default function ChatPage() {
           </div>
         </section>
       </div>
+
+      {/* Natal chart modal */}
+      {chartOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+          onClick={() => setChartOpen(false)}
+        >
+          <div
+            className="glass my-auto w-full max-w-lg rounded-[1.8rem] p-5 lg:p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-4 flex items-center justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.24em] text-white/45">Your birth chart</p>
+                <h2 className="mt-1 text-xl font-semibold">{user?.name}</h2>
+              </div>
+              <button
+                onClick={() => setChartOpen(false)}
+                aria-label="Close chart"
+                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-lg transition active:scale-90"
+              >
+                ✕
+              </button>
+            </div>
+
+            {chartLoading && (
+              <div className="flex items-center gap-2 py-10 text-sm text-white/60">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="ml-1">Calculating your chart…</span>
+              </div>
+            )}
+
+            {chartError && (
+              <p className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+                {chartError}
+              </p>
+            )}
+
+            {chart && !chartLoading && (
+              <>
+                <ChartWheel chart={chart} />
+                <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                  <div className="col-span-2 mb-1 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
+                    <span className="text-white/55">Ascendant</span>
+                    <span className="font-medium">
+                      {SIGN_GLYPH[chart.ascendant.sign]} {chart.ascendant.sign}
+                    </span>
+                  </div>
+                  {chart.planet_positions.map((p) => (
+                    <div key={p.planet} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
+                      <span className="text-white/70">
+                        {PLANET_GLYPH[p.planet] ?? "•"} {p.planet}
+                      </span>
+                      <span className="text-right text-white/85">
+                        {SIGN_GLYPH[p.sign]} {Math.floor(p.degree_in_sign)}° · H{p.house}
+                        {p.retrograde ? " ℞" : ""}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </main>
   );
 }
