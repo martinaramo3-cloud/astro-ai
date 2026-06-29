@@ -47,6 +47,8 @@ from app.subscription_service import (
     record_usage,
     get_usage_status,
     set_user_tier,
+    resolve_model,
+    get_user_tier,
     TIERS,
 )
 from app.content_repository import (
@@ -113,6 +115,7 @@ class AstrologyQuestionRequest(BaseModel):
     question: str
     history: Optional[List[ChatMessage]] = None
     user_id: Optional[int] = None
+    model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
 
 
 class PredictiveRequest(BaseModel):
@@ -137,6 +140,7 @@ class AskCompatibilityRequest(BaseModel):
     question: str
     history: Optional[List[ChatMessage]] = None
     user_id: Optional[int] = None
+    model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
 
 class SaveProfileRequest(BaseModel):
     owner_user_id: int
@@ -150,8 +154,9 @@ class SaveProfileRequest(BaseModel):
 class AskSavedCompatibilityRequest(BaseModel):
     owner_user_id: int
     profile_id: int
-    question: str 
+    question: str
     history: Optional[List[ChatMessage]] = None
+    model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
 
 class SignupRequest(BaseModel):
     name: str
@@ -456,6 +461,7 @@ def chart_summary(data: ChartSummaryRequest):
 @app.post("/ask-astrologer")
 def ask_astrologer(data: AstrologyQuestionRequest):
     tier_config = check_usage(data.user_id)
+    model = resolve_model(get_user_tier(data.user_id), data.model)
 
     natal_data = build_natal_chart_data(data)
 
@@ -483,7 +489,7 @@ def ask_astrologer(data: AstrologyQuestionRequest):
     }
 
     prompt = build_ask_astrologer_prompt(chat_context)
-    answer, tokens = generate_astrologer_answer(prompt, model=tier_config["model"])
+    answer, tokens = generate_astrologer_answer(prompt, model=model)
     record_usage(data.user_id, tokens)
 
     return {
@@ -563,6 +569,7 @@ def compatibility_reading(data: CompatibilityRequest):
 @app.post("/ask-compatibility")
 def ask_compatibility(data: AskCompatibilityRequest):
     tier_config = check_usage(data.user_id)
+    model = resolve_model(get_user_tier(data.user_id), data.model)
 
     person_1_chart = build_natal_chart_data(data.person_1)
     person_2_chart = build_natal_chart_data(data.person_2)
@@ -587,7 +594,7 @@ def ask_compatibility(data: AskCompatibilityRequest):
     )
 
     prompt = build_ask_compatibility_prompt(context)
-    answer, tokens = generate_compatibility_answer(prompt, model=tier_config["model"])
+    answer, tokens = generate_compatibility_answer(prompt, model=model)
     record_usage(data.user_id, tokens)
 
     return {
@@ -622,6 +629,7 @@ def ask_saved_compatibility(data: AskSavedCompatibilityRequest):
         question=data.question,
         history=data.history,
         user_id=data.owner_user_id,
+        model=data.model,
     )
 
     return ask_compatibility(compatibility_data)

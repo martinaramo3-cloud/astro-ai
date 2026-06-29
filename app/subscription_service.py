@@ -46,8 +46,45 @@ VALID_TIERS = set(TIERS.keys())
 DEFAULT_TIER = "free"
 
 
+# Friendly model catalog. `key` is the stable id the frontend sends and stores;
+# `id` is the actual OpenAI model name.
+MODELS: dict[str, dict] = {
+    "fast":  {"key": "fast",  "id": "gpt-4.1-mini", "label": "Fast",  "blurb": "Quick, everyday readings"},
+    "smart": {"key": "smart", "id": "gpt-4.1",      "label": "Smart", "blurb": "Deeper, more nuanced answers"},
+    "deep":  {"key": "deep",  "id": "o1",           "label": "Deep",  "blurb": "Most thorough reasoning"},
+}
+
+# Which model keys each tier may use (cheapest first).
+TIER_MODELS: dict[str, list[str]] = {
+    "free":     ["fast"],
+    "standard": ["fast", "smart"],
+    "premium":  ["fast", "smart", "deep"],
+}
+
+
 def get_tier_config(tier: str | None) -> TierConfig:
     return TIERS.get(tier or DEFAULT_TIER, TIERS[DEFAULT_TIER])
+
+
+def available_models_for_tier(tier: str | None) -> list[dict]:
+    """Public-facing list of models a tier can choose from."""
+    keys = TIER_MODELS.get(tier or DEFAULT_TIER, TIER_MODELS[DEFAULT_TIER])
+    return [
+        {"key": MODELS[k]["key"], "label": MODELS[k]["label"], "blurb": MODELS[k]["blurb"]}
+        for k in keys
+    ]
+
+
+def resolve_model(tier: str | None, requested_key: str | None) -> str:
+    """Return the OpenAI model id for a tier, honoring a valid user choice.
+
+    Never trust the client to gate this: if the requested model isn't available
+    to the user's tier, fall back to the tier's default model.
+    """
+    allowed = TIER_MODELS.get(tier or DEFAULT_TIER, TIER_MODELS[DEFAULT_TIER])
+    if requested_key in allowed:
+        return MODELS[requested_key]["id"]
+    return get_tier_config(tier)["model"]
 
 
 def _today_iso() -> str:
@@ -80,6 +117,7 @@ def get_usage_status(user_id: int | None) -> dict:
             "tier": DEFAULT_TIER,
             "tier_label": config["label"],
             "model": config["model"],
+            "available_models": available_models_for_tier(DEFAULT_TIER),
             "daily_token_limit": config["daily_token_limit"],
             "tokens_used_today": 0,
             "tokens_remaining_today": config["daily_token_limit"],
@@ -100,6 +138,7 @@ def get_usage_status(user_id: int | None) -> dict:
             "tier": DEFAULT_TIER,
             "tier_label": config["label"],
             "model": config["model"],
+            "available_models": available_models_for_tier(DEFAULT_TIER),
             "daily_token_limit": config["daily_token_limit"],
             "tokens_used_today": 0,
             "tokens_remaining_today": config["daily_token_limit"],
@@ -115,6 +154,7 @@ def get_usage_status(user_id: int | None) -> dict:
         "tier": tier,
         "tier_label": config["label"],
         "model": config["model"],
+        "available_models": available_models_for_tier(tier),
         "daily_token_limit": limit,
         "tokens_used_today": tokens_used,
         "tokens_remaining_today": remaining,

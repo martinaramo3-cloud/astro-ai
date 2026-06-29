@@ -15,10 +15,13 @@ type User = {
   subscription_tier?: string;
 };
 
+type ModelOption = { key: string; label: string; blurb: string };
+
 type UsageStatus = {
   tier: string;
   tier_label: string;
   model: string;
+  available_models: ModelOption[];
   daily_token_limit: number | null;
   tokens_used_today: number;
   tokens_remaining_today: number | null;
@@ -81,6 +84,7 @@ export default function ChatPage() {
   const [loading, setLoading] = useState(false);
   const [particleTrigger, setParticleTrigger] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -116,6 +120,20 @@ export default function ChatPage() {
 
     loadData();
   }, [user]);
+
+  // Pick the active model once usage (and its available models) loads.
+  useEffect(() => {
+    if (!usage) return;
+    const keys = usage.available_models?.map((m) => m.key) ?? [];
+    if (keys.length === 0) return;
+    const saved = typeof window !== "undefined" ? window.localStorage.getItem("model") : null;
+    setSelectedModel(saved && keys.includes(saved) ? saved : keys[keys.length - 1]);
+  }, [usage]);
+
+  const selectModel = (key: string) => {
+    setSelectedModel(key);
+    if (typeof window !== "undefined") window.localStorage.setItem("model", key);
+  };
 
   const profileLine = useMemo(() => {
     if (!user) return "Loading chart profile...";
@@ -210,6 +228,7 @@ export default function ChatPage() {
           profile_id: selectedProfile.id,
           question: userText,
           history: nextHistory,
+          model: selectedModel ?? undefined,
         }
       : {
           birth_date: user.birth_date,
@@ -218,6 +237,7 @@ export default function ChatPage() {
           question: userText,
           history: nextHistory,
           user_id: user.id,
+          model: selectedModel ?? undefined,
         };
 
     const attemptFetch = async (attemptsLeft: number): Promise<void> => {
@@ -580,6 +600,31 @@ export default function ChatPage() {
             ) : null}
             <div ref={endRef} />
           </div>
+
+          {usage && usage.available_models && usage.available_models.length > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 px-1 lg:px-2">
+              <span className="text-xs uppercase tracking-[0.18em] text-white/35">Model</span>
+              <div className="flex gap-1 rounded-full border border-white/10 bg-white/5 p-1">
+                {usage.available_models.map((m) => (
+                  <button
+                    key={m.key}
+                    onClick={() => selectModel(m.key)}
+                    title={m.blurb}
+                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      selectedModel === m.key
+                        ? "bg-white text-slate-950"
+                        : "text-white/55 hover:text-white"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+              {usage.tier === "free" && (
+                <span className="text-xs text-white/30">Upgrade to unlock Smart &amp; Deep</span>
+              )}
+            </div>
+          )}
 
           <div className="mt-3 flex items-end gap-2 border-t border-white/10 pt-4 lg:gap-3">
             <textarea
