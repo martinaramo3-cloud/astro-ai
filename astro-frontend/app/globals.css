@@ -50,6 +50,39 @@ input[type="date"], input[type="time"] { color-scheme: dark; }
   border-radius: 2px;
 }
 
+/* ─── Interactions & page transitions ─── */
+a, button {
+  transition: transform 0.18s ease, opacity 0.18s ease,
+    background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+@media (hover: hover) {
+  button:hover:not(:disabled) { transform: translateY(-1px); }
+}
+button:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+
+:focus-visible {
+  outline: 2px solid rgba(155, 121, 255, 0.55);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Gentle fade as each page mounts (opacity only — safe for fixed children) */
+@keyframes page-enter {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+main { animation: page-enter 0.45s ease-out; }
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
+  main { animation: none; }
+}
+
 /* ─── Glass panels ─── */
 .glass {
   background: var(--panel);
