@@ -59,7 +59,7 @@ def generate_chart_summary(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str
 
 
 def generate_astrologer_answer(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=400)
+    return _create_response(prompt, model=model, max_output_tokens=550)
 
 
 def generate_compatibility_reading(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
