@@ -147,8 +147,14 @@ export default function Home() {
                 <input name="email" type="email" placeholder="Email" value={form.email} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
                 <input name="password" type="password" placeholder="Password (min. 6 characters)" value={form.password} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <input name="birth_date" type="date" value={form.birth_date} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
-                  <input name="birth_time" type="time" value={form.birth_time} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
+                  <label className="space-y-1.5">
+                    <span className="block text-xs uppercase tracking-[0.18em] text-white/45">Birth date</span>
+                    <input name="birth_date" type="date" value={form.birth_date} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none [color-scheme:dark]" />
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="block text-xs uppercase tracking-[0.18em] text-white/45">Birth time</span>
+                    <input name="birth_time" type="time" value={form.birth_time} onChange={handleChange} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 text-white outline-none [color-scheme:dark]" />
+                  </label>
                 </div>
                 <PlaceAutocomplete value={form.birth_place} onChange={(v) => setForm({ ...form, birth_place: v })} className="w-full rounded-2xl border border-white/10 bg-slate-950/70 px-4 py-3 outline-none" />
                 <button onClick={handleSignup} disabled={loading} className="w-full rounded-2xl bg-gradient-to-r from-violet-200 to-white px-5 py-3 font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-60">
