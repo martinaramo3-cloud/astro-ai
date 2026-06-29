@@ -135,6 +135,17 @@ export default function ChatPage() {
     if (typeof window !== "undefined") window.localStorage.setItem("model", key);
   };
 
+  // Re-fetch token usage so the counter reflects what was just spent.
+  const refreshUsage = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch(`${API_BASE}/subscription/usage/${user.id}`);
+      if (res.ok) setUsage(await res.json());
+    } catch {
+      /* non-critical */
+    }
+  };
+
   const profileLine = useMemo(() => {
     if (!user) return "Loading chart profile...";
     return `${user.name} · ${user.birth_date} · ${user.birth_time} · ${user.birth_place}`;
@@ -261,6 +272,7 @@ export default function ChatPage() {
         setMessages(finalMessages);
         setParticleTrigger(answerText + "|" + Date.now());
         await persistSession(finalMessages);
+        refreshUsage();
       } catch {
         if (attemptsLeft > 1) {
           await new Promise((r) => setTimeout(r, 4000));
