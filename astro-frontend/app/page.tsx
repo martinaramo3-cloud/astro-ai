@@ -104,21 +104,21 @@ export default function Home() {
   };
 
   return (
-    <main className="px-6 pb-20 pt-10 text-white">
-      <section className="mx-auto grid max-w-6xl gap-8 lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="flex flex-col justify-center space-y-6 py-10">
+    <main className="px-4 pb-16 pt-6 text-white lg:px-6 lg:pb-20 lg:pt-10">
+      <section className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[1.1fr_0.9fr] lg:gap-8">
+        <div className="flex flex-col justify-center space-y-5 py-2 lg:space-y-6 lg:py-10">
           <div className="inline-flex w-fit rounded-full border border-violet-300/20 bg-violet-200/10 px-4 py-2 text-xs uppercase tracking-[0.28em] text-violet-100/80">
             Astraea Studio
           </div>
-          <h1 className="max-w-xl text-5xl font-semibold leading-tight md:text-6xl">
+          <h1 className="max-w-xl text-4xl font-semibold leading-tight sm:text-5xl md:text-6xl">
             The stars have always known.
           </h1>
-          <p className="max-w-md text-lg leading-8 text-white/60">
+          <p className="max-w-md text-base leading-8 text-white/60 lg:text-lg">
             Ask your astrologer anything — love, timing, patterns. Every answer comes from your chart.
           </p>
         </div>
 
-        <div className="glass rounded-[2rem] p-6 shadow-2xl shadow-violet-950/30">
+        <div className="glass rounded-[1.6rem] p-5 shadow-2xl shadow-violet-950/30 lg:rounded-[2rem] lg:p-6">
           {/* Mode toggle */}
           <div className="mb-6 flex rounded-2xl border border-white/10 bg-white/5 p-1">
             <button

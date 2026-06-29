@@ -80,6 +80,7 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [particleTrigger, setParticleTrigger] = useState<string | null>(null);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -177,6 +178,7 @@ export default function ChatPage() {
     setSelectedProfile(profile);
     setMessages([DEFAULT_MESSAGE]);
     setInput("");
+    setSidebarOpen(false);
   };
 
   const openSession = (session: ChatSession) => {
@@ -185,6 +187,7 @@ export default function ChatPage() {
     setInput("");
     const matchingProfile = profiles.find((profile) => profile.id === session.profile_id) ?? null;
     setSelectedProfile(matchingProfile);
+    setSidebarOpen(false);
   };
 
   const sendMessage = async () => {
@@ -309,9 +312,43 @@ export default function ChatPage() {
   };
 
   return (
-    <main className="px-6 py-10 text-white">
+    <main className="px-4 py-6 text-white lg:px-6 lg:py-10">
+      {/* Mobile top bar */}
+      <div className="mx-auto mb-4 flex max-w-6xl items-center justify-between lg:hidden">
+        <button
+          onClick={() => setSidebarOpen(true)}
+          aria-label="Open menu"
+          className="flex min-h-[44px] items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 text-sm font-medium transition active:scale-95"
+        >
+          <span className="text-lg leading-none">☰</span> Menu
+        </button>
+        <span className="text-sm uppercase tracking-[0.24em] text-white/45">
+          Astrologer Chat
+        </span>
+      </div>
+
+      {/* Backdrop for mobile drawer */}
+      {sidebarOpen && (
+        <div
+          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          aria-hidden="true"
+        />
+      )}
+
       <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[320px_1fr]">
-        <aside className="glass rounded-[2rem] p-6">
+        <aside
+          className={`glass fixed inset-y-0 left-0 z-50 w-[86%] max-w-sm transform overflow-y-auto p-6 transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-auto lg:max-w-none lg:translate-x-0 lg:rounded-[2rem] ${
+            sidebarOpen ? "translate-x-0" : "-translate-x-full"
+          }`}
+        >
+          <button
+            onClick={() => setSidebarOpen(false)}
+            aria-label="Close menu"
+            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-lg transition active:scale-90 lg:hidden"
+          >
+            ✕
+          </button>
           <p className="text-sm uppercase tracking-[0.24em] text-white/45">
             Your chart profile
           </p>
@@ -485,14 +522,14 @@ export default function ChatPage() {
           </button>
         </aside>
 
-        <section className="glass relative flex min-h-[72vh] flex-col rounded-[2rem] p-5">
+        <section className="glass relative flex min-h-[70vh] flex-col rounded-[1.6rem] p-4 lg:min-h-[72vh] lg:rounded-[2rem] lg:p-5">
           <FloatingParticles trigger={particleTrigger} />
-          <div className="mb-4 flex items-center justify-between border-b border-white/10 px-2 pb-4">
-            <div>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-2 pb-4">
+            <div className="min-w-0">
               <p className="text-sm uppercase tracking-[0.24em] text-white/45">
                 Private conversation
               </p>
-              <p className="mt-1 text-white/70">
+              <p className="mt-1 text-sm text-white/70 lg:text-base">
                 {selectedProfile
                   ? `Compatibility mode: you + ${selectedProfile.label}`
                   : "Clear, premium guidance grounded in your chart."}
@@ -520,11 +557,11 @@ export default function ChatPage() {
             )}
           </div>
 
-<div className="flex-1 space-y-4 overflow-y-auto px-2 pb-4">
+          <div className="flex-1 space-y-4 overflow-y-auto px-1 pb-4 lg:px-2">
             {messages.map((message, index) => (
               <div
                 key={index}
-                className={`max-w-[85%] rounded-[1.6rem] px-5 py-4 text-sm leading-7 shadow-lg ${
+                className={`msg-in max-w-[88%] whitespace-pre-wrap rounded-[1.4rem] px-4 py-3 text-sm leading-7 shadow-lg lg:max-w-[85%] lg:rounded-[1.6rem] lg:px-5 lg:py-4 ${
                   message.role === "user"
                     ? "ml-auto bg-white text-slate-950"
                     : "border border-white/10 bg-slate-950/60 text-white"
@@ -534,14 +571,17 @@ export default function ChatPage() {
               </div>
             ))}
             {loading ? (
-              <div className="max-w-[85%] rounded-[1.6rem] border border-white/10 bg-slate-950/60 px-5 py-4 text-sm leading-7 text-white">
-                Reading your chart...
+              <div className="msg-in flex max-w-[88%] items-center gap-2 rounded-[1.4rem] border border-white/10 bg-slate-950/60 px-5 py-4 text-sm text-white/70 lg:rounded-[1.6rem]">
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="typing-dot" />
+                <span className="ml-1">Reading your chart…</span>
               </div>
             ) : null}
             <div ref={endRef} />
           </div>
 
-          <div className="mt-3 flex gap-3 border-t border-white/10 pt-4">
+          <div className="mt-3 flex items-end gap-2 border-t border-white/10 pt-4 lg:gap-3">
             <textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -550,8 +590,8 @@ export default function ChatPage() {
                   ? `Ask about you and ${selectedProfile.label}...`
                   : "Ask your astrologer..."
               }
-              rows={3}
-              className="min-h-[88px] flex-1 resize-none rounded-[1.6rem] border border-white/10 bg-slate-950/70 px-4 py-3 outline-none"
+              rows={2}
+              className="min-h-[52px] flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-base outline-none focus:border-violet-300/40 lg:min-h-[88px] lg:rounded-[1.6rem]"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault();
@@ -562,7 +602,8 @@ export default function ChatPage() {
             <button
               onClick={sendMessage}
               disabled={loading}
-              className="self-end rounded-full bg-gradient-to-r from-violet-200 to-white px-6 py-3 font-semibold text-slate-950 transition hover:opacity-90 disabled:opacity-50"
+              aria-label="Send message"
+              className="flex h-[52px] min-w-[52px] items-center justify-center self-end rounded-full bg-gradient-to-r from-violet-200 to-white px-5 font-semibold text-slate-950 transition hover:opacity-90 active:scale-95 disabled:opacity-50 lg:px-6"
             >
               Send
             </button>
