@@ -24,6 +24,7 @@ from app.interpretation_service import build_chart_interpretation
 from app.transit_service import (
     get_current_transit_positions,
     get_transit_aspects,
+    build_upcoming_transit_timeline,
 )
 from app.predictive_adapter_service import run_predictive_engine
 from app.ai_context_service import (
@@ -486,6 +487,9 @@ def ask_astrologer(data: AstrologyQuestionRequest):
         "question": data.question,
         "history": [msg.model_dump() for msg in (data.history or [])],
         **filtered_context,
+        "upcoming_transits": build_upcoming_transit_timeline(
+            natal_data["planet_positions"]
+        ),
     }
 
     prompt = build_ask_astrologer_prompt(chat_context)
