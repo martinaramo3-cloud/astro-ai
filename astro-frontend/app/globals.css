@@ -40,6 +40,11 @@ input, textarea, button { font: inherit; }
 /* Render native date/time pickers (placeholder text + calendar icon) for a
    dark background so they're visible instead of looking like empty bars. */
 input[type="date"], input[type="time"] { color-scheme: dark; }
+
+/* Installed-app safe areas: keep chrome clear of the notch and home indicator.
+   These resolve to 0 in a normal browser tab. */
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 ::selection { background: rgba(171, 130, 255, 0.35); }
 
 /* Thin luxury scrollbar */
@@ -183,13 +188,16 @@ main { animation: page-enter 0.45s ease-out; }
 }
 
 @media (max-width: 640px) {
+  /* Absolute (not fixed) on phones so the moon sits in the hero and scrolls
+     away, instead of hovering over form fields for the whole page. */
   .moon-decor {
-    width: 38px;
-    height: 38px;
-    top: auto;
-    bottom: 14%;
+    position: absolute;
+    width: 34px;
+    height: 34px;
+    top: 104px;
+    bottom: auto;
     right: 7%;
-    opacity: 0.4;
+    opacity: 0.38;
   }
 }
 

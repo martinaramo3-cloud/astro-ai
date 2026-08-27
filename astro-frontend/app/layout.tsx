@@ -1,7 +1,8 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import Link from "next/link";
 import "./globals.css";
+import PWAInstaller from "../components/PWAInstaller";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
 const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"] });
@@ -9,6 +10,31 @@ const geistMono = Geist_Mono({ variable: "--font-geist-mono", subsets: ["latin"]
 export const metadata: Metadata = {
   title: "Astraea Studio",
   description: "Premium AI astrology readings, chart insights, and a modern cosmic experience.",
+  manifest: "/manifest.json",
+  appleWebApp: {
+    capable: true,
+    title: "Astraea",
+    statusBarStyle: "black-translucent",
+  },
+  icons: {
+    icon: [
+      { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: "/apple-touch-icon.png",
+  },
+  other: {
+    // Next emits the modern `mobile-web-app-capable`; older iOS still needs
+    // the Apple-prefixed tag to launch full screen from the home screen.
+    "apple-mobile-web-app-capable": "yes",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#070b1f",
+  // Let the app fill the screen behind the notch; safe-area padding in
+  // globals.css keeps the header clear of it.
+  viewportFit: "cover",
 };
 
 const navItems = [
@@ -28,8 +54,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         {/* Floating crescent moon */}
         <div className="moon-decor" aria-hidden="true" />
 
+        <PWAInstaller />
+
         <div className="relative min-h-screen">
-          <header className="sticky top-0 z-40 border-b border-white/[0.07] bg-slate-950/60 backdrop-blur-2xl">
+          <header className="safe-top sticky top-0 z-40 border-b border-white/[0.07] bg-slate-950/60 backdrop-blur-2xl">
             <div className="mx-auto flex max-w-6xl items-center justify-between gap-2 px-4 py-3 lg:px-6 lg:py-4">
               <Link href="/" className="flex items-center gap-2 lg:gap-3">
                 <div className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/10 text-sm font-semibold lg:h-10 lg:w-10">✦</div>
