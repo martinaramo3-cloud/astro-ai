@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { getBrowserApiBase } from "../lib/api";
+import { apiFetch, saveAuth } from "../lib/api";
 import PlaceAutocomplete from "../components/PlaceAutocomplete";
-
-const API_BASE = getBrowserApiBase();
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -56,9 +54,8 @@ export default function Home() {
     if (!validate()) return;
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/signup`, {
+      const response = await apiFetch("/signup", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
       });
       const data = await response.json();
@@ -67,7 +64,7 @@ export default function Home() {
         setLoading(false);
         return;
       }
-      localStorage.setItem("user", JSON.stringify(data));
+      saveAuth(data);
       setMessage("Account created successfully.");
       setTimeout(() => { window.location.href = "/chat"; }, 700);
     } catch {
@@ -84,9 +81,8 @@ export default function Home() {
     }
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE}/login`, {
+      const response = await apiFetch("/login", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: form.email, password: form.password }),
       });
       const data = await response.json();
@@ -95,7 +91,7 @@ export default function Home() {
         setLoading(false);
         return;
       }
-      localStorage.setItem("user", JSON.stringify(data));
+      saveAuth(data);
       window.location.href = "/chat";
     } catch {
       setMessage("Taking a moment to wake up — please try again in 30 seconds.");

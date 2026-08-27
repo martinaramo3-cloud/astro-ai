@@ -62,6 +62,21 @@ def init_db():
 )
 """)
 
+    # Login sessions. Only a hash of each token is stored, so a copy of the
+    # database can't be used to impersonate anyone.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)"
+    )
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS chat_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

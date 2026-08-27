@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { getBrowserApiBase } from "../../lib/api";
+import { apiFetch, clearAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import FloatingParticles from "../../components/FloatingParticles";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
@@ -65,8 +65,6 @@ const DEFAULT_MESSAGE: Message = {
     "Welcome back. Ask about love, timing, emotional patterns, or your life direction.",
 };
 
-const API_BASE = getBrowserApiBase();
-
 export default function ChatPage() {
   const [user] = useState<User | null>(() => {
     if (typeof window === "undefined") return null;
@@ -117,9 +115,9 @@ export default function ChatPage() {
 
       try {
         const [profilesRes, sessionsRes, usageRes] = await Promise.all([
-          fetch(`${API_BASE}/profiles/${user.id}`),
-          fetch(`${API_BASE}/chat-sessions/${user.id}`),
-          fetch(`${API_BASE}/subscription/usage/${user.id}`),
+          apiFetch(`/profiles/${user.id}`),
+          apiFetch(`/chat-sessions/${user.id}`),
+          apiFetch(`/subscription/usage/${user.id}`),
         ]);
         const profilesData = await profilesRes.json();
         const sessionsData = await sessionsRes.json();
@@ -158,7 +156,7 @@ export default function ChatPage() {
     setChartLoading(true);
     setChartError("");
     try {
-      const res = await fetch(`${API_BASE}/natal-chart`, {
+      const res = await apiFetch("/natal-chart", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -180,7 +178,7 @@ export default function ChatPage() {
   const refreshUsage = async () => {
     if (!user) return;
     try {
-      const res = await fetch(`${API_BASE}/subscription/usage/${user.id}`);
+      const res = await apiFetch(`/subscription/usage/${user.id}`);
       if (res.ok) setUsage(await res.json());
     } catch {
       /* non-critical */
@@ -213,13 +211,12 @@ export default function ChatPage() {
     };
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         currentSessionId
-          ? `${API_BASE}/chat-sessions/${currentSessionId}`
-          : `${API_BASE}/chat-sessions`,
+          ? `/chat-sessions/${currentSessionId}`
+          : "/chat-sessions",
         {
           method: currentSessionId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(
             currentSessionId
               ? payload
@@ -271,8 +268,8 @@ export default function ChatPage() {
     setLoading(true);
 
     const endpoint = selectedProfile
-      ? `${API_BASE}/ask-saved-compatibility`
-      : `${API_BASE}/ask-astrologer`;
+      ? "/ask-saved-compatibility"
+      : "/ask-astrologer";
 
     const body = selectedProfile
       ? {
@@ -294,9 +291,8 @@ export default function ChatPage() {
 
     const attemptFetch = async (attemptsLeft: number): Promise<void> => {
       try {
-        const response = await fetch(endpoint, {
+        const response = await apiFetch(endpoint, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         });
 
@@ -348,7 +344,7 @@ export default function ChatPage() {
     }
 
     try {
-      const res = await fetch(`${API_BASE}/profiles`, {
+      const res = await apiFetch("/profiles", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -379,8 +375,14 @@ export default function ChatPage() {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("user");
+  const logout = async () => {
+    // Revoke the token server-side so it can't be reused, then clear locally.
+    try {
+      await apiFetch("/logout", { method: "POST" });
+    } catch {
+      /* clearing local state matters more than the round trip */
+    }
+    clearAuth();
     window.location.href = "/";
   };
 

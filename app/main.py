@@ -6,10 +6,16 @@ from app.profile_service import create_profile, list_profiles_by_owner, get_prof
 from app.chat_service import create_chat_session, get_chat_session_by_id, list_chat_sessions, update_chat_session
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
+from app.session_service import (
+    create_session,
+    delete_session,
+    get_user_id_for_token,
+    purge_expired_sessions,
+)
 from app.question_router import classify_question, filter_chart_context_by_question_type
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
 from app.astrology_engine import (
@@ -181,6 +187,7 @@ class AuthUserResponse(BaseModel):
     birth_time: str
     birth_place: str
     subscription_tier: str = "free"
+    token: str
 
 class UserResponse(BaseModel):
     id: int
@@ -201,9 +208,47 @@ class ChartSummaryRequest(BaseModel):
     birth_place: str
     user_id: Optional[int] = None
 
+PUBLIC_USER_FIELDS = (
+    "id", "name", "email", "birth_date", "birth_time", "birth_place",
+    "subscription_tier",
+)
+
+
+def public_user(user: dict) -> dict:
+    """Strip internal columns (password hash, usage counters) before returning."""
+    return {key: user[key] for key in PUBLIC_USER_FIELDS if key in user}
+
+
+def get_current_user(authorization: str | None = Header(default=None)) -> dict:
+    """Resolve the caller from their `Authorization: Bearer <token>` header.
+
+    Every endpoint that touches stored data depends on this, so identity comes
+    from the token rather than from an id the client can choose.
+    """
+    token = None
+    if authorization and authorization.lower().startswith("bearer "):
+        token = authorization[7:].strip()
+
+    user_id = get_user_id_for_token(token)
+    if user_id is None:
+        raise HTTPException(status_code=401, detail="Please log in again.")
+
+    user = get_user_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="Please log in again.")
+    return user
+
+
+def require_self(current_user: dict, target_user_id: int) -> None:
+    """Block reading or writing another account's data."""
+    if current_user["id"] != target_user_id:
+        raise HTTPException(status_code=403, detail="Not allowed.")
+
+
 @app.on_event("startup")
 def startup():
     init_db()
+    purge_expired_sessions()
 
 @app.get("/")
 def home():
@@ -452,8 +497,11 @@ def get_content_library():
     }
 
 @app.post("/chart-summary")
-def chart_summary(data: ChartSummaryRequest):
-    tier_config = check_usage(data.user_id)
+def chart_summary(
+    data: ChartSummaryRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    tier_config = check_usage(current_user["id"])
 
     natal_data = build_natal_chart_data(
         BirthData(
@@ -471,7 +519,7 @@ def chart_summary(data: ChartSummaryRequest):
 
     prompt = build_summary_prompt(chart_context)
     summary, tokens = generate_chart_summary(prompt, model=tier_config["model"])
-    record_usage(data.user_id, tokens)
+    record_usage(current_user["id"], tokens)
 
     return {
         "message": "AI chart summary generated",
@@ -481,9 +529,14 @@ def chart_summary(data: ChartSummaryRequest):
     }
 
 @app.post("/ask-astrologer")
-def ask_astrologer(data: AstrologyQuestionRequest):
-    tier_config = check_usage(data.user_id)
-    model = resolve_model(get_user_tier(data.user_id), data.model)
+def ask_astrologer(
+    data: AstrologyQuestionRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    # Usage and tier follow the token, so nobody can bill another account.
+    user_id = current_user["id"]
+    tier_config = check_usage(user_id)
+    model = resolve_model(get_user_tier(user_id), data.model)
 
     natal_data = build_natal_chart_data(data)
 
@@ -515,7 +568,7 @@ def ask_astrologer(data: AstrologyQuestionRequest):
 
     prompt = build_ask_astrologer_prompt(chat_context)
     answer, tokens = generate_astrologer_answer(prompt, model=model)
-    record_usage(data.user_id, tokens)
+    record_usage(user_id, tokens)
 
     return {
         "message": "Astrologer answer generated",
@@ -556,8 +609,11 @@ def get_compatibility(data: CompatibilityRequest):
         "synastry_engine": synastry_engine
     }
 @app.post("/compatibility-reading")
-def compatibility_reading(data: CompatibilityRequest):
-    tier_config = check_usage(data.user_id)
+def compatibility_reading(
+    data: CompatibilityRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    tier_config = check_usage(current_user["id"])
 
     person_1_chart = build_natal_chart_data(data.person_1)
     person_2_chart = build_natal_chart_data(data.person_2)
@@ -582,7 +638,7 @@ def compatibility_reading(data: CompatibilityRequest):
     prompt = build_compatibility_prompt(context)
 
     reading, tokens = generate_compatibility_reading(prompt, model=tier_config["model"])
-    record_usage(data.user_id, tokens)
+    record_usage(current_user["id"], tokens)
 
     return {
         "message": "Compatibility reading generated",
@@ -592,9 +648,13 @@ def compatibility_reading(data: CompatibilityRequest):
     }
 
 @app.post("/ask-compatibility")
-def ask_compatibility(data: AskCompatibilityRequest):
-    tier_config = check_usage(data.user_id)
-    model = resolve_model(get_user_tier(data.user_id), data.model)
+def ask_compatibility(
+    data: AskCompatibilityRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    user_id = current_user["id"]
+    tier_config = check_usage(user_id)
+    model = resolve_model(get_user_tier(user_id), data.model)
 
     person_1_chart = build_natal_chart_data(data.person_1)
     person_2_chart = build_natal_chart_data(data.person_2)
@@ -620,7 +680,7 @@ def ask_compatibility(data: AskCompatibilityRequest):
 
     prompt = build_ask_compatibility_prompt(context)
     answer, tokens = generate_compatibility_answer(prompt, model=model)
-    record_usage(data.user_id, tokens)
+    record_usage(user_id, tokens)
 
     return {
         "message": "Compatibility answer generated",
@@ -631,14 +691,17 @@ def ask_compatibility(data: AskCompatibilityRequest):
     }
 
 @app.post("/ask-saved-compatibility")
-def ask_saved_compatibility(data: AskSavedCompatibilityRequest):
-    owner = get_user_by_id(data.owner_user_id)
+def ask_saved_compatibility(
+    data: AskSavedCompatibilityRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    owner = current_user
     profile = get_profile_by_id(data.profile_id)
 
-    if not owner:
-        raise HTTPException(status_code=404, detail="Owner user not found")
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
+    # A saved person's birth details are private to whoever saved them.
+    require_self(current_user, profile["owner_user_id"])
 
     compatibility_data = AskCompatibilityRequest(
         person_1=PersonBirthData(
@@ -653,11 +716,12 @@ def ask_saved_compatibility(data: AskSavedCompatibilityRequest):
         ),
         question=data.question,
         history=data.history,
-        user_id=data.owner_user_id,
+        user_id=owner["id"],
         model=data.model,
     )
 
-    return ask_compatibility(compatibility_data)
+    # Called directly, so the dependency has to be handed over explicitly.
+    return ask_compatibility(compatibility_data, current_user=current_user)
 
 @app.post("/signup", response_model=AuthUserResponse)
 def signup(data: SignupRequest):
@@ -673,7 +737,7 @@ def signup(data: SignupRequest):
     if not user:
         raise HTTPException(status_code=400, detail="Email already exists")
 
-    return user
+    return {**user, "token": create_session(user["id"])}
 
 
 @app.post("/login", response_model=AuthUserResponse)
@@ -686,59 +750,77 @@ def login(data: LoginRequest):
     if not user:
         raise HTTPException(status_code=401, detail="Invalid email or password")
 
-    return user
+    return {**user, "token": create_session(user["id"])}
+
+
+@app.post("/logout")
+def logout(authorization: str | None = Header(default=None)):
+    if authorization and authorization.lower().startswith("bearer "):
+        delete_session(authorization[7:].strip())
+    return {"message": "Logged out"}
+
+
+@app.get("/me", response_model=UserResponse)
+def get_me(current_user: dict = Depends(get_current_user)):
+    return current_user
+
 
 @app.get("/users/{user_id}", response_model=UserResponse)
-def get_user(user_id: int):
-    user = get_user_by_id(user_id)
+def get_user(user_id: int, current_user: dict = Depends(get_current_user)):
+    require_self(current_user, user_id)
+    return current_user
 
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user 
 
 @app.get("/users/{user_id}/natal-chart")
-def get_saved_user_natal_chart(user_id: int):
-    user = get_user_by_id(user_id)
-
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def get_saved_user_natal_chart(
+    user_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    require_self(current_user, user_id)
 
     birth_data = BirthData(
-        birth_date=user["birth_date"],
-        birth_time=user["birth_time"],
-        birth_place=user["birth_place"]
+        birth_date=current_user["birth_date"],
+        birth_time=current_user["birth_time"],
+        birth_place=current_user["birth_place"]
     )
 
     natal_data = build_natal_chart_data(birth_data)
 
     return {
         "message": "Saved user natal chart calculated",
-        "user": user,
+        # public_user() keeps the password hash and usage counters out of this.
+        "user": public_user(current_user),
         **natal_data
     }
 @app.get("/profiles/{owner_user_id}")
-def get_profiles(owner_user_id: int):
+def get_profiles(owner_user_id: int, current_user: dict = Depends(get_current_user)):
+    require_self(current_user, owner_user_id)
     return list_profiles_by_owner(owner_user_id)
 
 
 @app.get("/chat-sessions/{owner_user_id}")
-def get_chat_sessions(owner_user_id: int):
+def get_chat_sessions(owner_user_id: int, current_user: dict = Depends(get_current_user)):
+    require_self(current_user, owner_user_id)
     return list_chat_sessions(owner_user_id)
 
 
 @app.get("/chat-sessions/session/{session_id}")
-def get_chat_session(session_id: int):
+def get_chat_session(session_id: int, current_user: dict = Depends(get_current_user)):
     session = get_chat_session_by_id(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Chat session not found")
+    require_self(current_user, session["owner_user_id"])
     return session
 
 
 @app.post("/chat-sessions")
-def create_chat_session_endpoint(data: ChatSessionRequest):
+def create_chat_session_endpoint(
+    data: ChatSessionRequest,
+    current_user: dict = Depends(get_current_user),
+):
     session = create_chat_session(
-        owner_user_id=data.owner_user_id,
+        # Ownership comes from the token, not the request body.
+        owner_user_id=current_user["id"],
         profile_id=data.profile_id,
         title=data.title,
         messages=[message.model_dump() for message in data.messages],
@@ -747,10 +829,15 @@ def create_chat_session_endpoint(data: ChatSessionRequest):
 
 
 @app.patch("/chat-sessions/{session_id}")
-def update_chat_session_endpoint(session_id: int, data: ChatSessionUpdateRequest):
+def update_chat_session_endpoint(
+    session_id: int,
+    data: ChatSessionUpdateRequest,
+    current_user: dict = Depends(get_current_user),
+):
     existing = get_chat_session_by_id(session_id)
     if not existing:
         raise HTTPException(status_code=404, detail="Chat session not found")
+    require_self(current_user, existing["owner_user_id"])
 
     session = update_chat_session(
         session_id=session_id,
@@ -761,9 +848,12 @@ def update_chat_session_endpoint(session_id: int, data: ChatSessionUpdateRequest
     return session
 
 @app.post("/profiles")
-def save_profile(data: SaveProfileRequest):
+def save_profile(
+    data: SaveProfileRequest,
+    current_user: dict = Depends(get_current_user),
+):
     return create_profile(
-        owner_user_id=data.owner_user_id,
+        owner_user_id=current_user["id"],
         label=data.label,
         person_name=data.person_name,
         relationship_type=data.relationship_type,
@@ -773,14 +863,20 @@ def save_profile(data: SaveProfileRequest):
     )
 
 @app.get("/profiles/profile/{profile_id}")
-def get_profile(profile_id: int):
+def get_profile(profile_id: int, current_user: dict = Depends(get_current_user)):
     profile = get_profile_by_id(profile_id)
     if not profile:
         raise HTTPException(status_code=404, detail="Profile not found")
+    require_self(current_user, profile["owner_user_id"])
     return profile
 
 @app.delete("/profiles/{profile_id}")
-def delete_profile(profile_id: int):
+def delete_profile(profile_id: int, current_user: dict = Depends(get_current_user)):
+    profile = get_profile_by_id(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    require_self(current_user, profile["owner_user_id"])
+
     deleted = delete_profile_by_id(profile_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Profile not found")
@@ -803,10 +899,8 @@ def list_tiers():
 
 
 @app.get("/subscription/usage/{user_id}")
-def usage_for_user(user_id: int):
-    user = get_user_by_id(user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
+def usage_for_user(user_id: int, current_user: dict = Depends(get_current_user)):
+    require_self(current_user, user_id)
     return get_usage_status(user_id)
 
 
