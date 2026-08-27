@@ -2,7 +2,9 @@
 // Deliberately conservative: it never touches API traffic, and always prefers
 // the network for pages so a cached shell can't strand users on a stale build.
 
-const VERSION = "astraea-v1";
+// Bump this whenever cached assets change (e.g. new icons) so old caches,
+// which serve images cache-first, are dropped on activate.
+const VERSION = "astraea-v2";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 
