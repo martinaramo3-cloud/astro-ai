@@ -5,7 +5,7 @@ from app.user_service import get_user_by_id
 from app.profile_service import create_profile, list_profiles_by_owner, get_profile_by_id, delete_profile_by_id
 from app.chat_service import create_chat_session, get_chat_session_by_id, list_chat_sessions, update_chat_session
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
-from app.database import init_db
+from app.database import init_db, get_db_connection, DB_NAME
 from app.question_router import classify_question, filter_chart_context_by_question_type
 from dotenv import load_dotenv
 load_dotenv()
@@ -212,7 +212,28 @@ def home():
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    """Liveness plus storage diagnostics.
+
+    `database_persistent` is the launch-critical bit: when the DB sits on the
+    container's own filesystem instead of a mounted disk, every deploy wipes
+    all accounts.
+    """
+    db_path = os.path.abspath(DB_NAME)
+    persistent = db_path.startswith("/var/data")
+
+    try:
+        conn = get_db_connection()
+        user_count = conn.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        conn.close()
+    except Exception:
+        user_count = None
+
+    return {
+        "status": "ok",
+        "database_path": db_path,
+        "database_persistent": persistent,
+        "registered_users": user_count,
+    }
 
 
 def build_natal_chart_data(data: BirthData):
