@@ -5,6 +5,7 @@ import { apiFetch, clearAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import FloatingParticles from "../../components/FloatingParticles";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
+import CosmicAlert from "../../components/CosmicAlert";
 
 const SIGN_GLYPH: Record<string, string> = {
   Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
@@ -257,10 +258,11 @@ export default function ChatPage() {
     setSidebarOpen(false);
   };
 
-  const sendMessage = async () => {
-    if (!input.trim() || !user || loading) return;
-
-    const userText = input.trim();
+  // `overrideText` lets prompts elsewhere in the UI (like the cosmic alert)
+  // send a question in one tap.
+  const sendMessage = async (overrideText?: string) => {
+    const userText = (overrideText ?? input).trim();
+    if (!userText || !user || loading) return;
     const nextHistory = [...messages, { role: "user" as const, content: userText }];
 
     setMessages(nextHistory);
@@ -389,7 +391,7 @@ export default function ChatPage() {
   return (
     <main className="px-4 py-6 text-white lg:px-6 lg:py-10">
       {/* Mobile top bar */}
-      <div className="mx-auto mb-4 flex max-w-6xl items-center justify-between lg:hidden">
+      <div className="mx-auto mb-4 flex max-w-6xl items-center gap-3 lg:hidden">
         <button
           onClick={() => setSidebarOpen(true)}
           aria-label="Open menu"
@@ -397,7 +399,8 @@ export default function ChatPage() {
         >
           <span className="text-lg leading-none">☰</span> Menu
         </button>
-        <span className="text-sm uppercase tracking-[0.24em] text-white/45">
+        {/* Left-aligned and compact so it can't run under the moon decoration. */}
+        <span className="truncate text-xs uppercase tracking-[0.18em] text-white/45">
           Astrologer Chat
         </span>
       </div>
@@ -639,6 +642,8 @@ export default function ChatPage() {
             )}
           </div>
 
+          <CosmicAlert onAsk={(question) => sendMessage(question)} />
+
           <div className="flex-1 space-y-4 overflow-y-auto px-1 pb-4 lg:px-2">
             {messages.map((message, index) => (
               <div
@@ -707,7 +712,7 @@ export default function ChatPage() {
               }}
             />
             <button
-              onClick={sendMessage}
+              onClick={() => sendMessage()}
               disabled={loading}
               aria-label="Send message"
               className="flex h-[52px] min-w-[52px] items-center justify-center self-end rounded-full bg-gradient-to-r from-violet-200 to-white px-5 font-semibold text-slate-950 transition hover:opacity-90 active:scale-95 disabled:opacity-50 lg:px-6"

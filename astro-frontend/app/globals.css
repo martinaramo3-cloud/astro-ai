@@ -182,7 +182,8 @@ main { animation: page-enter 0.45s ease-out; }
     inset -14px -5px 0 3px rgba(220, 200, 255, 0.75),
     0 0 0 1px rgba(200, 170, 255, 0.12);
   pointer-events: none;
-  z-index: 1;
+  /* Behind the glass panels, so it reads as background rather than clutter. */
+  z-index: 0;
   animation: moon-float 10s ease-in-out infinite;
   opacity: 0.5;
 }

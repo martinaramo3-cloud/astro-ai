@@ -6,6 +6,7 @@ from app.profile_service import create_profile, list_profiles_by_owner, get_prof
 from app.chat_service import create_chat_session, get_chat_session_by_id, list_chat_sessions, update_chat_session
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
+from app.celestial_events_service import build_cosmic_events, describe_moon_phase
 from app.session_service import (
     create_session,
     delete_session,
@@ -557,6 +558,11 @@ def ask_astrologer(
         transits=active_transits
     )
 
+    sky = build_cosmic_events(
+        natal_planets=natal_data["planet_positions"],
+        ascendant=natal_data["ascendant"],
+    )
+
     chat_context = {
         "question": data.question,
         "history": [msg.model_dump() for msg in (data.history or [])],
@@ -564,6 +570,11 @@ def ask_astrologer(
         "upcoming_transits": build_upcoming_transit_timeline(
             natal_data["planet_positions"]
         ),
+        "sky_now": {
+            "moon": sky["moon"],
+            "retrograde_now": sky["retrograde_now"],
+            "notable_event": sky["headline"],
+        },
     }
 
     prompt = build_ask_astrologer_prompt(chat_context)
@@ -763,6 +774,25 @@ def logout(authorization: str | None = Header(default=None)):
 @app.get("/me", response_model=UserResponse)
 def get_me(current_user: dict = Depends(get_current_user)):
     return current_user
+
+
+@app.get("/cosmic-events")
+def cosmic_events(current_user: dict = Depends(get_current_user)):
+    """Notable sky events, scored against the signed-in user's own chart.
+
+    Powers the app speaking up unprompted when something big is happening.
+    """
+    natal_data = build_natal_chart_data(
+        BirthData(
+            birth_date=current_user["birth_date"],
+            birth_time=current_user["birth_time"],
+            birth_place=current_user["birth_place"],
+        )
+    )
+    return build_cosmic_events(
+        natal_planets=natal_data["planet_positions"],
+        ascendant=natal_data["ascendant"],
+    )
 
 
 @app.get("/users/{user_id}", response_model=UserResponse)
