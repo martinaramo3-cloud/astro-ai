@@ -259,11 +259,12 @@ def home():
 
 @app.get("/health")
 def health_check():
-    """Liveness plus storage diagnostics.
+    """Liveness, storage, and which credentials are configured.
 
     `database_persistent` is the launch-critical bit: when the DB sits on the
     container's own filesystem instead of a mounted disk, every deploy wipes
-    all accounts.
+    all accounts. The `configured` block reports only whether each secret is
+    present — never any part of its value.
     """
     db_path = os.path.abspath(DB_NAME)
     persistent = db_path.startswith("/var/data")
@@ -275,11 +276,19 @@ def health_check():
     except Exception:
         user_count = None
 
+    def is_set(name: str) -> bool:
+        return bool((os.getenv(name) or "").strip())
+
     return {
         "status": "ok",
         "database_path": db_path,
         "database_persistent": persistent,
         "registered_users": user_count,
+        "configured": {
+            "openai_key": is_set("OPENAI_API_KEY"),
+            "anthropic_key": is_set("ANTHROPIC_API_KEY"),
+            "admin_secret": is_set("ADMIN_SECRET"),
+        },
     }
 
 
