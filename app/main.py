@@ -38,7 +38,8 @@ from app.ai_context_service import (
     build_ai_chart_context,
     build_summary_prompt,
     build_weekly_horoscope_prompt,
-    build_ask_astrologer_prompt,
+    build_ask_astrologer_system,
+    build_ask_astrologer_user,
     build_compatibility_context,
     build_compatibility_prompt,
     build_ask_compatibility_context,
@@ -577,8 +578,11 @@ def ask_astrologer(
         },
     }
 
-    prompt = build_ask_astrologer_prompt(chat_context)
-    answer, tokens = generate_astrologer_answer(prompt, model=model)
+    answer, tokens = generate_astrologer_answer(
+        build_ask_astrologer_user(chat_context),
+        model=model,
+        system=build_ask_astrologer_system(),
+    )
     record_usage(user_id, tokens)
 
     return {

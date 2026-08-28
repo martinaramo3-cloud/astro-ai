@@ -32,12 +32,12 @@ TIERS: dict[str, TierConfig] = {
     },
     "standard": {
         "label": "Standard",
-        "model": "gpt-4.1",
+        "model": "claude-opus-5",
         "daily_token_limit": 300_000,
     },
     "premium": {
         "label": "Premium",
-        "model": "o1",
+        "model": "claude-fable-5",
         "daily_token_limit": None,
     },
 }
@@ -49,9 +49,9 @@ DEFAULT_TIER = "free"
 # Friendly model catalog. `key` is the stable id the frontend sends and stores;
 # `id` is the actual OpenAI model name.
 MODELS: dict[str, dict] = {
-    "fast":  {"key": "fast",  "id": "gpt-4.1-mini", "label": "Fast",  "blurb": "Quick, everyday readings"},
-    "smart": {"key": "smart", "id": "gpt-4.1",      "label": "Smart", "blurb": "Deeper, more nuanced answers"},
-    "deep":  {"key": "deep",  "id": "o1",           "label": "Deep",  "blurb": "Most thorough reasoning"},
+    "fast":  {"key": "fast",  "id": "gpt-4.1-mini",   "label": "Fast",  "blurb": "Quick, everyday readings"},
+    "smart": {"key": "smart", "id": "claude-opus-5",  "label": "Smart", "blurb": "Deeper, more nuanced readings"},
+    "deep":  {"key": "deep",  "id": "claude-fable-5", "label": "Deep",  "blurb": "The most thorough, insightful readings"},
 }
 
 # Which model keys each tier may use (cheapest first).

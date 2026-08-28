@@ -1,43 +1,168 @@
 import os
+
+from anthropic import Anthropic
 from dotenv import load_dotenv
 from fastapi import HTTPException
 from openai import OpenAI
 
 load_dotenv()
 
-_client: OpenAI | None = None
+_openai_client: OpenAI | None = None
+_anthropic_client: Anthropic | None = None
 
 # Default model used when a caller doesn't specify a tier model. Kept for
 # backward compatibility with anywhere that still calls these without a model.
 DEFAULT_MODEL = "gpt-4.1-mini"
 
+# Claude models think before answering, and thinking tokens count toward
+# max_tokens. The visible reply is kept short by the prompt itself, so this
+# budget is headroom for reasoning rather than a length target.
+ANTHROPIC_MAX_TOKENS = 8000
 
-def _get_client() -> OpenAI:
+# How hard the model works. The premium model is worth letting think longer.
+EFFORT_BY_MODEL = {"claude-fable-5": "high"}
+DEFAULT_EFFORT = "medium"
+
+# Lets a refused request be retried on another model server-side instead of
+# simply failing. Paired with the scalar "default" routing form.
+FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+
+def _is_anthropic(model: str) -> bool:
+    return model.startswith("claude-")
+
+
+def _get_openai_client() -> OpenAI:
     """Lazily initialize the OpenAI client.
 
     Returning a clear HTTPException here (instead of crashing the process at
     import time) means non-AI endpoints keep working when the key is missing,
     and AI endpoints fail with a useful message.
     """
-    global _client
-    if _client is None:
-        # .strip() removes stray whitespace/newlines that break the auth header
+    global _openai_client
+    if _openai_client is None:
+        # .strip() guards against a stray newline pasted into the dashboard,
+        # which would otherwise produce an illegal auth header.
         api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
         if not api_key:
             raise HTTPException(
                 status_code=503,
                 detail="OPENAI_API_KEY is not configured on the server.",
             )
-        _client = OpenAI(api_key=api_key)
-    return _client
+        _openai_client = OpenAI(api_key=api_key)
+    return _openai_client
 
 
-def _create_response(prompt: str, model: str, max_output_tokens: int) -> tuple[str, int]:
+def _get_anthropic_client() -> Anthropic:
+    global _anthropic_client
+    if _anthropic_client is None:
+        api_key = (os.getenv("ANTHROPIC_API_KEY") or "").strip()
+        if not api_key:
+            raise HTTPException(
+                status_code=503,
+                detail="ANTHROPIC_API_KEY is not configured on the server.",
+            )
+        _anthropic_client = Anthropic(api_key=api_key)
+    return _anthropic_client
+
+
+def _anthropic_tokens(usage) -> int:
+    """Total billable tokens, including anything read from or written to cache."""
+    if usage is None:
+        return 0
+    fields = (
+        "input_tokens",
+        "output_tokens",
+        "cache_read_input_tokens",
+        "cache_creation_input_tokens",
+    )
+    return sum(getattr(usage, field, 0) or 0 for field in fields)
+
+
+def _anthropic_response(
+    user_prompt: str,
+    model: str,
+    system: str | None,
+) -> tuple[str, int]:
+    client = _get_anthropic_client()
+
+    request = {
+        "model": model,
+        "max_tokens": ANTHROPIC_MAX_TOKENS,
+        "messages": [{"role": "user", "content": user_prompt}],
+        "output_config": {"effort": EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)},
+    }
+    if system:
+        # Cached as a stable prefix: the standing instructions are identical on
+        # every call, so repeat questions in a session only pay for the chart data.
+        request["system"] = [
+            {
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+
+    # Thinking is intentionally not configured: it is on by default on these
+    # models, and passing an explicit configuration is rejected.
     try:
-        response = _get_client().responses.create(
+        with client.beta.messages.stream(
+            betas=[FALLBACK_BETA], fallbacks="default", **request
+        ) as stream:
+            message = stream.get_final_message()
+    except Exception as exc:
+        # Server-side fallbacks may not be enabled for every account. Losing
+        # them is survivable; losing the whole answer is not.
+        if "fallback" not in str(exc).lower():
+            raise
+        print("Anthropic fallbacks unavailable, retrying without:", repr(exc))
+        with client.beta.messages.stream(**request) as stream:
+            message = stream.get_final_message()
+
+    if message.stop_reason == "refusal":
+        raise HTTPException(
+            status_code=502,
+            detail="The astrologer couldn't take that one on. Try rephrasing it.",
+        )
+
+    text = "".join(
+        block.text for block in message.content if getattr(block, "type", None) == "text"
+    )
+    return text, _anthropic_tokens(message.usage)
+
+
+def _openai_response(
+    user_prompt: str,
+    model: str,
+    max_output_tokens: int,
+    system: str | None,
+) -> tuple[str, int]:
+    # The Responses API takes a single input string, so the standing
+    # instructions ride along at the front.
+    prompt = f"{system}\n\n{user_prompt}" if system else user_prompt
+    response = _get_openai_client().responses.create(
+        model=model,
+        input=prompt,
+        max_output_tokens=max_output_tokens,
+    )
+    tokens = response.usage.total_tokens if response.usage else 0
+    return response.output_text, tokens
+
+
+def _create_response(
+    user_prompt: str,
+    model: str,
+    max_output_tokens: int,
+    system: str | None = None,
+) -> tuple[str, int]:
+    try:
+        if _is_anthropic(model):
+            return _anthropic_response(user_prompt, model=model, system=system)
+        return _openai_response(
+            user_prompt,
             model=model,
-            input=prompt,
             max_output_tokens=max_output_tokens,
+            system=system,
         )
     except HTTPException:
         raise
@@ -45,26 +170,32 @@ def _create_response(prompt: str, model: str, max_output_tokens: int) -> tuple[s
         # Log full detail server-side (Render logs) but never leak it — including
         # the API key, which can appear in header errors — to the client.
         cause = getattr(exc, "__cause__", None)
-        print("OpenAI error:", repr(exc), "| cause:", repr(cause))
+        print("AI provider error:", repr(exc), "| cause:", repr(cause))
         raise HTTPException(
             status_code=502,
             detail="The astrologer is temporarily unavailable. Please try again in a moment.",
         )
-    tokens = response.usage.total_tokens if response.usage else 0
-    return response.output_text, tokens
 
 
-def generate_chart_summary(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=180)
+def generate_chart_summary(
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=180, system=system)
 
 
-def generate_astrologer_answer(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=550)
+def generate_astrologer_answer(
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=550, system=system)
 
 
-def generate_compatibility_reading(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=220)
+def generate_compatibility_reading(
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=220, system=system)
 
 
-def generate_compatibility_answer(prompt: str, model: str = DEFAULT_MODEL) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=220)
+def generate_compatibility_answer(
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+) -> tuple[str, int]:
+    return _create_response(prompt, model=model, max_output_tokens=220, system=system)

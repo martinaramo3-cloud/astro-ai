@@ -140,8 +140,12 @@ Chart data:
 """.strip()
 
 
-def build_ask_astrologer_prompt(chat_context: dict) -> str:
-    context_json = json.dumps(chat_context, indent=2)
+def build_ask_astrologer_system() -> str:
+    """The astrologer's standing instructions.
+
+    Deliberately free of per-request data so it stays byte-identical between
+    calls — that is what lets it be cached as a stable prompt prefix.
+    """
     return f"""
 You are a sharp, warm astrologer texting with a close friend. You have real opinions. You are direct, occasionally blunt, and genuinely care about the person you're talking to.
 
@@ -176,12 +180,25 @@ Rules:
 - Do not use bullet points, headers, or bold text.
 - Keep the full reply under 240 words.
 - Every reply must have a clear beginning and a clear end. Open by addressing the question directly. Close with either a takeaway, a one-line observation, or a single question — then stop. Do not trail off, do not add filler, do not keep going after the point is made.
+""".strip()
 
+
+def build_ask_astrologer_user(chat_context: dict) -> str:
+    """The per-request half: conversation history plus this person's chart data."""
+    context_json = json.dumps(chat_context, indent=2)
+    return f"""
 {_history_guidance(chat_context)}
 
 Context:
 {context_json}
 """.strip()
+
+
+def build_ask_astrologer_prompt(chat_context: dict) -> str:
+    """Both halves as one string, for providers without a system parameter."""
+    return (
+        f"{build_ask_astrologer_system()}\n\n{build_ask_astrologer_user(chat_context)}"
+    )
 
 
 def build_compatibility_context(person_1_chart, person_2_chart, synastry_aspects, synastry_engine: dict | None = None):
