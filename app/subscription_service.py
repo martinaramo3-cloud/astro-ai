@@ -230,6 +230,20 @@ def record_usage(user_id: int | None, tokens_used: int) -> None:
     conn.close()
 
 
+def find_user_id_by_email(email: str) -> int | None:
+    """Look up an account by email, for admin tier changes.
+
+    Until there's a checkout flow, upgrades are applied by hand, and email is
+    what you actually know about a customer — not their database id.
+    """
+    conn = get_db_connection()
+    row = conn.execute(
+        "SELECT id FROM users WHERE lower(email) = lower(?)", (email.strip(),)
+    ).fetchone()
+    conn.close()
+    return row["id"] if row else None
+
+
 def set_user_tier(user_id: int, new_tier: str) -> dict | None:
     """Update a user's subscription tier. Returns the updated user dict or None if not found."""
     if new_tier not in VALID_TIERS:

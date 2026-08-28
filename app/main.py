@@ -56,6 +56,7 @@ from app.subscription_service import (
     record_usage,
     get_usage_status,
     set_user_tier,
+    find_user_id_by_email,
     resolve_model,
     get_user_tier,
     TIERS,
@@ -201,6 +202,11 @@ class UserResponse(BaseModel):
 
 
 class TierUpdateRequest(BaseModel):
+    tier: str
+
+
+class TierByEmailRequest(BaseModel):
+    email: str
     tier: str
 
 
@@ -962,6 +968,32 @@ def admin_update_tier(
         )
     if x_admin_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
+
+    updated = set_user_tier(user_id, data.tier)
+    if not updated:
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"message": "Tier updated", "user": updated}
+
+
+# Three segments, so this can't be captured by /admin/users/{user_id}/tier.
+@app.patch("/admin/tier-by-email")
+def admin_update_tier_by_email(
+    data: TierByEmailRequest,
+    x_admin_secret: str | None = Header(default=None),
+):
+    """Same as above, keyed on email — what you know about a real customer."""
+    expected = os.getenv("ADMIN_SECRET")
+    if not expected:
+        raise HTTPException(
+            status_code=503,
+            detail="Admin endpoint disabled: set ADMIN_SECRET to enable.",
+        )
+    if x_admin_secret != expected:
+        raise HTTPException(status_code=401, detail="Invalid admin secret.")
+
+    user_id = find_user_id_by_email(data.email)
+    if user_id is None:
+        raise HTTPException(status_code=404, detail="No account with that email.")
 
     updated = set_user_tier(user_id, data.tier)
     if not updated:
