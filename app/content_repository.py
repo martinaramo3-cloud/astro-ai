@@ -26,6 +26,12 @@ def get_signs() -> dict[str, Any]:
 
 
 @lru_cache(maxsize=None)
+def get_dignities() -> dict[str, Any]:
+    raw = _read_json("astrology-basics/dignities.json")
+    return {key: value for key, value in raw.items() if not key.startswith("_")}
+
+
+@lru_cache(maxsize=None)
 def get_houses() -> dict[int, Any]:
     raw = _read_json("astrology-basics/houses.json")
     return {int(key): value for key, value in raw.items()}

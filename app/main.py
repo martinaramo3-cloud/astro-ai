@@ -6,7 +6,10 @@ from app.profile_service import create_profile, list_profiles_by_owner, get_prof
 from app.chat_service import create_chat_session, get_chat_session_by_id, list_chat_sessions, update_chat_session
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
+from datetime import datetime
+
 from app.celestial_events_service import build_cosmic_events, describe_moon_phase
+from app.chart_analysis_service import build_chart_analysis
 from app.session_service import (
     create_session,
     delete_session,
@@ -579,6 +582,15 @@ def ask_astrologer(
         ascendant=natal_data["ascendant"],
     )
 
+    chart_structure = build_chart_analysis(
+        planets=natal_data["planet_positions"],
+        ascendant=natal_data["ascendant"],
+        houses=natal_data["houses"],
+        aspects=natal_data["aspects"],
+        utc_dt=datetime.fromisoformat(natal_data["utc_birth_time"]),
+        question_type=question_type,
+    )
+
     chat_context = {
         "question": data.question,
         "history": [msg.model_dump() for msg in (data.history or [])],
@@ -591,6 +603,7 @@ def ask_astrologer(
             "retrograde_now": sky["retrograde_now"],
             "notable_event": sky["headline"],
         },
+        "chart_structure": chart_structure,
     }
 
     answer, tokens = generate_astrologer_answer(

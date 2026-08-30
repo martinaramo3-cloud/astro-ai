@@ -24,8 +24,22 @@ def get_current_transit_positions():
     return get_planet_positions_from_utc(now_utc)
 
 
-def get_transit_aspects(natal_planets: list, transit_planets: list):
+def get_transit_aspects(natal_planets: list, transit_planets: list, when=None):
+    """Active transits, each labelled as applying (building) or separating (fading).
+
+    Orb alone says how strong a transit is but not whether it is arriving or
+    leaving — the difference between "this peaks next week" and "you're already
+    through it". Direction is found by re-measuring the orb slightly later and
+    seeing whether it tightened.
+    """
     active_transits = []
+
+    reference = when or datetime.now(pytz.utc)
+    # Far enough ahead that even slow planets move measurably.
+    later_positions = {
+        p["planet"]: p["degree"]
+        for p in get_planet_positions_from_utc(reference + timedelta(hours=12))
+    }
 
     for transit in transit_planets:
         for natal in natal_planets:
@@ -45,6 +59,17 @@ def get_transit_aspects(natal_planets: list, transit_planets: list):
                         closest_angle = diff
 
             if closest_aspect:
+                # Compare the orb now with the orb shortly after: tightening
+                # means the transit is still building toward exact.
+                later_degree = later_positions.get(transit["planet"])
+                motion = None
+                if later_degree is not None:
+                    later_orb = abs(
+                        angle_difference(later_degree, natal["degree"])
+                        - TRANSIT_ASPECTS[closest_aspect]
+                    )
+                    motion = "applying" if later_orb < closest_orb else "separating"
+
                 active_transits.append({
                     "transit_planet": transit["planet"],
                     "transit_sign": transit["sign"],
@@ -55,7 +80,8 @@ def get_transit_aspects(natal_planets: list, transit_planets: list):
                     "natal_degree": natal["degree"],
                     "aspect": closest_aspect,
                     "angle": round(closest_angle, 2),
-                    "orb": round(closest_orb, 2)
+                    "orb": round(closest_orb, 2),
+                    "motion": motion,
                 })
 
     return sorted(active_transits, key=lambda x: x["orb"])

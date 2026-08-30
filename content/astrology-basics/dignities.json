@@ -1,0 +1,48 @@
+{
+  "_note": "Essential dignity: how easily a planet operates in a given sign. Domicile = at home, exaltation = elevated, detriment = working against its nature, fall = weakest. Traditional planets carry the full scheme; the modern outers have domicile only.",
+  "Sun": {
+    "domicile": ["Leo"],
+    "exaltation": ["Aries"],
+    "detriment": ["Aquarius"],
+    "fall": ["Libra"]
+  },
+  "Moon": {
+    "domicile": ["Cancer"],
+    "exaltation": ["Taurus"],
+    "detriment": ["Capricorn"],
+    "fall": ["Scorpio"]
+  },
+  "Mercury": {
+    "domicile": ["Gemini", "Virgo"],
+    "exaltation": ["Virgo"],
+    "detriment": ["Sagittarius", "Pisces"],
+    "fall": ["Pisces"]
+  },
+  "Venus": {
+    "domicile": ["Taurus", "Libra"],
+    "exaltation": ["Pisces"],
+    "detriment": ["Aries", "Scorpio"],
+    "fall": ["Virgo"]
+  },
+  "Mars": {
+    "domicile": ["Aries", "Scorpio"],
+    "exaltation": ["Capricorn"],
+    "detriment": ["Taurus", "Libra"],
+    "fall": ["Cancer"]
+  },
+  "Jupiter": {
+    "domicile": ["Sagittarius", "Pisces"],
+    "exaltation": ["Cancer"],
+    "detriment": ["Gemini", "Virgo"],
+    "fall": ["Capricorn"]
+  },
+  "Saturn": {
+    "domicile": ["Capricorn", "Aquarius"],
+    "exaltation": ["Libra"],
+    "detriment": ["Cancer", "Leo"],
+    "fall": ["Aries"]
+  },
+  "Uranus": { "domicile": ["Aquarius"] },
+  "Neptune": { "domicile": ["Pisces"] },
+  "Pluto": { "domicile": ["Scorpio"] }
+}
