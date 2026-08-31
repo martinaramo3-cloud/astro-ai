@@ -199,10 +199,18 @@ Rules:
 
 
 def build_ask_astrologer_user(chat_context: dict) -> str:
-    """The per-request half: conversation history plus this person's chart data."""
-    context_json = json.dumps(chat_context, indent=2)
+    """The per-request half: conversation history plus this person's chart data.
+
+    History is rendered once, by _history_guidance, which caps it to the recent
+    turns. It is dropped from the serialised context so a long conversation
+    doesn't also ship an uncapped second copy of itself on every request.
+    """
+    history_guidance = _history_guidance(chat_context)
+    context_json = json.dumps(
+        {k: v for k, v in chat_context.items() if k != "history"}, indent=2
+    )
     return f"""
-{_history_guidance(chat_context)}
+{history_guidance}
 
 Context:
 {context_json}
