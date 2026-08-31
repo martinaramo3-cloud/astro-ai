@@ -1,9 +1,9 @@
 """Subscription tier + daily token limits.
 
 Tiers:
-  free     - basic model, 30 000 tokens/day
-  standard - mid model, 300 000 tokens/day
-  premium  - top reasoning model, unlimited
+  free     - basic model, 120 000 tokens/day
+  standard - mid model, 600 000 tokens/day
+  premium  - top model, unlimited
 
 The per-tier model and limit settings live in TIERS below so they are easy to
 tweak without touching call sites.
@@ -35,7 +35,7 @@ TIERS: dict[str, TierConfig] = {
     },
     "standard": {
         "label": "Standard",
-        "model": "claude-opus-5",
+        "model": "claude-sonnet-5",
         "daily_token_limit": 600_000,
     },
     "premium": {
@@ -53,7 +53,7 @@ DEFAULT_TIER = "free"
 # `id` is the actual OpenAI model name.
 MODELS: dict[str, dict] = {
     "fast":  {"key": "fast",  "id": "gpt-4.1-mini",   "label": "Fast",  "blurb": "Quick, everyday readings"},
-    "smart": {"key": "smart", "id": "claude-opus-5",  "label": "Smart", "blurb": "Deeper, more nuanced readings"},
+    "smart": {"key": "smart", "id": "claude-sonnet-5", "label": "Smart", "blurb": "Deeper, more nuanced readings"},
     "deep":  {"key": "deep",  "id": "claude-fable-5", "label": "Deep",  "blurb": "The most thorough, insightful readings"},
 }
 

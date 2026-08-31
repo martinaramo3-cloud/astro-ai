@@ -36,6 +36,30 @@ def classify_question(question: str) -> str:
     return "general"
 
 
+# Which planets each kind of question actually turns on. Shared so that the
+# transit timeline and house placements can be trimmed the same way the chart
+# context is, instead of each having its own idea of relevance.
+FOCUS_PLANETS = {
+    "relationship":  {"Moon", "Venus", "Mars", "Sun"},
+    "compatibility": {"Moon", "Venus", "Mars", "Sun"},
+    "emotional":     {"Moon", "Sun", "Neptune", "Saturn"},
+    "career":        {"Sun", "Saturn", "Jupiter", "Mars", "Mercury"},
+    "general":       {"Sun", "Moon", "Mercury", "Venus", "Mars"},
+}
+
+ASPECT_PLANETS = {
+    "relationship":  {"Moon", "Venus", "Mars", "Saturn", "Sun"},
+    "compatibility": {"Moon", "Venus", "Mars", "Saturn", "Sun"},
+    "emotional":     {"Moon", "Neptune", "Saturn", "Sun", "Mercury"},
+    "career":        {"Sun", "Saturn", "Jupiter", "Mars", "Mercury"},
+    "general":       {"Sun", "Moon", "Mercury", "Venus", "Mars", "Saturn"},
+}
+
+
+def get_focus_planets(question_type: str | None) -> set:
+    return FOCUS_PLANETS.get(question_type or "general", FOCUS_PLANETS["general"])
+
+
 def filter_chart_context_by_question_type(
     question_type: str,
     planets: list,
@@ -46,21 +70,10 @@ def filter_chart_context_by_question_type(
     selected_planets = []
     selected_aspects = []
 
-    if question_type == "relationship":
-        focus_planets = {"Moon", "Venus", "Mars", "Sun"}
-        aspect_planets = {"Moon", "Venus", "Mars", "Saturn", "Sun"}
-
-    elif question_type == "emotional":
-        focus_planets = {"Moon", "Sun", "Neptune", "Saturn"}
-        aspect_planets = {"Moon", "Neptune", "Saturn", "Sun", "Mercury"}
-
-    elif question_type == "career":
-        focus_planets = {"Sun", "Saturn", "Jupiter", "Mars", "Mercury"}
-        aspect_planets = {"Sun", "Saturn", "Jupiter", "Mars", "Mercury"}
-
-    else:
-        focus_planets = {"Sun", "Moon", "Mercury", "Venus", "Mars"}
-        aspect_planets = {"Sun", "Moon", "Mercury", "Venus", "Mars", "Saturn"}
+    focus_planets = get_focus_planets(question_type)
+    aspect_planets = ASPECT_PLANETS.get(
+        question_type or "general", ASPECT_PLANETS["general"]
+    )
 
     for planet in planets:
         if planet["planet"] in focus_planets:

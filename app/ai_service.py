@@ -19,8 +19,11 @@ DEFAULT_MODEL = "gpt-4.1-mini"
 # budget is headroom for reasoning rather than a length target.
 ANTHROPIC_MAX_TOKENS = 8000
 
-# How hard the model works. The premium model is worth letting think longer.
-EFFORT_BY_MODEL = {"claude-fable-5": "high"}
+# How hard the model works. Thinking bills as output, and at $50/M on the
+# premium model that was most of the cost per answer — for interpretive
+# writing, which is synthesis rather than hard reasoning, medium reads about
+# the same. Paid tiers can still ask for "high" per request.
+EFFORT_BY_MODEL: dict[str, str] = {}
 DEFAULT_EFFORT = "medium"
 
 # Lets a refused request be retried on another model server-side instead of

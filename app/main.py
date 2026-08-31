@@ -16,7 +16,11 @@ from app.session_service import (
     get_user_id_for_token,
     purge_expired_sessions,
 )
-from app.question_router import classify_question, filter_chart_context_by_question_type
+from app.question_router import (
+    classify_question,
+    filter_chart_context_by_question_type,
+    get_focus_planets,
+)
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import Depends, FastAPI, Header, HTTPException
@@ -574,6 +578,7 @@ def ask_astrologer(
     )
 
     question_type = classify_question(data.question)
+    focus_planets = get_focus_planets(question_type)
 
     filtered_context = filter_chart_context_by_question_type(
         question_type=question_type,
@@ -602,7 +607,9 @@ def ask_astrologer(
         "history": [msg.model_dump() for msg in (data.history or [])],
         **filtered_context,
         "upcoming_transits": build_upcoming_transit_timeline(
-            natal_data["planet_positions"]
+            natal_data["planet_positions"],
+            max_events=8,
+            focus_planets=focus_planets,
         ),
         "sky_now": {
             "moon": sky["moon"],
@@ -623,7 +630,7 @@ def ask_astrologer(
             # Which of their houses each transiting planet is crossing — the
             # area of life a transit is playing out in.
             "transits_through_houses": get_transit_houses(
-                transit_planets, natal_data["houses"]
+                transit_planets, natal_data["houses"], focus_planets=focus_planets
             ),
         },
         "chart_structure": chart_structure,

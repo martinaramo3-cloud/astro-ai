@@ -24,7 +24,11 @@ def get_current_transit_positions():
     return get_planet_positions_from_utc(now_utc)
 
 
-def get_transit_houses(transit_planets: list, natal_houses: list) -> list[dict]:
+def get_transit_houses(
+    transit_planets: list,
+    natal_houses: list,
+    focus_planets: set | None = None,
+) -> list[dict]:
     """Which of the person's houses each transiting planet is currently crossing.
 
     An aspect says what is being touched; the house says which part of their
@@ -33,6 +37,14 @@ def get_transit_houses(transit_planets: list, natal_houses: list) -> list[dict]:
     """
     results = []
     for transit in transit_planets:
+        # The slow planets are always worth reporting — a Saturn or Pluto
+        # crossing is a multi-year fact about a life area regardless of the
+        # question. The fast ones only matter when the question turns on them.
+        if focus_planets is not None:
+            slow = transit["planet"] in {"Jupiter", "Saturn", "Uranus", "Neptune", "Pluto"}
+            if not slow and transit["planet"] not in focus_planets:
+                continue
+
         house = get_planet_house(transit["degree"], natal_houses)
         results.append({
             "transit_planet": transit["planet"],
@@ -120,6 +132,7 @@ def build_upcoming_transit_timeline(
     weeks_ahead: int = 8,
     step_days: int = 2,
     max_events: int = 14,
+    focus_planets: set | None = None,
 ):
     """Sample the ephemeris over the coming weeks and return transit events
     with real calendar dates: when each aspect starts, peaks (tightest orb),
@@ -176,6 +189,11 @@ def build_upcoming_transit_timeline(
         }
         for (transit_planet, natal_planet, aspect_name), event in events.items()
     ]
+
+    # Keep only what the question turns on, judged by the natal end of the
+    # transit — that is the part of the person being touched.
+    if focus_planets is not None:
+        timeline = [e for e in timeline if e["natal_planet"] in focus_planets]
 
     # Tightest peaks first so a cap keeps the most meaningful activations.
     timeline.sort(key=lambda e: (e["peak_orb"], e["peaks"]))
