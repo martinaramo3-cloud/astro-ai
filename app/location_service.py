@@ -10,7 +10,7 @@ from timezonefinder import TimezoneFinder
 GEOAPIFY_API_KEY = os.getenv("GEOAPIFY_API_KEY")
 TIMEZONE_FINDER = TimezoneFinder()
 SSL_CONTEXT = ssl.create_default_context(cafile=certifi.where())
-USER_AGENT = "AstraeaStudio/1.0 (astrology chart app; github.com/martinaramo3-cloud/astro-ai)"
+USER_AGENT = "Zodi/1.0 (astrology chart app; github.com/martinaramo3-cloud/astro-ai)"
 
 
 def get_timezone_from_coordinates(latitude: float, longitude: float) -> Optional[str]:

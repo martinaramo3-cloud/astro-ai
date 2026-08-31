@@ -79,11 +79,22 @@ export default function PWAInstaller() {
 
   return (
     <div className="safe-bottom fixed inset-x-3 bottom-3 z-[70] mx-auto max-w-md">
-      <div className="glass flex items-center gap-3 rounded-2xl p-3 shadow-2xl">
+      <div
+        className="flex items-center gap-3"
+        style={{
+          background: "var(--surface)",
+          border: "1px solid var(--line)",
+          borderRadius: 20,
+          boxShadow: "var(--shadow)",
+          padding: 12,
+        }}
+      >
         <img src="/icon-192.png" alt="" className="h-11 w-11 rounded-xl" />
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">Add Astraea to your home screen</p>
-          <p className="mt-0.5 text-xs leading-5 text-white/55">
+          <p className="font-reading" style={{ fontSize: 16 }}>
+            Add Zodi to your home screen
+          </p>
+          <p style={{ fontSize: 12, lineHeight: 1.5, color: "var(--ink-3)" }}>
             {showIOSHint ? (
               <>
                 Tap <span aria-hidden="true">&#8593;</span> Share, then{" "}
@@ -97,7 +108,15 @@ export default function PWAInstaller() {
         {deferred && (
           <button
             onClick={install}
-            className="shrink-0 rounded-full bg-gradient-to-r from-violet-200 to-white px-4 py-2 text-sm font-semibold text-slate-950"
+            className="shrink-0 uppercase"
+            style={{
+              borderRadius: 999,
+              padding: "9px 16px",
+              background: "linear-gradient(135deg, var(--gold), var(--gold-deep))",
+              color: "var(--on-gold)",
+              fontSize: 11,
+              letterSpacing: "0.16em",
+            }}
           >
             Install
           </button>
@@ -105,7 +124,8 @@ export default function PWAInstaller() {
         <button
           onClick={dismiss}
           aria-label="Dismiss"
-          className="shrink-0 rounded-full border border-white/15 px-2.5 py-2 text-xs text-white/60"
+          className="shrink-0"
+          style={{ fontSize: 14, color: "var(--ink-3)" }}
         >
           &#10005;
         </button>

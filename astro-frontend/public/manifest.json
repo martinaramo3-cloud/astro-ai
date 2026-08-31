@@ -1,13 +1,13 @@
 {
-  "name": "Astraea Studio",
-  "short_name": "Astraea",
-  "description": "Premium AI astrology readings, chart insights, and a modern cosmic experience.",
+  "name": "Zodi",
+  "short_name": "Zodi",
+  "description": "The sky, in plain language. Astrology readings grounded in your real birth chart.",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",
   "orientation": "portrait",
-  "background_color": "#050810",
-  "theme_color": "#070b1f",
+  "background_color": "#FBF6EC",
+  "theme_color": "#FBF6EC",
   "categories": ["lifestyle", "entertainment"],
   "icons": [
     {

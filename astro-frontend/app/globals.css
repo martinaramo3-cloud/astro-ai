@@ -1,22 +1,71 @@
 @import "tailwindcss";
 
+/* ─────────────────────────────────────────────────────────────
+   Zodi design tokens. Day is the default; night is a variable
+   swap on [data-theme="night"] so the change reads as a dissolve.
+   ───────────────────────────────────────────────────────────── */
+
 :root {
-  --background: #030611;
-  --foreground: #f8f4ff;
-  --muted: #a7a7c7;
-  --panel: rgba(8, 12, 32, 0.78);
-  --border: rgba(255, 255, 255, 0.09);
-  --gold: #c9a84c;
-  --gold-light: #e8d5a3;
-  --rose: #d4a0a8;
-  --violet: #9b79ff;
+  --ground: #fbf6ec;
+  --ground-2: #f5eddf;
+  --surface: #fffdf8;
+  --sunk: #f2e9da;
+
+  --ink: #241f19;
+  --ink-2: #5c5346;
+  --ink-3: #8e8474;
+
+  --gold: #c99a45;
+  --gold-deep: #9a7128;
+  --gold-soft: #f0e3c8;
+  --on-gold: #fffdf8;
+
+  --line: rgba(36, 31, 25, 0.1);
+  --line-2: rgba(36, 31, 25, 0.16);
+
+  --shadow: 0 18px 44px rgba(120, 95, 50, 0.1), 0 2px 8px rgba(120, 95, 50, 0.06);
+  --shadow-sm: 0 6px 18px rgba(120, 95, 50, 0.08);
+  --sky: radial-gradient(1200px 720px at 50% -10%, #fff7e6 0%, #fbf6ec 55%, #f6eee1 100%);
+
+  --mark-ray: #c99a45;
+  --mark-ray-opacity: 0.95;
+  --color-scheme: light;
+}
+
+[data-theme="night"] {
+  --ground: #121826;
+  --ground-2: #0e131f;
+  --surface: #1a2233;
+  --sunk: #202a3d;
+
+  --ink: #ecedf4;
+  --ink-2: #afb7ca;
+  --ink-3: #7f889d;
+
+  --gold: #d9b06a;
+  --gold-deep: #ebcf9b;
+  --gold-soft: #2a3448;
+  --on-gold: #141a28;
+
+  --line: rgba(236, 237, 244, 0.1);
+  --line-2: rgba(236, 237, 244, 0.18);
+
+  --shadow: 0 22px 54px rgba(0, 0, 0, 0.42), 0 2px 10px rgba(0, 0, 0, 0.28);
+  --shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.3);
+  --sky: radial-gradient(1100px 700px at 50% -12%, #1d2740 0%, #141b2b 52%, #0e131f 100%);
+
+  --mark-ray: #d9b06a;
+  --mark-ray-opacity: 0.42;
+  --color-scheme: dark;
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-ground: var(--ground);
+  --color-surface: var(--surface);
+  --color-ink: var(--ink);
+  --font-display: var(--font-cormorant);
+  --font-reading: var(--font-eb-garamond);
+  --font-ui: var(--font-jost);
 }
 
 * { box-sizing: border-box; }
@@ -24,268 +73,123 @@ html { scroll-behavior: smooth; }
 
 body {
   min-height: 100vh;
-  background:
-    radial-gradient(ellipse 90% 55% at 50% -5%, rgba(110, 70, 255, 0.2), transparent),
-    radial-gradient(ellipse 45% 35% at 85% 15%, rgba(180, 140, 255, 0.1), transparent),
-    radial-gradient(ellipse 55% 40% at 8% 65%, rgba(70, 100, 255, 0.07), transparent),
-    radial-gradient(ellipse 35% 25% at 30% 90%, rgba(200, 100, 180, 0.06), transparent),
-    linear-gradient(180deg, #07091d 0%, #050810 50%, #030611 100%);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  margin: 0;
+  background: var(--sky);
+  color: var(--ink);
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-weight: 300;
+  color-scheme: var(--color-scheme);
+  transition: background 900ms ease, color 900ms ease;
+}
+
+/* The day↔night change should dissolve, never cut. */
+body * {
+  transition: background-color 700ms ease, color 700ms ease,
+    border-color 700ms ease, box-shadow 700ms ease;
 }
 
 a { color: inherit; text-decoration: none; }
-input, textarea, button { font: inherit; }
+input, textarea, button { font: inherit; color: inherit; }
+::selection { background: var(--gold-soft); }
 
-/* Render native date/time pickers (placeholder text + calendar icon) for a
-   dark background so they're visible instead of looking like empty bars. */
-input[type="date"], input[type="time"] { color-scheme: dark; }
+input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 
-/* Installed-app safe areas: keep chrome clear of the notch and home indicator.
-   These resolve to 0 in a normal browser tab. */
-.safe-top { padding-top: env(safe-area-inset-top, 0px); }
-.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
-::selection { background: rgba(171, 130, 255, 0.35); }
-
-/* Thin luxury scrollbar */
 ::-webkit-scrollbar { width: 3px; }
 ::-webkit-scrollbar-track { background: transparent; }
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(to bottom, rgba(155, 121, 255, 0.4), rgba(200, 140, 200, 0.3));
-  border-radius: 2px;
-}
-
-/* ─── Interactions & page transitions ─── */
-a, button {
-  transition: transform 0.18s ease, opacity 0.18s ease,
-    background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-@media (hover: hover) {
-  button:hover:not(:disabled) { transform: translateY(-1px); }
-}
-button:active:not(:disabled) { transform: translateY(0) scale(0.985); }
+::-webkit-scrollbar-thumb { background: var(--line-2); border-radius: 2px; }
 
 :focus-visible {
-  outline: 2px solid rgba(155, 121, 255, 0.55);
+  outline: 2px solid var(--gold);
   outline-offset: 2px;
   border-radius: 6px;
 }
 
-/* Gentle fade as each page mounts (opacity only — safe for fixed children) */
-@keyframes page-enter {
-  from { opacity: 0; }
-  to   { opacity: 1; }
-}
-main { animation: page-enter 0.45s ease-out; }
+/* Keep chrome clear of the notch and home indicator when installed. */
+.safe-top { padding-top: env(safe-area-inset-top, 0px); }
+.safe-bottom { padding-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* Respect users who prefer less motion */
+/* ─── Typography helpers ─── */
+
+.font-display { font-family: var(--font-cormorant), Georgia, serif; }
+.font-reading { font-family: var(--font-eb-garamond), Georgia, serif; }
+
+/* The recurring micro-label: 10px, wide tracking, uppercase. */
+.micro-label {
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.body-pretty { text-wrap: pretty; }
+
+/* ─── Screen & element motion ─── */
+
+@keyframes zo-fade { from { opacity: 0; } to { opacity: 1; } }
+
+@keyframes zo-rise {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes zo-msg {
+  from { opacity: 0; transform: translateY(10px) scale(0.99); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes zo-dots {
+  0%, 100% { opacity: 0.25; }
+  50%      { opacity: 1; }
+}
+
+.zo-fade { animation: zo-fade 1400ms ease both; }
+.zo-rise { animation: zo-rise 900ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.zo-msg  { animation: zo-msg 700ms cubic-bezier(0.22, 0.61, 0.36, 1) both; }
+.zo-dots { animation: zo-dots 1800ms ease-in-out infinite; }
+
+/* Wordmark reveal: opacity in while the tracking settles. */
+@keyframes zo-word {
+  from { opacity: 0; letter-spacing: 0.75em; }
+  to   { opacity: 1; letter-spacing: 0.4em; }
+}
+.zo-word {
+  animation: zo-word 1800ms cubic-bezier(0.22, 0.61, 0.36, 1) 300ms both;
+}
+
+/* ─── The mark (ZodiMark) ─── */
+
+@keyframes zm-glow {
+  0%, 100% { opacity: 0.42; transform: scale(1); }
+  50%      { opacity: 0.82; transform: scale(1.14); }
+}
+
+@keyframes zm-breathe {
+  0%, 100% { transform: scale(1); }
+  50%      { transform: scale(1.06); }
+}
+
+@keyframes zm-shimmer {
+  0%, 100% { opacity: 0.4; }
+  50%      { opacity: 1; }
+}
+
+@keyframes zm-spin { to { transform: rotate(360deg); } }
+@keyframes zm-orbit { to { transform: rotate(360deg); } }
+
+.zm-glow    { animation: zm-glow 7s ease-in-out infinite; }
+.zm-breathe { animation: zm-breathe 7s ease-in-out infinite; }
+.zm-shimmer { animation: zm-shimmer 6s ease-in-out infinite; }
+
+/* Almost imperceptible drift at rest; the fast spin is the whole loader. */
+.zm-spin-rest { animation: zm-spin 120s linear infinite; }
+.zm-spin-fast { animation: zm-spin 3.6s linear infinite; }
+.zm-orbit-rest { animation: zm-orbit 40s linear infinite; }
+.zm-orbit-fast { animation: zm-orbit 6s linear infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.001ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.001ms !important;
   }
-  main { animation: none; }
-}
-
-/* ─── Glass panels ─── */
-.glass {
-  background: var(--panel);
-  backdrop-filter: blur(28px);
-  -webkit-backdrop-filter: blur(28px);
-  border: 1px solid var(--border);
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35), inset 0 1px 0 rgba(255,255,255,0.06);
-}
-
-/* ─── Twinkling stars ─── */
-@keyframes twinkle-a {
-  0%, 100% { opacity: 0.2; }
-  50% { opacity: 1; }
-}
-@keyframes twinkle-b {
-  0%, 100% { opacity: 0.7; }
-  50% { opacity: 0.05; }
-}
-@keyframes twinkle-c {
-  0%, 100% { opacity: 0.5; }
-  35% { opacity: 1; }
-  70% { opacity: 0.15; }
-}
-
-.starfield::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    radial-gradient(1.5px 1.5px at 8%  12%, rgba(255,255,255,0.95), transparent),
-    radial-gradient(1px   1px   at 17% 55%, rgba(255,255,255,0.7),  transparent),
-    radial-gradient(2px   2px   at 27% 8%,  rgba(255,255,255,0.85), transparent),
-    radial-gradient(1px   1px   at 38% 33%, rgba(255,255,255,0.6),  transparent),
-    radial-gradient(1.5px 1.5px at 49% 72%, rgba(255,255,255,0.8),  transparent),
-    radial-gradient(1px   1px   at 61% 18%, rgba(255,255,255,0.55), transparent),
-    radial-gradient(2px   2px   at 73% 45%, rgba(255,255,255,0.9),  transparent),
-    radial-gradient(1px   1px   at 82% 80%, rgba(255,255,255,0.5),  transparent),
-    radial-gradient(1.5px 1.5px at 91% 28%, rgba(255,255,255,0.75), transparent),
-    radial-gradient(1px   1px   at 5%  88%, rgba(255,255,255,0.6),  transparent),
-    radial-gradient(1px   1px   at 44% 50%, rgba(200,180,255,0.9),  transparent),
-    radial-gradient(1px   1px   at 23% 40%, rgba(255,230,200,0.7),  transparent),
-    radial-gradient(1px   1px   at 66% 92%, rgba(200,220,255,0.65), transparent),
-    radial-gradient(1px   1px   at 88% 60%, rgba(255,200,220,0.6),  transparent);
-  background-size: 100vw 100vh;
-  animation: twinkle-a 4.5s ease-in-out infinite;
-}
-
-.starfield::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 0;
-  background-image:
-    radial-gradient(1px   1px   at 12% 42%, rgba(255,255,255,0.65), transparent),
-    radial-gradient(1.5px 1.5px at 32% 15%, rgba(255,255,255,0.85), transparent),
-    radial-gradient(1px   1px   at 53% 67%, rgba(255,255,255,0.5),  transparent),
-    radial-gradient(2px   2px   at 71% 28%, rgba(255,255,255,0.8),  transparent),
-    radial-gradient(1px   1px   at 87% 75%, rgba(255,255,255,0.45), transparent),
-    radial-gradient(1px   1px   at 19% 92%, rgba(255,255,255,0.6),  transparent),
-    radial-gradient(1.5px 1.5px at 64% 95%, rgba(255,255,255,0.7),  transparent),
-    radial-gradient(1px   1px   at 41% 78%, rgba(200,180,255,0.7),  transparent),
-    radial-gradient(1px   1px   at 79% 52%, rgba(255,240,200,0.55), transparent),
-    radial-gradient(1px   1px   at 96% 18%, rgba(255,255,255,0.5),  transparent),
-    radial-gradient(1px   1px   at 3%  35%, rgba(255,255,255,0.65), transparent);
-  background-size: 100vw 100vh;
-  animation: twinkle-b 6.5s ease-in-out infinite 2.2s;
-}
-
-/* ─── Floating moon ─── */
-@keyframes moon-float {
-  0%, 100% {
-    transform: translateY(0px) rotate(-4deg);
-    filter: drop-shadow(0 0 16px rgba(190, 160, 255, 0.4));
-  }
-  50% {
-    transform: translateY(-16px) rotate(4deg);
-    filter: drop-shadow(0 0 32px rgba(190, 160, 255, 0.65));
-  }
-}
-
-.moon-decor {
-  position: fixed;
-  top: 10%;
-  right: 5%;
-  width: 52px;
-  height: 52px;
-  border-radius: 50%;
-  box-shadow:
-    inset -14px -5px 0 3px rgba(220, 200, 255, 0.75),
-    0 0 0 1px rgba(200, 170, 255, 0.12);
-  pointer-events: none;
-  /* Behind the glass panels, so it reads as background rather than clutter. */
-  z-index: 0;
-  animation: moon-float 10s ease-in-out infinite;
-  opacity: 0.5;
-}
-
-@media (max-width: 640px) {
-  /* Absolute (not fixed) on phones so the moon sits in the hero and scrolls
-     away, instead of hovering over form fields for the whole page. */
-  .moon-decor {
-    position: absolute;
-    width: 34px;
-    height: 34px;
-    top: 104px;
-    bottom: auto;
-    right: 7%;
-    opacity: 0.38;
-  }
-}
-
-/* ─── Ambient drifting orbs ─── */
-@keyframes orb-a {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  33% { transform: translate(60px, -40px) scale(1.08); }
-  66% { transform: translate(-30px, 50px) scale(0.94); }
-}
-@keyframes orb-b {
-  0%, 100% { transform: translate(0px, 0px) scale(1); }
-  40% { transform: translate(-50px, 30px) scale(1.05); }
-  80% { transform: translate(40px, -20px) scale(0.97); }
-}
-
-.orb {
-  position: fixed;
-  border-radius: 50%;
-  pointer-events: none;
-  z-index: 0;
-}
-.orb-1 {
-  width: 420px;
-  height: 420px;
-  top: -80px;
-  left: -100px;
-  background: radial-gradient(circle, rgba(100, 70, 220, 0.12) 0%, transparent 70%);
-  filter: blur(60px);
-  animation: orb-a 22s ease-in-out infinite;
-}
-.orb-2 {
-  width: 380px;
-  height: 380px;
-  bottom: -60px;
-  right: -80px;
-  background: radial-gradient(circle, rgba(180, 80, 160, 0.1) 0%, transparent 70%);
-  filter: blur(55px);
-  animation: orb-b 28s ease-in-out infinite 4s;
-}
-.orb-3 {
-  width: 300px;
-  height: 300px;
-  top: 40%;
-  left: 35%;
-  background: radial-gradient(circle, rgba(80, 120, 220, 0.07) 0%, transparent 70%);
-  filter: blur(70px);
-  animation: orb-a 35s ease-in-out infinite 8s;
-}
-
-/* ─── Chat message entrance ─── */
-@keyframes msg-in {
-  from { opacity: 0; transform: translateY(8px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.msg-in {
-  animation: msg-in 0.32s ease-out both;
-}
-
-/* ─── Typing indicator dots ─── */
-@keyframes typing-bounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
-}
-.typing-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: rgba(220, 210, 255, 0.9);
-  display: inline-block;
-  animation: typing-bounce 1.2s ease-in-out infinite;
-}
-.typing-dot:nth-child(2) { animation-delay: 0.2s; }
-.typing-dot:nth-child(3) { animation-delay: 0.4s; }
-
-/* ─── Floating particles ─── */
-@keyframes particle-rise {
-  0%   { transform: translateY(0px) translateX(0px) scale(1);   opacity: 1; }
-  40%  { opacity: 0.8; }
-  100% { transform: translateY(-110px) translateX(var(--drift, 8px)) scale(0.5); opacity: 0; }
-}
-
-.particle {
-  position: absolute;
-  pointer-events: none;
-  animation: particle-rise var(--dur, 2.8s) ease-out forwards;
-  animation-delay: var(--delay, 0s);
-  font-size: var(--sz, 15px);
-  z-index: 20;
-  user-select: none;
 }

@@ -3,52 +3,60 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Offline · Astraea Studio</title>
+    <title>Offline · Zodi</title>
     <style>
+      /* Standalone page — the app's CSS variables aren't available here, so
+         the day palette is written out literally. */
       body {
         margin: 0;
         min-height: 100vh;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: linear-gradient(180deg, #07091d 0%, #050810 50%, #030611 100%);
-        color: #f8f4ff;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+        background: radial-gradient(1200px 720px at 50% -10%, #fff7e6 0%, #fbf6ec 55%, #f6eee1 100%);
+        color: #241f19;
+        font-family: "Jost", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        font-weight: 300;
         text-align: center;
         padding: 24px;
       }
-      .mark {
-        font-size: 40px;
-        color: #d8ba74;
-        margin-bottom: 20px;
+      img {
+        width: 96px;
+        height: 96px;
+        margin-bottom: 22px;
       }
       h1 {
-        font-size: 24px;
-        font-weight: 600;
+        font-family: "Cormorant Garamond", Georgia, serif;
+        font-size: 34px;
+        font-weight: 300;
         margin: 0 0 12px;
       }
       p {
-        color: rgba(255, 255, 255, 0.6);
+        font-family: "EB Garamond", Georgia, serif;
+        font-size: 17px;
+        color: #5c5346;
         line-height: 1.7;
-        max-width: 320px;
-        margin: 0 auto 24px;
+        max-width: 32ch;
+        margin: 0 auto 26px;
       }
       button {
         font: inherit;
         border: 0;
         border-radius: 999px;
-        padding: 12px 28px;
-        font-weight: 600;
-        color: #050810;
-        background: linear-gradient(90deg, #ded0ff, #ffffff);
+        padding: 14px 30px;
+        font-size: 13px;
+        letter-spacing: 0.2em;
+        text-transform: uppercase;
+        color: #fffdf8;
+        background: linear-gradient(135deg, #c99a45, #9a7128);
       }
     </style>
   </head>
   <body>
     <div>
-      <div class="mark">&#10022;</div>
+      <img src="/icon-192.png" alt="" />
       <h1>You're offline</h1>
-      <p>Astraea needs a connection to read your chart. Reconnect and try again.</p>
+      <p>Zodi needs a connection to read the sky. Reconnect and try again.</p>
       <button onclick="location.reload()">Try again</button>
     </div>
   </body>

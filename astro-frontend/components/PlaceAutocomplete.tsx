@@ -12,9 +12,10 @@ interface Props {
   onChange: (value: string) => void;
   placeholder?: string;
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export default function PlaceAutocomplete({ value, onChange, placeholder = "Birth place, e.g. Paris, France", className }: Props) {
+export default function PlaceAutocomplete({ value, onChange, placeholder = "Birth place, e.g. Paris, France", className, style }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -48,7 +49,7 @@ export default function PlaceAutocomplete({ value, onChange, placeholder = "Birt
       try {
         const res = await fetch(
           `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=5&addressdetails=0`,
-          { headers: { "User-Agent": "AstraeaStudio/1.0" } }
+          { headers: { "User-Agent": "Zodi/1.0" } }
         );
         const data: Suggestion[] = await res.json();
         setSuggestions(data);
@@ -78,21 +79,34 @@ export default function PlaceAutocomplete({ value, onChange, placeholder = "Birt
         onFocus={() => suggestions.length > 0 && setOpen(true)}
         placeholder={placeholder}
         className={className}
+        style={style}
         autoComplete="off"
       />
       {loading && (
-        <div className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-white/40">
+        <div
+          className="absolute right-4 top-1/2 -translate-y-1/2 text-xs"
+          style={{ color: "var(--ink-3)" }}
+        >
           searching...
         </div>
       )}
       {open && suggestions.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-xl">
+        <ul
+          className="absolute left-0 right-0 top-full z-50 mt-1 overflow-hidden"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--line)",
+            borderRadius: 14,
+            boxShadow: "var(--shadow)",
+          }}
+        >
           {suggestions.map((s) => (
             <li key={s.place_id}>
               <button
                 type="button"
                 onMouseDown={() => handleSelect(s)}
-                className="w-full px-4 py-3 text-left text-sm text-white/80 transition hover:bg-white/10"
+                className="w-full px-4 py-3 text-left text-sm"
+                style={{ color: "var(--ink-2)" }}
               >
                 {s.display_name}
               </button>

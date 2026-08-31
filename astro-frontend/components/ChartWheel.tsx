@@ -20,12 +20,12 @@ export type NatalChart = {
 };
 
 const PLANET_GLYPH: Record<string, string> = {
-  Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
-  Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+  Sun: "☉︎", Moon: "☽︎", Mercury: "☿︎", Venus: "♀︎", Mars: "♂︎",
+  Jupiter: "♃︎", Saturn: "♄︎", Uranus: "♅︎", Neptune: "♆︎", Pluto: "♇︎",
 };
 const SIGN_GLYPH: Record<string, string> = {
-  Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
-  Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
+  Aries: "♈︎", Taurus: "♉︎", Gemini: "♊︎", Cancer: "♋︎", Leo: "♌︎", Virgo: "♍︎",
+  Libra: "♎︎", Scorpio: "♏︎", Sagittarius: "♐︎", Capricorn: "♑︎", Aquarius: "♒︎", Pisces: "♓︎",
 };
 const SIGN_ORDER = [
   "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -33,16 +33,41 @@ const SIGN_ORDER = [
 ];
 
 // Harmonious vs. tense aspects get different colors.
-const ASPECT_COLOR: Record<string, string> = {
-  trine: "#6fd3c0", sextile: "#6fd3c0",
-  square: "#e0857f", opposition: "#e0857f",
-  conjunction: "#b9a6ff",
-};
+const ASPECT_COLOR = {
+  night: {
+    trine: "#6fd3c0", sextile: "#6fd3c0",
+    square: "#e0857f", opposition: "#e0857f", conjunction: "#b9a6ff",
+  },
+  day: {
+    trine: "#4f9e8c", sextile: "#4f9e8c",
+    square: "#c2705f", opposition: "#c2705f", conjunction: "#8a6fc9",
+  },
+} as const;
 
 const CX = 200;
 const CY = 200;
 
-export default function ChartWheel({ chart }: { chart: NatalChart }) {
+const PALETTES = {
+  night: {
+    bg: "#12172b", ring: "#5b4b9e", spoke: "#3c3470", houseNum: "#8a7fc0",
+    sign: "#d9b961", planetFill: "#12173a", planetStroke: "#7c6bd6",
+    glyph: "#f3eeff", asc: "#d9b961", emphasis: "#d9b961",
+  },
+  day: {
+    bg: "#fffdf8", ring: "#d8c9a8", spoke: "#e3d7bf", houseNum: "#a99a80",
+    sign: "#9a7128", planetFill: "#fbf6ec", planetStroke: "#c99a45",
+    glyph: "#241f19", asc: "#9a7128", emphasis: "#c99a45",
+  },
+} as const;
+
+export default function ChartWheel({
+  chart,
+  night = true,
+}: {
+  chart: NatalChart;
+  night?: boolean;
+}) {
+  const C = PALETTES[night ? "night" : "day"];
   const asc = chart.ascendant.degree;
 
   // Map an ecliptic longitude to a screen point. Ascendant sits at the left
@@ -67,11 +92,11 @@ export default function ChartWheel({ chart }: { chart: NatalChart }) {
 
   return (
     <svg viewBox="0 0 400 400" width="100%" style={{ maxWidth: 440 }} role="img" aria-label="Your natal chart wheel">
-      <rect x="0" y="0" width="400" height="400" rx="24" fill="#070b1f" />
+      <rect x="0" y="0" width="400" height="400" rx="24" fill={C.bg} />
 
       {/* Rings */}
       {[192, 150, 118, 38].map((r) => (
-        <circle key={r} cx={CX} cy={CY} r={r} fill="none" stroke="#5b4b9e" strokeWidth="1" opacity="0.5" />
+        <circle key={r} cx={CX} cy={CY} r={r} fill="none" stroke={C.ring} strokeWidth="1" opacity="0.5" />
       ))}
 
       {/* Sign segment dividers + glyphs */}
@@ -81,8 +106,8 @@ export default function ChartWheel({ chart }: { chart: NatalChart }) {
         const glyph = point(i * 30 + 15, 171);
         return (
           <g key={sign}>
-            <line x1={inner.x} y1={inner.y} x2={boundary.x} y2={boundary.y} stroke="#5b4b9e" strokeWidth="1" opacity="0.45" />
-            <text x={glyph.x} y={glyph.y + 6} textAnchor="middle" fontSize="17" fill="#d9b961">{SIGN_GLYPH[sign]}</text>
+            <line x1={inner.x} y1={inner.y} x2={boundary.x} y2={boundary.y} stroke={C.ring} strokeWidth="1" opacity="0.45" />
+            <text x={glyph.x} y={glyph.y + 6} textAnchor="middle" fontSize="17" fill={C.sign}>{SIGN_GLYPH[sign]}</text>
           </g>
         );
       })}
@@ -99,11 +124,11 @@ export default function ChartWheel({ chart }: { chart: NatalChart }) {
           <g key={h.house}>
             <line
               x1={inner.x} y1={inner.y} x2={outer.x} y2={outer.y}
-              stroke={emphasize ? "#d9b961" : "#3c3470"}
+              stroke={emphasize ? C.emphasis : C.spoke}
               strokeWidth={emphasize ? 1.4 : 1}
               opacity={emphasize ? 0.8 : 0.6}
             />
-            <text x={num.x} y={num.y + 3} textAnchor="middle" fontSize="9" fill="#8a7fc0">{h.house}</text>
+            <text x={num.x} y={num.y + 3} textAnchor="middle" fontSize="9" fill={C.houseNum}>{h.house}</text>
           </g>
         );
       })}
@@ -119,7 +144,7 @@ export default function ChartWheel({ chart }: { chart: NatalChart }) {
           <line
             key={i}
             x1={from.x} y1={from.y} x2={to.x} y2={to.y}
-            stroke={ASPECT_COLOR[a.aspect] ?? "#7c6bd6"}
+            stroke={ASPECT_COLOR[night ? "night" : "day"][a.aspect as keyof typeof ASPECT_COLOR.day] ?? C.planetStroke}
             strokeWidth="0.8"
             opacity="0.4"
           />
@@ -131,17 +156,17 @@ export default function ChartWheel({ chart }: { chart: NatalChart }) {
         const pos = point(p.degree, radii[p.planet] ?? 95);
         return (
           <g key={p.planet}>
-            <circle cx={pos.x} cy={pos.y} r="13" fill="#12173a" stroke="#7c6bd6" strokeWidth="1" />
-            <text x={pos.x} y={pos.y + 5} textAnchor="middle" fontSize="14" fill="#f3eeff">{PLANET_GLYPH[p.planet] ?? p.planet[0]}</text>
+            <circle cx={pos.x} cy={pos.y} r="13" fill={C.planetFill} stroke={C.planetStroke} strokeWidth="1" />
+            <text x={pos.x} y={pos.y + 5} textAnchor="middle" fontSize="14" fill={C.glyph}>{PLANET_GLYPH[p.planet] ?? p.planet[0]}</text>
             {p.retrograde && (
-              <text x={pos.x + 11} y={pos.y - 8} textAnchor="middle" fontSize="7" fill="#d9b961">℞</text>
+              <text x={pos.x + 11} y={pos.y - 8} textAnchor="middle" fontSize="7" fill={C.sign}>℞</text>
             )}
           </g>
         );
       })}
 
       {/* Ascendant marker */}
-      <text x={point(asc, 205).x} y={point(asc, 205).y + 3} textAnchor="middle" fontSize="9" fill="#d9b961">ASC</text>
+      <text x={point(asc, 205).x} y={point(asc, 205).y + 3} textAnchor="middle" fontSize="9" fill={C.sign}>ASC</text>
     </svg>
   );
 }

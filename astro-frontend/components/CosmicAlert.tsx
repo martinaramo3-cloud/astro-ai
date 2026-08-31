@@ -102,32 +102,45 @@ export default function CosmicAlert({
 
   return (
     <div
-      className={`msg-in mb-4 rounded-2xl border px-4 py-3 ${
-        event.is_personal
-          ? "border-violet-300/30 bg-violet-300/10"
-          : "border-white/10 bg-white/5"
-      }`}
+      className="zo-msg mb-5"
+      style={{
+        border: "1px solid var(--line)",
+        background: event.is_personal ? "var(--gold-soft)" : "var(--surface)",
+        borderRadius: 16,
+        padding: "14px 16px",
+      }}
     >
       <div className="flex items-start gap-3">
         <span className="mt-0.5 text-lg leading-none" aria-hidden="true">
           {EVENT_ICON[event.type]}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-sm font-semibold text-white">
+          <p className="font-reading" style={{ fontSize: 17 }}>
             {event.name} in {event.sign}
-            <span className="ml-2 font-normal text-white/45">
+            <span className="ml-2" style={{ color: "var(--ink-3)" }}>
               {whenLabel(event.days_away)}
             </span>
           </p>
           {hit && (
-            <p className="mt-1 text-xs leading-5 text-violet-100/70">
+            <p
+              className="font-reading mt-1"
+              style={{ fontSize: 15, lineHeight: 1.6, color: "var(--ink-2)" }}
+            >
               It {hit} — this one lands close to home.
             </p>
           )}
           {onAsk && (
             <button
               onClick={() => onAsk(question)}
-              className="mt-2 rounded-full border border-white/15 bg-white/5 px-3 py-1.5 text-xs font-medium text-white/80 transition hover:bg-white/10"
+              className="mt-3 uppercase"
+              style={{
+                borderRadius: 999,
+                border: "1px solid var(--line-2)",
+                padding: "7px 14px",
+                fontSize: 10,
+                letterSpacing: "0.16em",
+                color: "var(--ink-2)",
+              }}
             >
               Ask what it means for me
             </button>
@@ -136,7 +149,8 @@ export default function CosmicAlert({
         <button
           onClick={dismiss}
           aria-label="Dismiss"
-          className="shrink-0 rounded-full border border-white/10 px-2 py-1 text-xs text-white/40"
+          className="shrink-0"
+          style={{ fontSize: 14, color: "var(--ink-3)" }}
         >
           ✕
         </button>

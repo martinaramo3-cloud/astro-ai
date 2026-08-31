@@ -3,18 +3,26 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, clearAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
-import FloatingParticles from "../../components/FloatingParticles";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
 import CosmicAlert from "../../components/CosmicAlert";
+import ZodiMark from "../../components/ZodiMark";
+import Wordmark from "../../components/Wordmark";
+import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
 
 const SIGN_GLYPH: Record<string, string> = {
-  Aries: "♈", Taurus: "♉", Gemini: "♊", Cancer: "♋", Leo: "♌", Virgo: "♍",
-  Libra: "♎", Scorpio: "♏", Sagittarius: "♐", Capricorn: "♑", Aquarius: "♒", Pisces: "♓",
+  Aries: "♈︎", Taurus: "♉︎", Gemini: "♊︎", Cancer: "♋︎", Leo: "♌︎", Virgo: "♍︎",
+  Libra: "♎︎", Scorpio: "♏︎", Sagittarius: "♐︎", Capricorn: "♑︎", Aquarius: "♒︎", Pisces: "♓︎",
 };
 const PLANET_GLYPH: Record<string, string> = {
-  Sun: "☉", Moon: "☽", Mercury: "☿", Venus: "♀", Mars: "♂",
-  Jupiter: "♃", Saturn: "♄", Uranus: "♅", Neptune: "♆", Pluto: "♇",
+  Sun: "☉︎", Moon: "☽︎", Mercury: "☿︎", Venus: "♀︎", Mars: "♂︎",
+  Jupiter: "♃︎", Saturn: "♄︎", Uranus: "♅︎", Neptune: "♆︎", Pluto: "♇︎",
 };
+
+const STARTERS = [
+  "Why do I pull away in relationships?",
+  "What does this month activate for me?",
+  "What pattern runs my career?",
+];
 
 type User = {
   id: number;
@@ -63,10 +71,23 @@ type ChatSession = {
 const DEFAULT_MESSAGE: Message = {
   role: "assistant",
   content:
-    "Welcome back. Ask about love, timing, emotional patterns, or your life direction.",
+    "Ask me anything — love, timing, the patterns you keep circling. I read from your chart, not a horoscope.",
+};
+
+const fieldStyle: React.CSSProperties = {
+  border: "1px solid var(--line-2)",
+  background: "var(--ground)",
+  borderRadius: 14,
+  padding: "10px 13px",
+  fontSize: 14,
+  width: "100%",
+  outline: "none",
 };
 
 export default function ChatPage() {
+  const { theme } = useTheme();
+  const night = theme === "night";
+
   const [user] = useState<User | null>(() => {
     if (typeof window === "undefined") return null;
     const savedUser = window.localStorage.getItem("user");
@@ -78,6 +99,8 @@ export default function ChatPage() {
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<SavedProfile | null>(null);
   const [showAddProfile, setShowAddProfile] = useState(false);
+  const [profileError, setProfileError] = useState("");
+  const [savingProfile, setSavingProfile] = useState(false);
   const [usage, setUsage] = useState<UsageStatus | null>(null);
   const [newProfile, setNewProfile] = useState({
     label: "",
@@ -91,7 +114,6 @@ export default function ChatPage() {
   const [messages, setMessages] = useState<Message[]>([DEFAULT_MESSAGE]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const [particleTrigger, setParticleTrigger] = useState<string | null>(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [chartOpen, setChartOpen] = useState(false);
@@ -159,7 +181,6 @@ export default function ChatPage() {
     try {
       const res = await apiFetch("/natal-chart", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           birth_date: user.birth_date,
           birth_time: user.birth_time,
@@ -186,9 +207,9 @@ export default function ChatPage() {
     }
   };
 
-  const profileLine = useMemo(() => {
-    if (!user) return "Loading chart profile...";
-    return `${user.name} · ${user.birth_date} · ${user.birth_time} · ${user.birth_place}`;
+  const birthLine = useMemo(() => {
+    if (!user) return "";
+    return `${user.birth_date} · ${user.birth_time} · ${user.birth_place}`;
   }, [user]);
 
   const buildSessionTitle = (history: Message[]) => {
@@ -213,18 +234,11 @@ export default function ChatPage() {
 
     try {
       const response = await apiFetch(
-        currentSessionId
-          ? `/chat-sessions/${currentSessionId}`
-          : "/chat-sessions",
+        currentSessionId ? `/chat-sessions/${currentSessionId}` : "/chat-sessions",
         {
           method: currentSessionId ? "PATCH" : "POST",
           body: JSON.stringify(
-            currentSessionId
-              ? payload
-              : {
-                  owner_user_id: user.id,
-                  ...payload,
-                },
+            currentSessionId ? payload : { owner_user_id: user.id, ...payload },
           ),
         },
       );
@@ -232,10 +246,7 @@ export default function ChatPage() {
       if (!response.ok) return;
 
       setCurrentSessionId(data.id);
-      setSessions((prev) => {
-        const next = [data, ...prev.filter((session) => session.id !== data.id)];
-        return next;
-      });
+      setSessions((prev) => [data, ...prev.filter((session) => session.id !== data.id)]);
     } catch (error) {
       console.error("Failed to persist session", error);
     }
@@ -258,8 +269,8 @@ export default function ChatPage() {
     setSidebarOpen(false);
   };
 
-  // `overrideText` lets prompts elsewhere in the UI (like the cosmic alert)
-  // send a question in one tap.
+  // `overrideText` lets prompts elsewhere in the UI (starters, the cosmic
+  // alert) send a question in one tap.
   const sendMessage = async (overrideText?: string) => {
     const userText = (overrideText ?? input).trim();
     if (!userText || !user || loading) return;
@@ -269,9 +280,7 @@ export default function ChatPage() {
     setInput("");
     setLoading(true);
 
-    const endpoint = selectedProfile
-      ? "/ask-saved-compatibility"
-      : "/ask-astrologer";
+    const endpoint = selectedProfile ? "/ask-saved-compatibility" : "/ask-astrologer";
 
     const body = selectedProfile
       ? {
@@ -309,7 +318,6 @@ export default function ChatPage() {
           { role: "assistant" as const, content: answerText },
         ];
         setMessages(finalMessages);
-        setParticleTrigger(answerText + "|" + Date.now());
         await persistSession(finalMessages);
         refreshUsage();
       } catch {
@@ -319,10 +327,7 @@ export default function ChatPage() {
         }
         const fallbackMessages = [
           ...nextHistory,
-          {
-            role: "assistant" as const,
-            content: "Something went wrong. Please try again.",
-          },
+          { role: "assistant" as const, content: "Something went wrong. Please try again." },
         ];
         setMessages(fallbackMessages);
         await persistSession(fallbackMessages);
@@ -334,25 +339,28 @@ export default function ChatPage() {
   };
 
   const saveProfile = async () => {
-    if (!user) return;
-    if (
-      !newProfile.label ||
-      !newProfile.person_name ||
-      !newProfile.birth_date ||
-      !newProfile.birth_time ||
-      !newProfile.birth_place
-    ) {
+    if (!user || savingProfile) return;
+
+    // Say which field is missing — silently doing nothing just looks broken.
+    const missing = [
+      [newProfile.label, "a label, like “My boyfriend”"],
+      [newProfile.person_name, "their name"],
+      [newProfile.birth_date, "their birth date"],
+      [newProfile.birth_time, "their birth time"],
+      [newProfile.birth_place, "their birth place"],
+    ].find(([value]) => !String(value).trim());
+
+    if (missing) {
+      setProfileError(`Please add ${missing[1]}.`);
       return;
     }
 
+    setProfileError("");
+    setSavingProfile(true);
     try {
       const res = await apiFetch("/profiles", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          owner_user_id: user.id,
-          ...newProfile,
-        }),
+        body: JSON.stringify({ owner_user_id: user.id, ...newProfile }),
       });
 
       const data = await res.json();
@@ -362,19 +370,16 @@ export default function ChatPage() {
         setSelectedProfile(data);
         setShowAddProfile(false);
         setNewProfile({
-          label: "",
-          person_name: "",
-          relationship_type: "",
-          birth_date: "",
-          birth_time: "",
-          birth_place: "",
+          label: "", person_name: "", relationship_type: "",
+          birth_date: "", birth_time: "", birth_place: "",
         });
       } else {
-        console.error(data);
+        setProfileError(data.detail || "Could not save this person.");
       }
-    } catch (e) {
-      console.error("Failed to save profile", e);
+    } catch {
+      setProfileError("Could not reach the server. Try again in a moment.");
     }
+    setSavingProfile(false);
   };
 
   const logout = async () => {
@@ -388,396 +393,607 @@ export default function ChatPage() {
     window.location.href = "/";
   };
 
-  return (
-    <main className="px-4 py-6 text-white lg:px-6 lg:py-10">
-      {/* Mobile top bar */}
-      <div className="mx-auto mb-4 flex max-w-6xl items-center gap-3 lg:hidden">
-        <button
-          onClick={() => setSidebarOpen(true)}
-          aria-label="Open menu"
-          className="flex min-h-[44px] items-center gap-2 rounded-full border border-white/15 bg-white/5 px-4 text-sm font-medium transition active:scale-95"
-        >
-          <span className="text-lg leading-none">☰</span> Menu
-        </button>
-        {/* Left-aligned and compact so it can't run under the moon decoration. */}
-        <span className="truncate text-xs uppercase tracking-[0.18em] text-white/45">
-          Astrologer Chat
-        </span>
-      </div>
+  const conversation = messages.filter(
+    (m, i) => !(i === 0 && m.role === "assistant" && m.content === DEFAULT_MESSAGE.content),
+  );
+  const isFresh = conversation.length === 0;
 
-      {/* Backdrop for mobile drawer */}
+  return (
+    <div className="flex h-screen overflow-hidden" style={{ background: "var(--sky)" }}>
+      {/* Backdrop for the mobile drawer */}
       {sidebarOpen && (
         <div
           onClick={() => setSidebarOpen(false)}
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 lg:hidden"
+          style={{ background: "rgba(0,0,0,0.4)" }}
           aria-hidden="true"
         />
       )}
 
-      <div className="mx-auto grid max-w-6xl gap-6 lg:grid-cols-[320px_1fr]">
-        <aside
-          className={`glass fixed inset-y-0 left-0 z-50 w-[86%] max-w-sm transform overflow-y-auto p-6 transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-auto lg:max-w-none lg:translate-x-0 lg:rounded-[2rem] ${
-            sidebarOpen ? "translate-x-0" : "-translate-x-full"
-          }`}
-        >
+      {/* ─── Sidebar ─── */}
+      <aside
+        className={`safe-top fixed inset-y-0 left-0 z-50 flex w-[86%] max-w-[300px] transform flex-col overflow-y-auto transition-transform duration-300 ease-out lg:static lg:w-[268px] lg:translate-x-0 ${
+          sidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        style={{
+          background: "var(--ground-2)",
+          borderRight: "1px solid var(--line)",
+          padding: "18px 16px",
+        }}
+      >
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ZodiMark size={38} night={night} />
+            <Wordmark zSize={34} restSize={20} />
+          </div>
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close menu"
-            className="absolute right-4 top-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-lg transition active:scale-90 lg:hidden"
+            className="lg:hidden"
+            style={{ color: "var(--ink-3)", fontSize: 18 }}
           >
             ✕
           </button>
-          <p className="text-sm uppercase tracking-[0.24em] text-white/45">
-            Your chart profile
-          </p>
-          <h1 className="mt-3 text-3xl font-semibold">Astrologer Chat</h1>
-          <p className="mt-4 text-sm leading-7 text-white/68">
-            Use this space for relationship questions, emotional patterns, career
-            direction, or current themes.
-          </p>
+        </div>
 
-          <div className="mt-6 rounded-3xl border border-white/10 bg-white/5 p-4 text-sm leading-7 text-white/75">
-            {profileLine}
-          </div>
+        <button
+          onClick={() => startNewChat(null)}
+          className="mt-5 w-full text-left"
+          style={{
+            background: "var(--surface)",
+            border: "1px solid var(--line-2)",
+            borderRadius: 16,
+            padding: "12px 16px",
+            fontSize: 14,
+            fontWeight: 300,
+          }}
+        >
+          + New conversation
+        </button>
 
-          <button
-            onClick={openChart}
-            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-violet-300/25 bg-violet-300/10 px-4 py-3 text-sm font-medium text-violet-100 transition hover:bg-violet-300/20"
-          >
-            <span className="text-base">✦</span> View my chart
-          </button>
+        <button
+          onClick={openChart}
+          className="mt-2 w-full text-left"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--line-2)",
+            borderRadius: 16,
+            padding: "12px 16px",
+            fontSize: 14,
+            fontWeight: 300,
+            color: "var(--ink-2)",
+          }}
+        >
+          ✦ View my chart
+        </button>
 
+        {/* Conversations */}
+        {sessions.length > 0 && (
           <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">
-                Chats
-              </p>
-              <button
-                onClick={() => startNewChat()}
-                className="rounded-full border border-white/15 px-3 py-1 text-xs hover:bg-white/10"
-              >
-                + New
-              </button>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              {sessions.length === 0 ? (
-                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-white/55">
-                  Your saved chat history will appear here.
-                </div>
-              ) : (
-                sessions.map((session) => {
-                  const profile = profiles.find((item) => item.id === session.profile_id);
-                  const isActive = session.id === currentSessionId;
-                  return (
-                    <button
-                      key={session.id}
-                      onClick={() => openSession(session)}
-                      className={`w-full rounded-2xl px-4 py-3 text-left text-sm ${
-                        isActive
-                          ? "bg-white text-slate-950"
-                          : "border border-white/10 bg-white/5 text-white"
-                      }`}
-                    >
-                      <div className="font-medium">{session.title}</div>
-                      <div className="text-xs opacity-75">
-                        {profile ? `You + ${profile.label}` : "Just me"}
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+            <p className="micro-label">Conversations</p>
+            <div className="mt-2 flex flex-col gap-1">
+              {sessions.slice(0, 12).map((session) => {
+                const active = session.id === currentSessionId;
+                return (
+                  <button
+                    key={session.id}
+                    onClick={() => openSession(session)}
+                    className="w-full truncate text-left"
+                    style={{
+                      borderRadius: 14,
+                      padding: "11px 14px",
+                      fontSize: 14,
+                      fontWeight: 300,
+                      background: active ? "var(--gold-soft)" : "transparent",
+                      color: active ? "var(--ink)" : "var(--ink-2)",
+                    }}
+                  >
+                    {session.title}
+                  </button>
+                );
+              })}
             </div>
           </div>
+        )}
 
-          <div className="mt-6">
-            <div className="flex items-center justify-between">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">
-                Saved people
-              </p>
-              <button
-                onClick={() => setShowAddProfile((prev) => !prev)}
-                className="rounded-full border border-white/15 px-3 py-1 text-xs hover:bg-white/10"
-              >
-                + Add
-              </button>
-            </div>
+        {/* Saved people */}
+        <div className="mt-6">
+          <div className="flex items-center justify-between">
+            <p className="micro-label">People</p>
+            <button
+              onClick={() => {
+                setProfileError("");
+                setShowAddProfile((prev) => !prev);
+              }}
+              style={{ fontSize: 12, color: "var(--gold-deep)" }}
+            >
+              + Add
+            </button>
+          </div>
 
-            <div className="mt-3 space-y-2">
-              <button
-                onClick={() => startNewChat(null)}
-                className={`w-full rounded-2xl px-4 py-3 text-left text-sm ${
-                  !selectedProfile
-                    ? "bg-white text-slate-950"
-                    : "border border-white/10 bg-white/5 text-white"
-                }`}
-              >
-                Just me
-              </button>
-
-              {profiles.map((profile) => (
+          <div className="mt-2 flex flex-col gap-1">
+            <button
+              onClick={() => startNewChat(null)}
+              className="w-full text-left"
+              style={{
+                borderRadius: 14,
+                padding: "11px 14px",
+                fontSize: 14,
+                fontWeight: 300,
+                background: !selectedProfile ? "var(--gold-soft)" : "transparent",
+                color: !selectedProfile ? "var(--ink)" : "var(--ink-2)",
+              }}
+            >
+              Just me
+            </button>
+            {profiles.map((profile) => {
+              const active = selectedProfile?.id === profile.id;
+              return (
                 <button
                   key={profile.id}
                   onClick={() => startNewChat(profile)}
-                  className={`w-full rounded-2xl px-4 py-3 text-left text-sm ${
-                    selectedProfile?.id === profile.id
-                      ? "bg-white text-slate-950"
-                      : "border border-white/10 bg-white/5 text-white"
-                  }`}
+                  className="w-full text-left"
+                  style={{
+                    borderRadius: 14,
+                    padding: "11px 14px",
+                    fontSize: 14,
+                    fontWeight: 300,
+                    background: active ? "var(--gold-soft)" : "transparent",
+                    color: active ? "var(--ink)" : "var(--ink-2)",
+                  }}
                 >
-                  <div className="font-medium">{profile.label}</div>
-                  <div className="text-xs opacity-75">{profile.person_name}</div>
+                  <span className="block">{profile.label}</span>
+                  <span style={{ fontSize: 12, color: "var(--ink-3)" }}>
+                    {profile.person_name}
+                  </span>
                 </button>
-              ))}
-            </div>
+              );
+            })}
+          </div>
 
-            {showAddProfile && (
-              <div className="mt-4 space-y-3 rounded-3xl border border-white/10 bg-white/5 p-4">
-                <input
-                  placeholder="Label (My boyfriend)"
-                  value={newProfile.label}
-                  onChange={(e) =>
-                    setNewProfile({ ...newProfile, label: e.target.value })
-                  }
-                  className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
-                />
-                <input
-                  placeholder="Person name"
-                  value={newProfile.person_name}
-                  onChange={(e) =>
-                    setNewProfile({ ...newProfile, person_name: e.target.value })
-                  }
-                  className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
-                />
-                <input
-                  placeholder="Relationship type"
-                  value={newProfile.relationship_type}
-                  onChange={(e) =>
-                    setNewProfile({
-                      ...newProfile,
-                      relationship_type: e.target.value,
-                    })
-                  }
-                  className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
-                />
+          {showAddProfile && (
+            <div
+              className="mt-3 flex flex-col gap-2"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--line)",
+                borderRadius: 16,
+                padding: 14,
+              }}
+            >
+              <input
+                placeholder="Label (My boyfriend)"
+                value={newProfile.label}
+                onChange={(e) => setNewProfile({ ...newProfile, label: e.target.value })}
+                style={fieldStyle}
+              />
+              <input
+                placeholder="Their name"
+                value={newProfile.person_name}
+                onChange={(e) => setNewProfile({ ...newProfile, person_name: e.target.value })}
+                style={fieldStyle}
+              />
+              <input
+                placeholder="Relationship (optional)"
+                value={newProfile.relationship_type}
+                onChange={(e) =>
+                  setNewProfile({ ...newProfile, relationship_type: e.target.value })
+                }
+                style={fieldStyle}
+              />
+              <label className="block">
+                <span className="micro-label mb-1 block">Birth date</span>
                 <input
                   type="date"
                   value={newProfile.birth_date}
-                  onChange={(e) =>
-                    setNewProfile({ ...newProfile, birth_date: e.target.value })
-                  }
-                  className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
+                  onChange={(e) => setNewProfile({ ...newProfile, birth_date: e.target.value })}
+                  style={fieldStyle}
                 />
+              </label>
+              <label className="block">
+                <span className="micro-label mb-1 block">Birth time</span>
                 <input
                   type="time"
                   value={newProfile.birth_time}
-                  onChange={(e) =>
-                    setNewProfile({ ...newProfile, birth_time: e.target.value })
-                  }
-                  className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
+                  onChange={(e) => setNewProfile({ ...newProfile, birth_time: e.target.value })}
+                  style={fieldStyle}
                 />
-                <PlaceAutocomplete
-                  value={newProfile.birth_place}
-                  onChange={(v) => setNewProfile({ ...newProfile, birth_place: v })}
-                  placeholder="Birth place"
-                  className="w-full rounded-xl bg-slate-950/70 px-3 py-2 text-sm outline-none"
-                />
-                <button
-                  onClick={saveProfile}
-                  className="w-full rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-950"
-                >
-                  Save person
-                </button>
-              </div>
-            )}
-          </div>
+              </label>
+              <PlaceAutocomplete
+                value={newProfile.birth_place}
+                onChange={(v) => setNewProfile({ ...newProfile, birth_place: v })}
+                placeholder="Birth place"
+                style={fieldStyle}
+              />
+              {profileError && (
+                <p style={{ fontSize: 12, lineHeight: 1.5, color: "var(--gold-deep)" }}>
+                  {profileError}
+                </p>
+              )}
+              <button
+                onClick={saveProfile}
+                disabled={savingProfile}
+                className="uppercase"
+                style={{
+                  borderRadius: 999,
+                  padding: "11px 16px",
+                  background: "linear-gradient(135deg, var(--gold), var(--gold-deep))",
+                  color: "var(--on-gold)",
+                  fontSize: 12,
+                  letterSpacing: "0.16em",
+                  opacity: savingProfile ? 0.7 : 1,
+                }}
+              >
+                {savingProfile ? "Saving…" : "Save person"}
+              </button>
+            </div>
+          )}
+        </div>
 
-          <div className="mt-6 space-y-3 text-sm text-white/70">
-            <p>Good prompts:</p>
-            <p>“Why do I pull away in relationships?”</p>
-            <p>“What career pattern stands out most in my chart?”</p>
-            <p>“What does this month activate for me emotionally?”</p>
+        {/* Footer */}
+        <div
+          className="safe-bottom mt-auto flex items-center gap-3 pt-4"
+          style={{ borderTop: "1px solid var(--line)" }}
+        >
+          <div
+            className="grid h-[30px] w-[30px] place-items-center rounded-full"
+            style={{ background: "var(--gold-soft)", color: "var(--gold-deep)", fontSize: 13 }}
+          >
+            {user?.name?.[0]?.toUpperCase() ?? "·"}
           </div>
-
+          <span style={{ fontSize: 14, fontWeight: 300 }}>{user?.name}</span>
           <button
             onClick={logout}
-            className="mt-8 rounded-full border border-white/15 px-5 py-3 text-sm font-medium transition hover:bg-white/10"
+            className="ml-auto micro-label"
+            style={{ letterSpacing: "0.16em" }}
           >
             Log out
           </button>
-        </aside>
+        </div>
+      </aside>
 
-        <section className="glass relative flex min-h-[70vh] flex-col rounded-[1.6rem] p-4 lg:min-h-[72vh] lg:rounded-[2rem] lg:p-5">
-          <FloatingParticles trigger={particleTrigger} />
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-b border-white/10 px-2 pb-4">
-            <div className="min-w-0">
-              <p className="text-sm uppercase tracking-[0.24em] text-white/45">
-                Private conversation
-              </p>
-              <p className="mt-1 text-sm text-white/70 lg:text-base">
-                {selectedProfile
-                  ? `Compatibility mode: you + ${selectedProfile.label}`
-                  : "Clear, premium guidance grounded in your chart."}
-              </p>
-            </div>
-            {usage && (
-              <div className="flex flex-col items-end gap-1">
-                <span
-                  className={`rounded-full px-3 py-1 text-xs font-semibold tracking-wide ${
-                    usage.tier === "premium"
-                      ? "bg-violet-400/20 text-violet-200"
-                      : usage.tier === "standard"
-                      ? "bg-sky-400/20 text-sky-200"
-                      : "bg-white/10 text-white/60"
-                  }`}
+      {/* ─── Main column ─── */}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header
+          className="safe-top flex items-center justify-between gap-3"
+          style={{
+            padding: "14px 18px",
+            borderBottom: "1px solid var(--line)",
+            background: "var(--ground-2)",
+          }}
+        >
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label="Open menu"
+            className="lg:hidden"
+            style={{ fontSize: 18, color: "var(--ink-2)" }}
+          >
+            ☰
+          </button>
+
+          <div className="min-w-0 flex-1">
+            <p className="micro-label truncate" style={{ letterSpacing: "0.24em" }}>
+              {selectedProfile
+                ? `You + ${selectedProfile.label}`
+                : `Talking with Zodi · ${night ? "Night" : "Day"} sky`}
+            </p>
+            <p
+              className="font-reading truncate"
+              style={{ fontSize: 16, color: "var(--ink-2)" }}
+            >
+              {birthLine}
+            </p>
+          </div>
+
+          <ThemeToggle />
+        </header>
+
+        {/* Transcript */}
+        <div className="flex-1 overflow-y-auto">
+          <div className="mx-auto w-full max-w-[800px] px-[18px] py-6 lg:px-[30px]">
+            <CosmicAlert onAsk={(question) => sendMessage(question)} />
+
+            {isFresh && (
+              <div className="zo-msg flex flex-col items-start gap-3 py-6">
+                <div className="flex items-center gap-2">
+                  <ZodiMark size={24} night={night} />
+                  <span
+                    className="micro-label"
+                    style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
+                  >
+                    Zodi
+                  </span>
+                </div>
+                <p
+                  className="font-reading body-pretty"
+                  style={{ fontSize: 18, lineHeight: 1.85, maxWidth: "62ch" }}
                 >
-                  {usage.tier === "premium" ? "✦ Premium" : usage.tier === "standard" ? "◈ Standard" : "Free"}
-                </span>
-                <span className="text-xs text-white/35">
-                  {usage.daily_token_limit
-                    ? `${usage.tokens_used_today.toLocaleString()} / ${usage.daily_token_limit.toLocaleString()} tokens`
-                    : "Unlimited tokens"}
-                </span>
+                  {DEFAULT_MESSAGE.content}
+                </p>
               </div>
             )}
-          </div>
 
-          <CosmicAlert onAsk={(question) => sendMessage(question)} />
+            <div className="flex flex-col" style={{ gap: 26 }}>
+              {conversation.map((message, index) => {
+                const isUser = message.role === "user";
+                const delay = Math.min(index * 60, 240);
+                return (
+                  <div
+                    key={index}
+                    className="zo-msg"
+                    style={{
+                      animationDelay: `${delay}ms`,
+                      paddingTop: index === 0 ? 0 : 22,
+                      borderTop: index === 0 ? "none" : "1px solid var(--line)",
+                    }}
+                  >
+                    {isUser ? (
+                      <div className="flex flex-col items-end">
+                        <span
+                          className="micro-label mb-2"
+                          style={{ letterSpacing: "0.24em" }}
+                        >
+                          You asked
+                        </span>
+                        <p
+                          className="font-display text-right"
+                          style={{
+                            fontSize: "clamp(22px, 3.2vw, 30px)",
+                            lineHeight: 1.24,
+                            maxWidth: "26ch",
+                            borderRight: "1px solid var(--gold)",
+                            paddingRight: 18,
+                          }}
+                        >
+                          {message.content}
+                        </p>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-start">
+                        <div className="mb-2 flex items-center gap-2">
+                          <ZodiMark size={24} night={night} />
+                          <span
+                            className="micro-label"
+                            style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
+                          >
+                            Zodi
+                          </span>
+                        </div>
+                        <p
+                          className="font-reading body-pretty whitespace-pre-wrap"
+                          style={{ fontSize: 18, lineHeight: 1.85, maxWidth: "62ch" }}
+                        >
+                          {message.content}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
-          <div className="flex-1 space-y-4 overflow-y-auto px-1 pb-4 lg:px-2">
-            {messages.map((message, index) => (
-              <div
-                key={index}
-                className={`msg-in max-w-[88%] whitespace-pre-wrap rounded-[1.4rem] px-4 py-3 text-sm leading-7 shadow-lg lg:max-w-[85%] lg:rounded-[1.6rem] lg:px-5 lg:py-4 ${
-                  message.role === "user"
-                    ? "ml-auto bg-white text-slate-950"
-                    : "border border-white/10 bg-slate-950/60 text-white"
-                }`}
-              >
-                {message.content}
-              </div>
-            ))}
-            {loading ? (
-              <div className="msg-in flex max-w-[88%] items-center gap-2 rounded-[1.4rem] border border-white/10 bg-slate-950/60 px-5 py-4 text-sm text-white/70 lg:rounded-[1.6rem]">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="ml-1">Reading your chart…</span>
-              </div>
-            ) : null}
+              {/* Loading: the mark spins — there is no separate spinner. */}
+              {loading && (
+                <div
+                  className="zo-msg flex flex-col items-start"
+                  style={{
+                    paddingTop: conversation.length ? 22 : 0,
+                    borderTop: conversation.length ? "1px solid var(--line)" : "none",
+                  }}
+                >
+                  <div className="mb-2 flex items-center gap-2">
+                    <ZodiMark size={26} night={night} spin />
+                    <span
+                      className="micro-label"
+                      style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
+                    >
+                      Zodi
+                    </span>
+                  </div>
+                  <p
+                    className="font-reading zo-dots italic"
+                    style={{ fontSize: 17, color: "var(--ink-2)" }}
+                  >
+                    {night ? "Reading the night sky…" : "Reading the sky…"}
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div ref={endRef} />
           </div>
+        </div>
 
-          {usage && usage.available_models && usage.available_models.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-2 px-1 lg:px-2">
-              <span className="text-xs uppercase tracking-[0.18em] text-white/35">Model</span>
-              <div className="flex gap-1 rounded-full border border-white/10 bg-white/5 p-1">
-                {usage.available_models.map((m) => (
+        {/* Composer */}
+        <div
+          className="safe-bottom"
+          style={{ borderTop: "1px solid var(--line)", background: "var(--ground-2)" }}
+        >
+          <div className="mx-auto w-full max-w-[800px] px-[18px] py-4 lg:px-[30px]">
+            {isFresh && !loading && (
+              <div className="mb-3 flex flex-wrap gap-2">
+                {STARTERS.map((starter) => (
                   <button
-                    key={m.key}
-                    onClick={() => selectModel(m.key)}
-                    title={m.blurb}
-                    className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
-                      selectedModel === m.key
-                        ? "bg-white text-slate-950"
-                        : "text-white/55 hover:text-white"
-                    }`}
+                    key={starter}
+                    onClick={() => sendMessage(starter)}
+                    className="font-reading"
+                    style={{
+                      borderRadius: 999,
+                      border: "1px solid var(--line-2)",
+                      padding: "9px 16px",
+                      fontSize: 15,
+                      color: "var(--ink-2)",
+                    }}
                   >
-                    {m.label}
+                    {starter}
                   </button>
                 ))}
               </div>
-              {usage.tier === "free" && (
-                <span className="text-xs text-white/30">Upgrade to unlock Smart &amp; Deep</span>
+            )}
+
+            <div
+              className="flex items-center gap-2"
+              style={{
+                background: "var(--surface)",
+                border: "1px solid var(--line-2)",
+                borderRadius: 999,
+                padding: "7px 8px 7px 20px",
+                boxShadow: "var(--shadow-sm)",
+              }}
+            >
+              <input
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                placeholder={
+                  selectedProfile
+                    ? `Ask about you and ${selectedProfile.label}…`
+                    : "Ask another question…"
+                }
+                className="font-reading min-w-0 flex-1 bg-transparent outline-none"
+                style={{ fontSize: 17 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessage();
+                  }
+                }}
+              />
+              <button
+                onClick={() => sendMessage()}
+                disabled={loading}
+                aria-label="Send"
+                className="grid shrink-0 place-items-center rounded-full"
+                style={{
+                  width: 44,
+                  height: 44,
+                  background: "linear-gradient(135deg, var(--gold), var(--gold-deep))",
+                  color: "var(--on-gold)",
+                  fontSize: 17,
+                  opacity: loading ? 0.6 : 1,
+                }}
+              >
+                ↑
+              </button>
+            </div>
+
+            {/* Meter line: model choice on the left, tokens on the right. */}
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+              {usage && usage.available_models?.length > 0 && (
+                <div
+                  className="flex gap-1 p-1"
+                  style={{ background: "var(--sunk)", borderRadius: 999 }}
+                >
+                  {usage.available_models.map((m) => {
+                    const active = selectedModel === m.key;
+                    return (
+                      <button
+                        key={m.key}
+                        onClick={() => selectModel(m.key)}
+                        title={m.blurb}
+                        className="uppercase"
+                        style={{
+                          borderRadius: 999,
+                          padding: "5px 12px",
+                          fontSize: 10,
+                          letterSpacing: "0.16em",
+                          background: active ? "var(--surface)" : "transparent",
+                          color: active ? "var(--ink)" : "var(--ink-3)",
+                          boxShadow: active ? "var(--shadow-sm)" : "none",
+                        }}
+                      >
+                        {m.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {usage && (
+                <p className="micro-label" style={{ letterSpacing: "0.16em" }}>
+                  {usage.daily_token_limit
+                    ? `${(usage.tokens_remaining_today ?? 0).toLocaleString()} tokens left today`
+                    : `${usage.tier_label} · unlimited`}
+                </p>
               )}
             </div>
-          )}
-
-          <div className="mt-3 flex items-end gap-2 border-t border-white/10 pt-4 lg:gap-3">
-            <textarea
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                selectedProfile
-                  ? `Ask about you and ${selectedProfile.label}...`
-                  : "Ask your astrologer..."
-              }
-              rows={2}
-              className="min-h-[52px] flex-1 resize-none rounded-[1.4rem] border border-white/10 bg-slate-950/70 px-4 py-3 text-base outline-none focus:border-violet-300/40 lg:min-h-[88px] lg:rounded-[1.6rem]"
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  sendMessage();
-                }
-              }}
-            />
-            <button
-              onClick={() => sendMessage()}
-              disabled={loading}
-              aria-label="Send message"
-              className="flex h-[52px] min-w-[52px] items-center justify-center self-end rounded-full bg-gradient-to-r from-violet-200 to-white px-5 font-semibold text-slate-950 transition hover:opacity-90 active:scale-95 disabled:opacity-50 lg:px-6"
-            >
-              Send
-            </button>
           </div>
-        </section>
+        </div>
       </div>
 
-      {/* Natal chart modal */}
+      {/* ─── Chart modal ─── */}
       {chartOpen && (
         <div
-          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm sm:items-center"
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:items-center"
+          style={{ background: "rgba(0,0,0,0.55)" }}
           onClick={() => setChartOpen(false)}
         >
           <div
-            className="glass my-auto w-full max-w-lg rounded-[1.8rem] p-5 lg:p-6"
+            className="my-auto w-full max-w-lg"
             onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--line)",
+              borderRadius: 28,
+              boxShadow: "var(--shadow)",
+              padding: 24,
+            }}
           >
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <p className="text-xs uppercase tracking-[0.24em] text-white/45">Your birth chart</p>
-                <h2 className="mt-1 text-xl font-semibold">{user?.name}</h2>
+                <p className="micro-label">Your birth chart</p>
+                <h2 className="font-display" style={{ fontSize: 26, marginTop: 4 }}>
+                  {user?.name}
+                </h2>
               </div>
               <button
                 onClick={() => setChartOpen(false)}
                 aria-label="Close chart"
-                className="flex h-9 w-9 items-center justify-center rounded-full border border-white/15 bg-white/5 text-lg transition active:scale-90"
+                style={{ fontSize: 18, color: "var(--ink-3)" }}
               >
                 ✕
               </button>
             </div>
 
             {chartLoading && (
-              <div className="flex items-center gap-2 py-10 text-sm text-white/60">
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="typing-dot" />
-                <span className="ml-1">Calculating your chart…</span>
+              <div className="flex items-center gap-3 py-10">
+                <ZodiMark size={26} night={night} spin />
+                <span
+                  className="font-reading zo-dots italic"
+                  style={{ fontSize: 17, color: "var(--ink-2)" }}
+                >
+                  Casting your chart…
+                </span>
               </div>
             )}
 
             {chartError && (
-              <p className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-200">
+              <p className="font-reading" style={{ fontSize: 15, color: "var(--gold-deep)" }}>
                 {chartError}
               </p>
             )}
 
             {chart && !chartLoading && (
               <>
-                <ChartWheel chart={chart} />
-                <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
-                  <div className="col-span-2 mb-1 flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-                    <span className="text-white/55">Ascendant</span>
-                    <span className="font-medium">
+                <ChartWheel chart={chart} night={night} />
+                <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
+                  <div
+                    className="col-span-2 mb-1 flex items-center justify-between"
+                    style={{ background: "var(--sunk)", borderRadius: 12, padding: "8px 12px" }}
+                  >
+                    <span className="micro-label">Ascendant</span>
+                    <span className="font-reading" style={{ fontSize: 15 }}>
                       {SIGN_GLYPH[chart.ascendant.sign]} {chart.ascendant.sign}
                     </span>
                   </div>
                   {chart.planet_positions.map((p) => (
-                    <div key={p.planet} className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-                      <span className="text-white/70">
+                    <div
+                      key={p.planet}
+                      className="flex items-center justify-between"
+                      style={{ background: "var(--sunk)", borderRadius: 12, padding: "8px 12px" }}
+                    >
+                      <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
                         {PLANET_GLYPH[p.planet] ?? "•"} {p.planet}
                       </span>
-                      <span className="text-right text-white/85">
+                      <span className="font-reading" style={{ fontSize: 14 }}>
                         {SIGN_GLYPH[p.sign]} {Math.floor(p.degree_in_sign)}° · H{p.house}
                         {p.retrograde ? " ℞" : ""}
                       </span>
@@ -789,6 +1005,6 @@ export default function ChatPage() {
           </div>
         </div>
       )}
-    </main>
+    </div>
   );
 }

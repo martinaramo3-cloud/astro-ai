@@ -1,10 +1,10 @@
-// Astraea Studio service worker.
+// Zodi service worker.
 // Deliberately conservative: it never touches API traffic, and always prefers
 // the network for pages so a cached shell can't strand users on a stale build.
 
 // Bump this whenever cached assets change (e.g. new icons) so old caches,
 // which serve images cache-first, are dropped on activate.
-const VERSION = "astraea-v2";
+const VERSION = "zodi-v3";
 const STATIC_CACHE = `${VERSION}-static`;
 const PAGE_CACHE = `${VERSION}-pages`;
 
