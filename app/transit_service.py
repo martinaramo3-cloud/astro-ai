@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import pytz
 
-from app.astrology_engine import get_planet_positions_from_utc
+from app.astrology_engine import get_planet_house, get_planet_positions_from_utc
 
 TRANSIT_ASPECTS = {
     "conjunction": 0,
@@ -22,6 +22,26 @@ def angle_difference(deg1: float, deg2: float) -> float:
 def get_current_transit_positions():
     now_utc = datetime.now(pytz.utc)
     return get_planet_positions_from_utc(now_utc)
+
+
+def get_transit_houses(transit_planets: list, natal_houses: list) -> list[dict]:
+    """Which of the person's houses each transiting planet is currently crossing.
+
+    An aspect says what is being touched; the house says which part of their
+    life it is happening in. "Saturn is in your 7th" is a statement about
+    relationships that no aspect alone conveys.
+    """
+    results = []
+    for transit in transit_planets:
+        house = get_planet_house(transit["degree"], natal_houses)
+        results.append({
+            "transit_planet": transit["planet"],
+            "sign": transit["sign"],
+            "degree_in_sign": transit["degree_in_sign"],
+            "retrograde": transit["retrograde"],
+            "in_natal_house": house,
+        })
+    return results
 
 
 def get_transit_aspects(natal_planets: list, transit_planets: list, when=None):

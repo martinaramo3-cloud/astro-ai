@@ -11,7 +11,7 @@ from datetime import datetime, timedelta, timezone
 
 import swisseph as swe
 
-from app.astrology_engine import get_zodiac_sign
+from app.astrology_engine import ZODIAC_SIGNS, get_zodiac_sign
 
 # Bodies whose direction changes are worth announcing, and how loudly.
 STATION_PLANETS = {
@@ -20,6 +20,24 @@ STATION_PLANETS = {
     "Mars": (swe.MARS, 48),
     "Jupiter": (swe.JUPITER, 30),
     "Saturn": (swe.SATURN, 30),
+}
+
+# Sign changes. The Moon changes sign every couple of days, so it scores low
+# and mostly matters for "the mood of today"; the slow planets are rare and
+# genuinely mark a change of chapter.
+# The Moon is deliberately absent: it changes sign every two days, so its
+# ingresses would swamp everything else, and its current sign is already
+# reported in `moon`.
+INGRESS_PLANETS = {
+    "Sun": (swe.SUN, 48),
+    "Mercury": (swe.MERCURY, 46),
+    "Venus": (swe.VENUS, 48),
+    "Mars": (swe.MARS, 52),
+    "Jupiter": (swe.JUPITER, 70),
+    "Saturn": (swe.SATURN, 75),
+    "Uranus": (swe.URANUS, 80),
+    "Neptune": (swe.NEPTUNE, 80),
+    "Pluto": (swe.PLUTO, 85),
 }
 
 # A hit to one of these feels personal; outer planets are generational.
@@ -237,6 +255,57 @@ def find_retrograde_stations(days_ahead: int = 60, start: datetime | None = None
     return events
 
 
+def _sign_index(jd: float, body: int) -> int:
+    return int(_longitude(jd, body) // 30)
+
+
+def find_ingresses(days_ahead: int = 45, start: datetime | None = None) -> list[dict]:
+    """Dates when a planet crosses into a new sign.
+
+    A change of sign is a change of costume: the same function, expressed a
+    different way. Slow planets doing it is a genuine turn of the page.
+    """
+    start = start or datetime.now(timezone.utc)
+    start_jd = _to_jd(start)
+    end_jd = start_jd + days_ahead
+
+    events: list[dict] = []
+    for planet_name, (body, weight) in INGRESS_PLANETS.items():
+        # The Moon covers 30° in ~2.2 days, so it needs a finer step than Pluto.
+        step = 1.0
+        jd = start_jd
+        previous_index = _sign_index(jd, body)
+        while jd < end_jd:
+            nxt = jd + step
+            current_index = _sign_index(nxt, body)
+            if current_index != previous_index:
+                # Narrow to the first moment the new sign holds.
+                low, high = jd, nxt
+                for _ in range(40):
+                    mid = (low + high) / 2
+                    if _sign_index(mid, body) == current_index:
+                        high = mid
+                    else:
+                        low = mid
+                exact = high
+                events.append({
+                    "type": "ingress",
+                    "name": f"{planet_name} enters {ZODIAC_SIGNS[current_index]}",
+                    "planet": planet_name,
+                    "date": _to_dt(exact).isoformat(),
+                    "longitude": round(current_index * 30.0, 2),
+                    "sign": ZODIAC_SIGNS[current_index],
+                    "leaves_sign": ZODIAC_SIGNS[previous_index],
+                    "degree": 0.0,
+                    "retrograde": _speed(exact, body) < 0,
+                    "significance": weight,
+                })
+                previous_index = current_index
+            jd = nxt
+
+    return events
+
+
 def current_retrogrades(dt: datetime | None = None) -> list[str]:
     dt = dt or datetime.now(timezone.utc)
     jd = _to_jd(dt)
@@ -290,6 +359,7 @@ def build_cosmic_events(
         find_lunations(days_ahead=days_ahead, start=now)
         + find_eclipses(days_ahead=max(days_ahead, 120), start=now)
         + find_retrograde_stations(days_ahead=days_ahead, start=now)
+        + find_ingresses(days_ahead=days_ahead, start=now)
     )
 
     for event in events:

@@ -34,6 +34,7 @@ from app.interpretation_service import build_chart_interpretation
 from app.transit_service import (
     get_current_transit_positions,
     get_transit_aspects,
+    get_transit_houses,
     build_upcoming_transit_timeline,
 )
 from app.predictive_adapter_service import run_predictive_engine
@@ -602,6 +603,23 @@ def ask_astrologer(
             "moon": sky["moon"],
             "retrograde_now": sky["retrograde_now"],
             "notable_event": sky["headline"],
+            # Trimmed to essentials — the full objects (with natal_hits) are
+            # heavy, and only the headline needs that much detail.
+            "upcoming_events": [
+                {
+                    "date": e["date"][:10],
+                    "name": e["name"],
+                    "sign": e["sign"],
+                    "days_away": e["days_away"],
+                    "is_personal": e["is_personal"],
+                }
+                for e in sky["events"][:5]
+            ],
+            # Which of their houses each transiting planet is crossing — the
+            # area of life a transit is playing out in.
+            "transits_through_houses": get_transit_houses(
+                transit_planets, natal_data["houses"]
+            ),
         },
         "chart_structure": chart_structure,
     }

@@ -25,15 +25,18 @@ class TierConfig(TypedDict):
 
 
 TIERS: dict[str, TierConfig] = {
+    # Each question now carries the chart, its structure, transits, the
+    # ephemeris timeline and sky events — roughly 5k tokens in. The limits
+    # below are sized so a tier means "about N questions", not "four".
     "free": {
         "label": "Free",
         "model": "gpt-4.1-mini",
-        "daily_token_limit": 30_000,
+        "daily_token_limit": 120_000,
     },
     "standard": {
         "label": "Standard",
         "model": "claude-opus-5",
-        "daily_token_limit": 300_000,
+        "daily_token_limit": 600_000,
     },
     "premium": {
         "label": "Premium",
