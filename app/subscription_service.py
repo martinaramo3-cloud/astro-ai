@@ -78,6 +78,22 @@ def available_models_for_tier(tier: str | None) -> list[dict]:
     ]
 
 
+VALID_EFFORTS = {"low", "medium", "high"}
+
+
+def resolve_effort(tier: str | None, requested: str | None) -> str | None:
+    """Honour an effort choice only from tiers that pay for a thinking model.
+
+    Effort drives how long the model reasons, and reasoning bills as output —
+    so this is a spend control, not a preference.
+    """
+    if requested not in VALID_EFFORTS:
+        return None
+    allowed = TIER_MODELS.get(tier or DEFAULT_TIER, TIER_MODELS[DEFAULT_TIER])
+    has_thinking_model = any(MODELS[k]["id"].startswith("claude-") for k in allowed)
+    return requested if has_thinking_model else None
+
+
 def resolve_model(tier: str | None, requested_key: str | None) -> str:
     """Return the OpenAI model id for a tier, honoring a valid user choice.
 

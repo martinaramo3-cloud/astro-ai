@@ -62,6 +62,7 @@ from app.subscription_service import (
     set_user_tier,
     find_user_id_by_email,
     resolve_model,
+    resolve_effort,
     get_user_tier,
     TIERS,
 )
@@ -130,6 +131,7 @@ class AstrologyQuestionRequest(BaseModel):
     history: Optional[List[ChatMessage]] = None
     user_id: Optional[int] = None
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
+    effort: Optional[str] = None  # "low" | "medium" | "high"; gated by tier server-side
 
 
 class PredictiveRequest(BaseModel):
@@ -155,6 +157,7 @@ class AskCompatibilityRequest(BaseModel):
     history: Optional[List[ChatMessage]] = None
     user_id: Optional[int] = None
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
+    effort: Optional[str] = None  # "low" | "medium" | "high"; gated by tier server-side
 
 class SaveProfileRequest(BaseModel):
     owner_user_id: int
@@ -557,7 +560,9 @@ def ask_astrologer(
     # Usage and tier follow the token, so nobody can bill another account.
     user_id = current_user["id"]
     tier_config = check_usage(user_id)
-    model = resolve_model(get_user_tier(user_id), data.model)
+    tier = get_user_tier(user_id)
+    model = resolve_model(tier, data.model)
+    effort = resolve_effort(tier, data.effort)
 
     natal_data = build_natal_chart_data(data)
 
@@ -628,6 +633,7 @@ def ask_astrologer(
         build_ask_astrologer_user(chat_context),
         model=model,
         system=build_ask_astrologer_system(),
+        effort=effort,
     )
     record_usage(user_id, tokens)
 

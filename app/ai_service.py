@@ -83,6 +83,7 @@ def _anthropic_response(
     user_prompt: str,
     model: str,
     system: str | None,
+    effort: str | None = None,
 ) -> tuple[str, int]:
     client = _get_anthropic_client()
 
@@ -90,7 +91,9 @@ def _anthropic_response(
         "model": model,
         "max_tokens": ANTHROPIC_MAX_TOKENS,
         "messages": [{"role": "user", "content": user_prompt}],
-        "output_config": {"effort": EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)},
+        "output_config": {
+            "effort": effort or EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)
+        },
     }
     if system:
         # Cached as a stable prefix: the standing instructions are identical on
@@ -154,10 +157,13 @@ def _create_response(
     model: str,
     max_output_tokens: int,
     system: str | None = None,
+    effort: str | None = None,
 ) -> tuple[str, int]:
     try:
         if _is_anthropic(model):
-            return _anthropic_response(user_prompt, model=model, system=system)
+            return _anthropic_response(
+                user_prompt, model=model, system=system, effort=effort
+            )
         return _openai_response(
             user_prompt,
             model=model,
@@ -184,9 +190,14 @@ def generate_chart_summary(
 
 
 def generate_astrologer_answer(
-    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    system: str | None = None,
+    effort: str | None = None,
 ) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=550, system=system)
+    return _create_response(
+        prompt, model=model, max_output_tokens=550, system=system, effort=effort
+    )
 
 
 def generate_compatibility_reading(
