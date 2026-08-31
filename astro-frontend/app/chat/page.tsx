@@ -8,6 +8,7 @@ import CosmicAlert from "../../components/CosmicAlert";
 import ZodiMark from "../../components/ZodiMark";
 import Wordmark from "../../components/Wordmark";
 import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
+import { useSpeechInput } from "../../components/useSpeechInput";
 
 const SIGN_GLYPH: Record<string, string> = {
   Aries: "♈︎", Taurus: "♉︎", Gemini: "♊︎", Cancer: "♋︎", Leo: "♌︎", Virgo: "♍︎",
@@ -120,7 +121,17 @@ export default function ChatPage() {
   const [chart, setChart] = useState<NatalChart | null>(null);
   const [chartLoading, setChartLoading] = useState(false);
   const [chartError, setChartError] = useState("");
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [editDraft, setEditDraft] = useState("");
+  const [accountOpen, setAccountOpen] = useState(false);
+  const [deleteArmed, setDeleteArmed] = useState(false);
+  const [accountBusy, setAccountBusy] = useState("");
   const endRef = useRef<HTMLDivElement | null>(null);
+
+  // Dictation appends to whatever is already typed.
+  const { supported: micSupported, listening, toggle: toggleMic } = useSpeechInput(
+    (text) => setInput((prev) => (prev ? `${prev} ${text}` : text)),
+  );
 
   useEffect(() => {
     if (user === null) {
@@ -271,10 +282,11 @@ export default function ChatPage() {
 
   // `overrideText` lets prompts elsewhere in the UI (starters, the cosmic
   // alert) send a question in one tap.
-  const sendMessage = async (overrideText?: string) => {
+  const sendMessage = async (overrideText?: string, baseMessages?: Message[]) => {
     const userText = (overrideText ?? input).trim();
     if (!userText || !user || loading) return;
-    const nextHistory = [...messages, { role: "user" as const, content: userText }];
+    const base = baseMessages ?? messages;
+    const nextHistory = [...base, { role: "user" as const, content: userText }];
 
     setMessages(nextHistory);
     setInput("");
@@ -382,6 +394,65 @@ export default function ChatPage() {
     setSavingProfile(false);
   };
 
+  const deleteSession = async (session: ChatSession) => {
+    try {
+      const res = await apiFetch(`/chat-sessions/${session.id}`, { method: "DELETE" });
+      if (!res.ok) return;
+      setSessions((prev) => prev.filter((s) => s.id !== session.id));
+      // If the open conversation was the one removed, start fresh.
+      if (currentSessionId === session.id) startNewChat(null);
+    } catch {
+      /* leaving it on screen is better than a false success */
+    }
+  };
+
+  /** Re-ask an earlier question, discarding everything that followed it. */
+  const submitEdit = async (conversationIndex: number) => {
+    const text = editDraft.trim();
+    if (!text) return;
+    // `conversation` drops the leading greeting, so shift back to `messages`.
+    const offset = messages.length - conversation.length;
+    const truncated = messages.slice(0, offset + conversationIndex);
+    setEditingIndex(null);
+    setMessages(truncated);
+    await sendMessage(text, truncated);
+  };
+
+  const downloadMyData = async () => {
+    setAccountBusy("export");
+    try {
+      const res = await apiFetch("/me/export");
+      if (!res.ok) return;
+      const data = await res.json();
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(data, null, 2)], { type: "application/json" }),
+      );
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `zodi-my-data-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch {
+      /* nothing downloaded; the button simply re-enables */
+    }
+    setAccountBusy("");
+  };
+
+  const deleteAccount = async () => {
+    setAccountBusy("delete");
+    try {
+      const res = await apiFetch("/me", { method: "DELETE" });
+      if (res.ok) {
+        clearAuth();
+        window.location.href = "/";
+        return;
+      }
+    } catch {
+      /* fall through and re-enable */
+    }
+    setAccountBusy("");
+  };
+
   const logout = async () => {
     // Revoke the token server-side so it can't be reused, then clear locally.
     try {
@@ -475,21 +546,36 @@ export default function ChatPage() {
               {sessions.slice(0, 12).map((session) => {
                 const active = session.id === currentSessionId;
                 return (
-                  <button
+                  <div
                     key={session.id}
-                    onClick={() => openSession(session)}
-                    className="w-full truncate text-left"
+                    className="group flex items-center gap-1"
                     style={{
                       borderRadius: 14,
-                      padding: "11px 14px",
-                      fontSize: 14,
-                      fontWeight: 300,
                       background: active ? "var(--gold-soft)" : "transparent",
-                      color: active ? "var(--ink)" : "var(--ink-2)",
                     }}
                   >
-                    {session.title}
-                  </button>
+                    <button
+                      onClick={() => openSession(session)}
+                      className="min-w-0 flex-1 truncate text-left"
+                      style={{
+                        padding: "11px 14px",
+                        fontSize: 14,
+                        fontWeight: 300,
+                        color: active ? "var(--ink)" : "var(--ink-2)",
+                      }}
+                    >
+                      {session.title}
+                    </button>
+                    <button
+                      onClick={() => deleteSession(session)}
+                      aria-label={`Delete "${session.title}"`}
+                      title="Delete conversation"
+                      className="shrink-0 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                      style={{ padding: "8px 12px", fontSize: 13, color: "var(--ink-3)" }}
+                    >
+                      ✕
+                    </button>
+                  </div>
                 );
               })}
             </div>
@@ -641,10 +727,20 @@ export default function ChatPage() {
           >
             {user?.name?.[0]?.toUpperCase() ?? "·"}
           </div>
-          <span style={{ fontSize: 14, fontWeight: 300 }}>{user?.name}</span>
+          <button
+            onClick={() => {
+              setDeleteArmed(false);
+              setAccountOpen(true);
+              setSidebarOpen(false);
+            }}
+            className="min-w-0 flex-1 truncate text-left"
+            style={{ fontSize: 14, fontWeight: 300 }}
+          >
+            {user?.name}
+          </button>
           <button
             onClick={logout}
-            className="ml-auto micro-label"
+            className="micro-label shrink-0"
             style={{ letterSpacing: "0.16em" }}
           >
             Log out
@@ -728,25 +824,92 @@ export default function ChatPage() {
                     }}
                   >
                     {isUser ? (
-                      <div className="flex flex-col items-end">
+                      <div className="group flex flex-col items-end">
                         <span
                           className="micro-label mb-2"
                           style={{ letterSpacing: "0.24em" }}
                         >
                           You asked
                         </span>
-                        <p
-                          className="font-display text-right"
-                          style={{
-                            fontSize: "clamp(22px, 3.2vw, 30px)",
-                            lineHeight: 1.24,
-                            maxWidth: "26ch",
-                            borderRight: "1px solid var(--gold)",
-                            paddingRight: 18,
-                          }}
-                        >
-                          {message.content}
-                        </p>
+
+                        {editingIndex === index ? (
+                          <div className="flex w-full flex-col items-end gap-2">
+                            <textarea
+                              value={editDraft}
+                              onChange={(e) => setEditDraft(e.target.value)}
+                              autoFocus
+                              rows={3}
+                              className="font-display w-full resize-none text-right"
+                              style={{
+                                fontSize: "clamp(20px, 3vw, 26px)",
+                                lineHeight: 1.3,
+                                background: "var(--surface)",
+                                border: "1px solid var(--line-2)",
+                                borderRadius: 16,
+                                padding: "12px 16px",
+                                outline: "none",
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" && !e.shiftKey) {
+                                  e.preventDefault();
+                                  submitEdit(index);
+                                }
+                                if (e.key === "Escape") setEditingIndex(null);
+                              }}
+                            />
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => setEditingIndex(null)}
+                                className="micro-label"
+                                style={{ letterSpacing: "0.16em", padding: "6px 12px" }}
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                onClick={() => submitEdit(index)}
+                                className="uppercase"
+                                style={{
+                                  borderRadius: 999,
+                                  padding: "7px 16px",
+                                  background: "linear-gradient(135deg, var(--gold), var(--gold-deep))",
+                                  color: "var(--on-gold)",
+                                  fontSize: 10,
+                                  letterSpacing: "0.16em",
+                                }}
+                              >
+                                Ask again
+                              </button>
+                            </div>
+                            <p style={{ fontSize: 11, color: "var(--ink-3)" }}>
+                              Everything after this will be replaced.
+                            </p>
+                          </div>
+                        ) : (
+                          <>
+                            <p
+                              className="font-display text-right"
+                              style={{
+                                fontSize: "clamp(22px, 3.2vw, 30px)",
+                                lineHeight: 1.24,
+                                maxWidth: "26ch",
+                                borderRight: "1px solid var(--gold)",
+                                paddingRight: 18,
+                              }}
+                            >
+                              {message.content}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setEditDraft(message.content);
+                                setEditingIndex(index);
+                              }}
+                              className="micro-label mt-1 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                              style={{ letterSpacing: "0.16em" }}
+                            >
+                              Edit
+                            </button>
+                          </>
+                        )}
                       </div>
                     ) : (
                       <div className="flex flex-col items-start">
@@ -857,6 +1020,24 @@ export default function ChatPage() {
                   }
                 }}
               />
+              {micSupported && (
+                <button
+                  onClick={toggleMic}
+                  aria-label={listening ? "Stop dictating" : "Dictate your question"}
+                  aria-pressed={listening}
+                  title={listening ? "Listening — tap to stop" : "Speak your question"}
+                  className="grid shrink-0 place-items-center rounded-full"
+                  style={{
+                    width: 40,
+                    height: 40,
+                    background: listening ? "var(--gold-soft)" : "transparent",
+                    color: listening ? "var(--gold-deep)" : "var(--ink-3)",
+                    fontSize: 16,
+                  }}
+                >
+                  {listening ? "◉" : "🎙"}
+                </button>
+              )}
               <button
                 onClick={() => sendMessage()}
                 disabled={loading}
@@ -918,6 +1099,136 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Account & data ─── */}
+      {accountOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-start justify-center overflow-y-auto p-4 sm:items-center"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+          onClick={() => setAccountOpen(false)}
+        >
+          <div
+            className="my-auto w-full max-w-md"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--line)",
+              borderRadius: 28,
+              boxShadow: "var(--shadow)",
+              padding: 24,
+            }}
+          >
+            <div className="mb-5 flex items-start justify-between">
+              <div>
+                <p className="micro-label">Your account</p>
+                <h2 className="font-display" style={{ fontSize: 26, marginTop: 4 }}>
+                  {user?.name}
+                </h2>
+                <p style={{ fontSize: 13, color: "var(--ink-3)" }}>{user?.email}</p>
+              </div>
+              <button
+                onClick={() => setAccountOpen(false)}
+                aria-label="Close"
+                style={{ fontSize: 18, color: "var(--ink-3)" }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <button
+              onClick={downloadMyData}
+              disabled={accountBusy !== ""}
+              className="w-full text-left"
+              style={{
+                border: "1px solid var(--line-2)",
+                borderRadius: 16,
+                padding: "14px 16px",
+                opacity: accountBusy === "export" ? 0.6 : 1,
+              }}
+            >
+              <span style={{ fontSize: 15 }}>
+                {accountBusy === "export" ? "Preparing…" : "Download my data"}
+              </span>
+              <span
+                className="font-reading mt-1 block"
+                style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)" }}
+              >
+                Your account, saved people and every conversation, as a file.
+              </span>
+            </button>
+
+            <div
+              className="mt-3"
+              style={{
+                border: "1px solid var(--line-2)",
+                borderRadius: 16,
+                padding: "14px 16px",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>Delete my account</span>
+              <span
+                className="font-reading mt-1 block"
+                style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)" }}
+              >
+                Erases your chart, your saved people and every conversation.
+                This cannot be undone.
+              </span>
+
+              {!deleteArmed ? (
+                <button
+                  onClick={() => setDeleteArmed(true)}
+                  className="mt-3 uppercase"
+                  style={{
+                    borderRadius: 999,
+                    border: "1px solid var(--line-2)",
+                    padding: "8px 16px",
+                    fontSize: 10,
+                    letterSpacing: "0.16em",
+                    color: "var(--ink-2)",
+                  }}
+                >
+                  Delete my account
+                </button>
+              ) : (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <span className="font-reading" style={{ fontSize: 14 }}>
+                    Are you sure?
+                  </span>
+                  <button
+                    onClick={() => setDeleteArmed(false)}
+                    className="micro-label"
+                    style={{ letterSpacing: "0.16em", padding: "6px 10px" }}
+                  >
+                    Keep it
+                  </button>
+                  <button
+                    onClick={deleteAccount}
+                    disabled={accountBusy !== ""}
+                    className="uppercase"
+                    style={{
+                      borderRadius: 999,
+                      padding: "8px 16px",
+                      fontSize: 10,
+                      letterSpacing: "0.16em",
+                      background: "#a8503c",
+                      color: "#fffdf8",
+                      opacity: accountBusy === "delete" ? 0.6 : 1,
+                    }}
+                  >
+                    {accountBusy === "delete" ? "Deleting…" : "Yes, delete everything"}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <p className="mt-5 text-center" style={{ fontSize: 12, color: "var(--ink-3)" }}>
+              <a href="/terms" style={{ color: "var(--gold-deep)" }}>Terms</a>
+              {" · "}
+              <a href="/privacy" style={{ color: "var(--gold-deep)" }}>Privacy</a>
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* ─── Chart modal ─── */}
       {chartOpen && (

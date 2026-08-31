@@ -3,7 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.auth_service import create_account, login_user
 from app.user_service import get_user_by_id
 from app.profile_service import create_profile, list_profiles_by_owner, get_profile_by_id, delete_profile_by_id
-from app.chat_service import create_chat_session, get_chat_session_by_id, list_chat_sessions, update_chat_session
+from app.chat_service import (
+    create_chat_session,
+    get_chat_session_by_id,
+    list_chat_sessions,
+    update_chat_session,
+    delete_chat_session_by_id,
+)
+from app.account_service import export_user_data, delete_user_account
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
 from datetime import datetime
@@ -939,6 +946,39 @@ def update_chat_session_endpoint(
         messages=[message.model_dump() for message in data.messages],
     )
     return session
+
+
+@app.delete("/chat-sessions/{session_id}")
+def delete_chat_session_endpoint(
+    session_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    existing = get_chat_session_by_id(session_id)
+    if not existing:
+        raise HTTPException(status_code=404, detail="Chat session not found")
+    require_self(current_user, existing["owner_user_id"])
+
+    delete_chat_session_by_id(session_id)
+    return {"message": "Conversation deleted"}
+
+
+@app.get("/me/export")
+def export_my_data(current_user: dict = Depends(get_current_user)):
+    """Everything we hold about the signed-in person, in a portable form."""
+    data = export_user_data(current_user["id"])
+    if data is None:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return data
+
+
+@app.delete("/me")
+def delete_my_account(current_user: dict = Depends(get_current_user)):
+    """Erase the account and everything attached to it. Not reversible."""
+    deleted = delete_user_account(current_user["id"])
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Account not found")
+    return {"message": "Account deleted"}
+
 
 @app.post("/profiles")
 def save_profile(

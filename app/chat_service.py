@@ -74,3 +74,14 @@ def update_chat_session(session_id: int, title: str, profile_id: int | None, mes
     conn.commit()
     conn.close()
     return get_chat_session_by_id(session_id)
+
+
+def delete_chat_session_by_id(session_id: int) -> bool:
+    """Remove one conversation. Returns False if it wasn't there."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
