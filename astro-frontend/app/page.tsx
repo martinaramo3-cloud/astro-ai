@@ -376,9 +376,22 @@ export default function Home() {
 
         <p
           className="mt-5 text-center"
-          style={{ fontSize: 12, lineHeight: 1.7, color: "var(--ink-3)", maxWidth: "34ch" }}
+          style={{ fontSize: 12, lineHeight: 1.7, color: "var(--ink-3)", maxWidth: "36ch" }}
         >
-          Your birth details are used to cast your chart, and nothing else.
+          {isSignup ? (
+            <>
+              By creating an account you agree to our{" "}
+              <a href="/terms" style={{ color: "var(--gold-deep)" }}>Terms</a> and{" "}
+              <a href="/privacy" style={{ color: "var(--gold-deep)" }}>Privacy Policy</a>.
+              Your birth details are used to cast your chart, and nothing else.
+            </>
+          ) : (
+            <>
+              <a href="/terms" style={{ color: "var(--gold-deep)" }}>Terms</a>
+              {" · "}
+              <a href="/privacy" style={{ color: "var(--gold-deep)" }}>Privacy</a>
+            </>
+          )}
         </p>
       </div>
     </main>
