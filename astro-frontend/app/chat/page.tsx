@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, clearAuth } from "../../lib/api";
+import { apiFetch, clearAuth, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
+import BirthDetailsEditor from "../../components/BirthDetailsEditor";
 import CosmicAlert from "../../components/CosmicAlert";
 import ZodiMark from "../../components/ZodiMark";
 import Wordmark from "../../components/Wordmark";
@@ -91,7 +92,7 @@ export default function ChatPage() {
   const { theme } = useTheme();
   const night = theme === "night";
 
-  const [user] = useState<User | null>(() => {
+  const [user, setUser] = useState<User | null>(() => {
     if (typeof window === "undefined") return null;
     const savedUser = window.localStorage.getItem("user");
     return savedUser ? JSON.parse(savedUser) : null;
@@ -127,6 +128,9 @@ export default function ChatPage() {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editDraft, setEditDraft] = useState("");
   const [accountOpen, setAccountOpen] = useState(false);
+  // Which set of birth details is open for editing: your own, or one saved
+  // person. Null when the editor is closed.
+  const [editing, setEditing] = useState<{ kind: "me" } | { kind: "person"; profile: SavedProfile } | null>(null);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [accountBusy, setAccountBusy] = useState("");
   // Anything irreversible routes through one confirmation dialog.
@@ -430,6 +434,24 @@ export default function ChatPage() {
       },
     });
 
+  /** Your own details changed, so the cached chart is now for the wrong moment. */
+  const onMeSaved = (saved: Record<string, unknown>) => {
+    // Merged rather than replaced: the update response is a UserResponse,
+    // which omits the email, and overwriting would blank it locally.
+    const next = { ...(user ?? {}), ...saved } as unknown as User;
+    setUser(next);
+    saveAuth(next as unknown as Record<string, unknown>);
+    setChart(null);
+    setEditing(null);
+  };
+
+  const onPersonSaved = (saved: Record<string, unknown>) => {
+    const next = saved as unknown as SavedProfile;
+    setProfiles((prev) => prev.map((p) => (p.id === next.id ? next : p)));
+    setSelectedProfile((prev) => (prev?.id === next.id ? next : prev));
+    setEditing(null);
+  };
+
   const deleteProfile = (profile: SavedProfile) =>
     setConfirmAction({
       title: `Remove ${profile.label}?`,
@@ -685,6 +707,15 @@ export default function ChatPage() {
                     >
                       {profile.person_name}
                     </span>
+                  </button>
+                  <button
+                    onClick={() => setEditing({ kind: "person", profile })}
+                    aria-label={`Edit ${profile.label}`}
+                    title="See and edit their details"
+                    className="row-action"
+                    style={{ fontSize: 13 }}
+                  >
+                    {"\u270E\uFE0E"}
                   </button>
                   <button
                     onClick={() => deleteProfile(profile)}
@@ -1295,6 +1326,29 @@ export default function ChatPage() {
             </div>
 
             <button
+              onClick={() => {
+                setAccountOpen(false);
+                setEditing({ kind: "me" });
+              }}
+              className="mb-3 w-full text-left"
+              style={{
+                border: "1px solid var(--line-2)",
+                borderRadius: 16,
+                padding: "14px 16px",
+              }}
+            >
+              <span style={{ fontSize: 15 }}>Edit my birth details</span>
+              <span
+                className="font-reading mt-1 block"
+                style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-2)" }}
+              >
+                {user?.birth_date}
+                {user?.birth_time_known === false ? " · time unknown" : ` · ${user?.birth_time}`}
+                {user?.birth_place ? ` · ${user.birth_place}` : ""}
+              </span>
+            </button>
+
+            <button
               onClick={downloadMyData}
               disabled={accountBusy !== ""}
               className="w-full text-left"
@@ -1489,6 +1543,40 @@ export default function ChatPage() {
             )}
           </div>
         </div>
+      )}
+
+      {editing?.kind === "me" && user && (
+        <BirthDetailsEditor
+          kind="me"
+          endpoint="/me"
+          initial={{
+            name: user.name,
+            birth_date: user.birth_date,
+            birth_time: user.birth_time,
+            birth_place: user.birth_place,
+            birth_time_known: user.birth_time_known,
+          }}
+          onSaved={onMeSaved}
+          onClose={() => setEditing(null)}
+        />
+      )}
+
+      {editing?.kind === "person" && (
+        <BirthDetailsEditor
+          kind="person"
+          endpoint={`/profiles/${editing.profile.id}`}
+          initial={{
+            label: editing.profile.label,
+            person_name: editing.profile.person_name,
+            relationship_type: editing.profile.relationship_type,
+            birth_date: editing.profile.birth_date,
+            birth_time: editing.profile.birth_time,
+            birth_place: editing.profile.birth_place,
+            birth_time_known: editing.profile.birth_time_known,
+          }}
+          onSaved={onPersonSaved}
+          onClose={() => setEditing(null)}
+        />
       )}
     </div>
   );

@@ -1,8 +1,14 @@
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from app.auth_service import create_account, login_user
-from app.user_service import get_user_by_id
-from app.profile_service import create_profile, list_profiles_by_owner, get_profile_by_id, delete_profile_by_id
+from app.user_service import get_user_by_id, update_user
+from app.profile_service import (
+    create_profile,
+    list_profiles_by_owner,
+    get_profile_by_id,
+    delete_profile_by_id,
+    update_profile,
+)
 from app.chat_service import (
     create_chat_session,
     get_chat_session_by_id,
@@ -247,6 +253,30 @@ class TierUpdateRequest(BaseModel):
 class TierByEmailRequest(BaseModel):
     email: str
     tier: str
+
+
+class UpdateMeRequest(BaseModel):
+    """A partial edit of your own details. Anything omitted is left alone.
+
+    Email and password are absent on purpose — both are credentials and need
+    their own confirmation flow, not a ride-along on a birth-details form.
+    """
+    name: Optional[str] = None
+    birth_date: Optional[str] = None
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
+    birth_time_known: Optional[bool] = None
+
+
+class UpdateProfileRequest(BaseModel):
+    """A partial edit of someone you saved."""
+    label: Optional[str] = None
+    person_name: Optional[str] = None
+    relationship_type: Optional[str] = None
+    birth_date: Optional[str] = None
+    birth_time: Optional[str] = None
+    birth_place: Optional[str] = None
+    birth_time_known: Optional[bool] = None
 
 
 class ChartSummaryRequest(BaseModel):
@@ -1060,6 +1090,89 @@ def get_profile(profile_id: int, current_user: dict = Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Profile not found")
     require_self(current_user, profile["owner_user_id"])
     return profile
+
+def clean_birth_edits(changes: dict, existing: dict) -> dict:
+    """Validate a partial birth-details edit and normalise the time.
+
+    Saving an unrecognised birth place would break every later chart request
+    for that person, so the place is geocoded here and rejected up front. The
+    time is normalised the same way signup does it, so "unknown" never lands
+    in the database as an empty string.
+    """
+    edits = {k: v for k, v in changes.items() if v is not None}
+
+    place = edits.get("birth_place")
+    if place is not None:
+        if not place.strip():
+            raise HTTPException(status_code=400, detail="Please enter a birth place.")
+        if not get_location_data(place):
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "Could not find that birth place. Use a clear city and country, "
+                    "for example 'Paris, France'."
+                ),
+            )
+
+    # The flag and the time are read together: whether a time is required
+    # depends on the flag as it will be *after* this edit, not as it was.
+    time_known = edits.get("birth_time_known", bool(existing.get("birth_time_known", 1)))
+    if not time_known:
+        edits["birth_time"] = UNKNOWN_BIRTH_TIME
+    elif "birth_time" in edits and not edits["birth_time"].strip():
+        raise HTTPException(
+            status_code=400,
+            detail="Please enter a birth time, or tick that it's unknown.",
+        )
+
+    return edits
+
+
+@app.patch("/me", response_model=UserResponse)
+def update_me(
+    data: UpdateMeRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Edit your own name and birth details.
+
+    People guess a birth time at signup, or find the real one later on a birth
+    certificate — without this the wrong chart is permanent.
+    """
+    edits = clean_birth_edits(data.model_dump(exclude_unset=True), current_user)
+
+    if "name" in edits and not edits["name"].strip():
+        raise HTTPException(status_code=400, detail="Please enter your name.")
+
+    updated = update_user(current_user["id"], edits)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Account not found.")
+    return updated
+
+
+@app.patch("/profiles/{profile_id}")
+def edit_profile(
+    profile_id: int,
+    data: UpdateProfileRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """Edit someone you saved — same reasons as your own details."""
+    profile = get_profile_by_id(profile_id)
+    if not profile:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    require_self(current_user, profile["owner_user_id"])
+
+    edits = clean_birth_edits(data.model_dump(exclude_unset=True), profile)
+
+    for field, message in (("label", "Please give them a label."),
+                           ("person_name", "Please enter their name.")):
+        if field in edits and not edits[field].strip():
+            raise HTTPException(status_code=400, detail=message)
+
+    updated = update_profile(profile_id, edits)
+    if not updated:
+        raise HTTPException(status_code=404, detail="Profile not found")
+    return updated
+
 
 @app.delete("/profiles/{profile_id}")
 def delete_profile(profile_id: int, current_user: dict = Depends(get_current_user)):

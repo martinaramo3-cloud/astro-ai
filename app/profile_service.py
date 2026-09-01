@@ -67,3 +67,38 @@ def delete_profile_by_id(profile_id):
     conn.close()
 
     return deleted
+
+EDITABLE_PROFILE_FIELDS = (
+    "label", "person_name", "relationship_type",
+    "birth_date", "birth_time", "birth_place", "birth_time_known",
+)
+
+
+def update_profile(profile_id: int, changes: dict):
+    """Apply a partial update and return the saved row, or None if unknown.
+
+    `relationship_type` is optional on the form, so an empty string is a real
+    value here — clearing it is something the owner can legitimately do.
+    """
+    fields = {
+        k: v for k, v in changes.items()
+        if k in EDITABLE_PROFILE_FIELDS and v is not None
+    }
+    if not fields:
+        return get_profile_by_id(profile_id)
+
+    if "birth_time_known" in fields:
+        fields["birth_time_known"] = 1 if fields["birth_time_known"] else 0
+
+    assignments = ", ".join(f"{name} = ?" for name in fields)
+
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        f"UPDATE profiles SET {assignments} WHERE id = ?",
+        (*fields.values(), profile_id),
+    )
+    conn.commit()
+    conn.close()
+
+    return get_profile_by_id(profile_id)
