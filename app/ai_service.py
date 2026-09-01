@@ -1,3 +1,4 @@
+import base64
 import os
 
 from anthropic import Anthropic
@@ -87,13 +88,32 @@ def _anthropic_response(
     model: str,
     system: str | None,
     effort: str | None = None,
+    images: list[dict] | None = None,
 ) -> tuple[str, int]:
     client = _get_anthropic_client()
+
+    # Images lead, text follows: a picture read before the question is
+    # understood in the question's terms rather than described in the abstract.
+    if images:
+        content = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image["content_type"],
+                    "data": base64.b64encode(image["content"]).decode(),
+                },
+            }
+            for image in images
+        ]
+        content.append({"type": "text", "text": user_prompt})
+    else:
+        content = user_prompt
 
     request = {
         "model": model,
         "max_tokens": ANTHROPIC_MAX_TOKENS,
-        "messages": [{"role": "user", "content": user_prompt}],
+        "messages": [{"role": "user", "content": content}],
         "output_config": {
             "effort": effort or EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)
         },
@@ -142,13 +162,31 @@ def _openai_response(
     model: str,
     max_output_tokens: int,
     system: str | None,
+    images: list[dict] | None = None,
 ) -> tuple[str, int]:
     # The Responses API takes a single input string, so the standing
     # instructions ride along at the front.
     prompt = f"{system}\n\n{user_prompt}" if system else user_prompt
+
+    if images:
+        parts = [
+            {
+                "type": "input_image",
+                "image_url": (
+                    f"data:{image['content_type']};base64,"
+                    + base64.b64encode(image["content"]).decode()
+                ),
+            }
+            for image in images
+        ]
+        parts.append({"type": "input_text", "text": prompt})
+        payload = [{"role": "user", "content": parts}]
+    else:
+        payload = prompt
+
     response = _get_openai_client().responses.create(
         model=model,
-        input=prompt,
+        input=payload,
         max_output_tokens=max_output_tokens,
     )
     tokens = response.usage.total_tokens if response.usage else 0
@@ -161,17 +199,19 @@ def _create_response(
     max_output_tokens: int,
     system: str | None = None,
     effort: str | None = None,
+    images: list[dict] | None = None,
 ) -> tuple[str, int]:
     try:
         if _is_anthropic(model):
             return _anthropic_response(
-                user_prompt, model=model, system=system, effort=effort
+                user_prompt, model=model, system=system, effort=effort, images=images
             )
         return _openai_response(
             user_prompt,
             model=model,
             max_output_tokens=max_output_tokens,
             system=system,
+            images=images,
         )
     except HTTPException:
         raise
@@ -197,9 +237,33 @@ def generate_astrologer_answer(
     model: str = DEFAULT_MODEL,
     system: str | None = None,
     effort: str | None = None,
+    images: list[dict] | None = None,
 ) -> tuple[str, int]:
+    # A little more room when there's a picture: reading a screenshot back and
+    # then answering takes more words than answering alone.
     return _create_response(
-        prompt, model=model, max_output_tokens=550, system=system, effort=effort
+        prompt,
+        model=model,
+        max_output_tokens=750 if images else 550,
+        system=system,
+        effort=effort,
+        images=images,
+    )
+
+
+# Always the cheap model: this pass is transcription, not interpretation, and
+# running it on the premium model would double the cost of every picture for
+# no gain in accuracy.
+INSPECTION_MODEL = "gpt-4.1-mini"
+
+
+def inspect_images(prompt: str, images: list[dict]) -> tuple[str, int]:
+    """A first read of an attached picture: what is it, and what does it say?"""
+    return _create_response(
+        prompt,
+        model=INSPECTION_MODEL,
+        max_output_tokens=1200,
+        images=images,
     )
 
 

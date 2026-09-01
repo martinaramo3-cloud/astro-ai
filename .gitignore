@@ -6,3 +6,5 @@ __pycache__/
 astro-frontend/node_modules/
 astro-frontend/.next/
 astro-frontend/tsconfig.tsbuildinfo
+# Images people attach to a question; they live on Render's disk, never in git.
+uploads/

@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { apiFetch, clearAuth, saveAuth } from "../../lib/api";
+import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
 import BirthDetailsEditor from "../../components/BirthDetailsEditor";
+import AttachedImages from "../../components/AttachedImages";
 import CosmicAlert from "../../components/CosmicAlert";
 import ZodiMark from "../../components/ZodiMark";
 import Wordmark from "../../components/Wordmark";
@@ -61,7 +62,18 @@ type SavedProfile = {
   birth_time_known?: boolean;
 };
 
-type Message = { role: "user" | "assistant"; content: string };
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+  // Pictures sent with this message, kept so a reopened chat still shows them.
+  attachment_ids?: number[];
+};
+
+type PendingImage = {
+  id: number;          // server-side attachment id
+  previewUrl: string;  // local object URL, so nothing is re-downloaded to show it
+  name: string;
+};
 type ChatSession = {
   id: number;
   owner_user_id: number;
@@ -141,6 +153,13 @@ export default function ChatPage() {
     run: () => Promise<void> | void;
   } | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const fileRef = useRef<HTMLInputElement | null>(null);
+
+  // Images picked for the next message. They upload as soon as they're chosen,
+  // so by the time the question is sent there is only an id to attach.
+  const [pending, setPending] = useState<PendingImage[]>([]);
+  const [uploading, setUploading] = useState(false);
+  const [uploadError, setUploadError] = useState("");
 
   // Dictation appends to whatever is already typed.
   const { supported: micSupported, listening, toggle: toggleMic } = useSpeechInput(
@@ -298,14 +317,77 @@ export default function ChatPage() {
 
   // `overrideText` lets prompts elsewhere in the UI (starters, the cosmic
   // alert) send a question in one tap.
+  const canAttach = usage ? usage.tier !== "free" : false;
+  const MAX_IMAGES = 3;
+
+  const pickImages = async (files: FileList | null) => {
+    if (!files?.length) return;
+    setUploadError("");
+
+    const room = MAX_IMAGES - pending.length;
+    if (room <= 0) {
+      setUploadError(`You can attach up to ${MAX_IMAGES} images per question.`);
+      return;
+    }
+
+    setUploading(true);
+    for (const file of Array.from(files).slice(0, room)) {
+      const form = new FormData();
+      form.append("file", file);
+      try {
+        // No Content-Type header: the browser has to set the multipart boundary.
+        const res = await apiFetch("/attachments", { method: "POST", body: form });
+        const data = await res.json();
+        if (res.ok) {
+          setPending((prev) => [
+            ...prev,
+            { id: data.id, previewUrl: URL.createObjectURL(file), name: file.name },
+          ]);
+        } else {
+          setUploadError(errorMessage(data, "Could not upload that image."));
+        }
+      } catch {
+        setUploadError("Could not reach the server. Try again in a moment.");
+      }
+    }
+    setUploading(false);
+    if (fileRef.current) fileRef.current.value = "";
+  };
+
+  const removePending = async (image: PendingImage) => {
+    setPending((prev) => prev.filter((p) => p.id !== image.id));
+    URL.revokeObjectURL(image.previewUrl);
+    // Take it off the server too, so an unsent picture doesn't linger there.
+    try {
+      await apiFetch(`/attachments/${image.id}`, { method: "DELETE" });
+    } catch {
+      /* the row is harmless if this fails */
+    }
+  };
+
   const sendMessage = async (overrideText?: string, baseMessages?: Message[]) => {
     const userText = (overrideText ?? input).trim();
     if (!userText || !user || loading) return;
     const base = baseMessages ?? messages;
-    const nextHistory = [...base, { role: "user" as const, content: userText }];
+
+    // A retried or edited message doesn't re-send the pictures; they belong to
+    // the turn that was originally typed.
+    const sending = overrideText === undefined ? pending : [];
+    const attachmentIds = sending.map((image) => image.id);
+
+    const nextHistory: Message[] = [
+      ...base,
+      {
+        role: "user" as const,
+        content: userText,
+        ...(attachmentIds.length ? { attachment_ids: attachmentIds } : {}),
+      },
+    ];
 
     setMessages(nextHistory);
     setInput("");
+    if (sending.length) setPending([]);
+    setUploadError("");
     setLoading(true);
 
     const endpoint = selectedProfile ? "/ask-saved-compatibility" : "/ask-astrologer";
@@ -325,6 +407,7 @@ export default function ChatPage() {
           birth_time_known: user.birth_time_known ?? true,
           question: userText,
           history: nextHistory,
+          attachment_ids: attachmentIds.length ? attachmentIds : undefined,
           user_id: user.id,
           model: selectedModel ?? undefined,
           // So the open conversation isn't also listed as a past one.
@@ -964,6 +1047,10 @@ export default function ChatPage() {
                           You asked
                         </span>
 
+                        {message.attachment_ids?.length ? (
+                          <AttachedImages ids={message.attachment_ids} />
+                        ) : null}
+
                         {editingIndex === index ? (
                           <div className="flex w-full flex-col items-end gap-2">
                             <textarea
@@ -1125,6 +1212,47 @@ export default function ChatPage() {
               </div>
             )}
 
+            {(pending.length > 0 || uploading || uploadError) && (
+              <div className="mb-2 flex flex-wrap items-center gap-2">
+                {pending.map((image) => (
+                  <div
+                    key={image.id}
+                    className="relative"
+                    style={{
+                      borderRadius: 12,
+                      overflow: "hidden",
+                      border: "1px solid var(--line-2)",
+                      background: "var(--surface)",
+                    }}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={image.previewUrl}
+                      alt={image.name}
+                      style={{ width: 62, height: 62, objectFit: "cover", display: "block" }}
+                    />
+                    <button
+                      onClick={() => removePending(image)}
+                      aria-label={`Remove ${image.name}`}
+                      className="absolute grid place-items-center"
+                      style={{
+                        top: 3, right: 3, width: 20, height: 20, borderRadius: 999,
+                        background: "rgba(0,0,0,0.62)", color: "#fff", fontSize: 11,
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+                {uploading && (
+                  <span style={{ fontSize: 13, color: "var(--ink-3)" }}>Uploading…</span>
+                )}
+                {uploadError && (
+                  <span style={{ fontSize: 13, color: "var(--gold-deep)" }}>{uploadError}</span>
+                )}
+              </div>
+            )}
+
             <div
               className="flex items-center gap-2"
               style={{
@@ -1152,6 +1280,39 @@ export default function ChatPage() {
                   }
                 }}
               />
+              <input
+                ref={fileRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                multiple
+                hidden
+                onChange={(e) => pickImages(e.target.files)}
+              />
+              <button
+                onClick={() =>
+                  canAttach
+                    ? fileRef.current?.click()
+                    : setUploadError(
+                        "Attaching pictures is part of a paid plan — upgrade to send charts and screenshots.",
+                      )
+                }
+                disabled={uploading}
+                aria-label="Attach an image"
+                title={
+                  canAttach
+                    ? "Attach a chart or a screenshot"
+                    : "Attaching pictures is part of a paid plan"
+                }
+                className="grid shrink-0 place-items-center rounded-full"
+                style={{
+                  width: 40,
+                  height: 40,
+                  color: canAttach ? "var(--ink-3)" : "var(--line-2)",
+                  fontSize: 18,
+                }}
+              >
+                {"\uD83D\uDCCE\uFE0E"}
+              </button>
               {micSupported && (
                 <button
                   onClick={toggleMic}

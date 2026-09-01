@@ -18,6 +18,17 @@ from app.chat_service import (
     summarize_recent_sessions,
 )
 from app.account_service import export_user_data, delete_user_account
+from app.attachment_service import (
+    ALLOWED_TYPES,
+    MAX_BYTES,
+    MAX_PER_MESSAGE,
+    delete_attachment,
+    get_attachment,
+    load_owned_attachments,
+    read_attachment_bytes,
+    save_attachment,
+)
+from app.image_reading_service import read_images
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
 from datetime import datetime
@@ -37,7 +48,8 @@ from app.question_router import (
 )
 from dotenv import load_dotenv
 load_dotenv()
-from fastapi import Depends, FastAPI, Header, HTTPException
+from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import Response
 from pydantic import BaseModel
 
 from app.astrology_engine import (
@@ -132,6 +144,9 @@ from typing import List, Optional
 class ChatMessage(BaseModel):
     role: str
     content: str
+    # Pictures sent with this message, so a reopened conversation still shows
+    # them. Ids only — the files are fetched one at a time, by their owner.
+    attachment_ids: Optional[List[int]] = None
 
 
 class ChatSessionRequest(BaseModel):
@@ -160,6 +175,9 @@ class AstrologyQuestionRequest(BaseModel):
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
     effort: Optional[str] = None  # "low" | "medium" | "high"; gated by tier server-side
     session_id: Optional[int] = None  # the open conversation, excluded from the past list
+    # Images attached to this question. Ownership is re-checked server-side, so
+    # a guessed id can't pull someone else's picture into an answer.
+    attachment_ids: Optional[List[int]] = None
 
 
 class PredictiveRequest(BaseModel):
@@ -628,6 +646,101 @@ def chart_summary(
         "tier": tier_config["label"],
     }
 
+def interpret_attachments(attachments: list[dict]) -> tuple[dict | None, list[dict], int]:
+    """Turn attached pictures into something the answering model can use.
+
+    Returns (context, images_to_send, tokens_spent).
+
+    The branch that matters is the birth chart: when the birth data is printed
+    on it, the chart is cast here from the real ephemeris and the picture is
+    *not* forwarded. The answer is then based on the same arithmetic as every
+    other reading, rather than on a model squinting at a wheel — and it costs
+    less, because the expensive model never sees the image.
+    """
+    if not attachments:
+        return None, [], 0
+
+    reading = read_images(attachments)
+    tokens = reading.get("tokens", 0)
+    kind = reading.get("kind")
+
+    if kind == "birth_chart" and reading.get("birth_data"):
+        found = reading["birth_data"]
+        try:
+            chart = build_natal_chart_data(BirthData(**found))
+        except HTTPException as exc:
+            # The place was printed but isn't one we can find. Fall back to
+            # looking at the picture rather than dropping the question.
+            print("Chart image recast failed:", exc.detail)
+        else:
+            return (
+                {
+                    "kind": "birth_chart",
+                    "note": (
+                        "The user attached a chart. Its birth details were printed on it, "
+                        "so this chart has been recalculated here from the ephemeris — it is "
+                        "accurate, not read off the picture. Treat it as a second person's "
+                        "chart, separate from the user's own chart above."
+                    ),
+                    "read_from_image": found,
+                    "birth_time_known": chart["birth_time_known"],
+                    "ascendant": chart["ascendant"],
+                    "placements": [
+                        {
+                            "planet": p["planet"],
+                            "sign": p["sign"],
+                            "degree_in_sign": p["degree_in_sign"],
+                            "house": p["house"],
+                            "retrograde": p.get("retrograde", False),
+                        }
+                        for p in chart["planet_positions"]
+                    ],
+                    "aspects": chart["aspects"][:12],
+                },
+                [],
+                tokens,
+            )
+
+    if kind == "conversation":
+        return (
+            {
+                "kind": "conversation",
+                "note": (
+                    "The user attached a screenshot of a conversation and is asking for help "
+                    "with it. The transcript below was read from the image. Answer about what "
+                    "is actually said in it, using their chart to explain how they tend to "
+                    "react and what they will find hard to say — not to predict the other "
+                    "person, whose chart you do not have unless one is given above. If they "
+                    "ask what to say, give them actual words they could send."
+                ),
+                "transcript": reading.get("transcript"),
+                "description": reading.get("description"),
+            },
+            # The picture still goes through: tone, emoji and who-said-what are
+            # carried by the layout as much as by the words.
+            attachments,
+            tokens,
+        )
+
+    note = (
+        "The user attached an image. Answer about what is actually in it."
+    )
+    if kind == "birth_chart":
+        note = (
+            "The user attached a chart, but its birth details could not be read from it or "
+            "resolved to a real place, so it could not be recalculated. You are reading placements off a picture: say so "
+            "plainly, keep to what is clearly legible, and offer to cast it properly if they "
+            "give you the birth date, time and place. Never state a degree or a house you "
+            "cannot clearly see."
+        )
+
+    return (
+        {"kind": kind, "note": note, "description": reading.get("description")},
+        attachments,
+        tokens,
+    )
+
+
 @app.post("/ask-astrologer")
 def ask_astrologer(
     data: AstrologyQuestionRequest,
@@ -642,6 +755,18 @@ def ask_astrologer(
 
     if data.birth_time_known is None:
         data.birth_time_known = bool(current_user.get("birth_time_known", 1))
+
+    # Attached pictures are read before anything else, because what they turn
+    # out to be changes what the answering model is given.
+    attachments = (
+        load_owned_attachments(data.attachment_ids, user_id)
+        if data.attachment_ids
+        else []
+    )
+    if attachments:
+        require_image_tier(user_id)
+
+    image_context, images_for_model, image_tokens = interpret_attachments(attachments)
 
     natal_data = build_natal_chart_data(data)
 
@@ -679,7 +804,11 @@ def ask_astrologer(
 
     chat_context = {
         "question": data.question,
-        "history": [msg.model_dump() for msg in (data.history or [])],
+        # Attachment ids are dropped: the model can't fetch a file, and a
+        # column of nulls in every past turn is only noise in the prompt.
+        "history": [
+            {"role": msg.role, "content": msg.content} for msg in (data.history or [])
+        ],
         # Stated up front, not just buried in chart_structure: everything the
         # birth time would have given is null below, and the difference between
         # "unknown" and "absent" is the difference between honest and invented.
@@ -719,13 +848,18 @@ def ask_astrologer(
         ),
     }
 
+    if image_context:
+        chat_context["attached_image"] = image_context
+
     answer, tokens = generate_astrologer_answer(
         build_ask_astrologer_user(chat_context),
         model=model,
         system=build_ask_astrologer_system(),
         effort=effort,
+        images=images_for_model or None,
     )
-    record_usage(user_id, tokens)
+    # The inspection pass is billed too — it is a real call on the user's behalf.
+    record_usage(user_id, tokens + image_tokens)
 
     return {
         "message": "Astrologer answer generated",
@@ -1185,6 +1319,84 @@ def delete_profile(profile_id: int, current_user: dict = Depends(get_current_use
     if not deleted:
         raise HTTPException(status_code=404, detail="Profile not found")
     return {"message": "Profile deleted"}
+
+
+# ---- Attached images ----
+
+# Free stays text-only. Images cost real tokens on every question they ride
+# along with, and this is the clearest thing a paid tier actually buys.
+IMAGE_TIERS = {"standard", "premium"}
+
+
+def require_image_tier(user_id: int) -> None:
+    if get_user_tier(user_id) not in IMAGE_TIERS:
+        raise HTTPException(
+            status_code=403,
+            detail="Attaching pictures is part of a paid plan. Upgrade to send charts and screenshots.",
+        )
+
+
+@app.post("/attachments")
+async def upload_attachment(
+    file: UploadFile = File(...),
+    current_user: dict = Depends(get_current_user),
+):
+    """Store one image so a question can refer to it."""
+    require_image_tier(current_user["id"])
+
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    if content_type not in ALLOWED_TYPES:
+        raise HTTPException(
+            status_code=400,
+            detail="That file type isn't supported. Send a PNG, JPEG, WebP or GIF.",
+        )
+
+    # Read with a ceiling rather than trusting a declared length, which the
+    # client controls.
+    content = await file.read(MAX_BYTES + 1)
+    if len(content) > MAX_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"That image is too large. Keep it under {MAX_BYTES // (1024 * 1024)}MB.",
+        )
+    if not content:
+        raise HTTPException(status_code=400, detail="That file appears to be empty.")
+
+    return save_attachment(current_user["id"], content, content_type)
+
+
+@app.get("/attachments/{attachment_id}")
+def serve_attachment(
+    attachment_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    """Return the image itself, to the person who uploaded it and nobody else."""
+    attachment = get_attachment(attachment_id)
+    if not attachment:
+        raise HTTPException(status_code=404, detail="Image not found")
+    require_self(current_user, attachment["owner_user_id"])
+
+    content = read_attachment_bytes(attachment)
+    if content is None:
+        raise HTTPException(status_code=404, detail="Image not found")
+
+    return Response(
+        content=content,
+        media_type=attachment["content_type"],
+        # Private: it may be a screenshot of someone's messages, so no shared
+        # cache should ever hold a copy.
+        headers={"Cache-Control": "private, max-age=3600"},
+    )
+
+
+@app.delete("/attachments/{attachment_id}")
+def remove_attachment(
+    attachment_id: int,
+    current_user: dict = Depends(get_current_user),
+):
+    if not delete_attachment(attachment_id, current_user["id"]):
+        raise HTTPException(status_code=404, detail="Image not found")
+    return {"message": "Image deleted"}
 
 
 # ---- Subscription / tiers ----

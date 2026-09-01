@@ -84,6 +84,15 @@ export default function TermsPage() {
           them &mdash; when you save another person&rsquo;s birth information, you are
           telling us you&rsquo;re entitled to
         </li>
+        <li>
+          Attach images you don&rsquo;t have the right to share. A screenshot of a
+          conversation contains someone else&rsquo;s words; attach it only where
+          that&rsquo;s reasonable, and never to expose or harass the other person
+        </li>
+        <li>
+          Attach intimate images, anyone else&rsquo;s identity documents, or anything
+          involving a child
+        </li>
       </ul>
       <p>
         We may suspend or close accounts that break these rules, usually with notice

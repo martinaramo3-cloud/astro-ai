@@ -93,6 +93,23 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)"
     )
 
+    # Images attached to a question. The file lives on disk beside this
+    # database; only the pointer is stored here.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS attachments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id INTEGER NOT NULL,
+        stored_name TEXT NOT NULL,
+        content_type TEXT NOT NULL,
+        byte_size INTEGER NOT NULL,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (owner_user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_attachments_owner ON attachments(owner_user_id)"
+    )
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS chat_sessions (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

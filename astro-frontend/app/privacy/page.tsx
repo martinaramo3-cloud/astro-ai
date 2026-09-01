@@ -47,7 +47,23 @@ export default function PrivacyPage() {
           compare charts
         </li>
         <li>How much of your plan&rsquo;s allowance you&rsquo;ve used</li>
+        <li>
+          <strong>Any images you attach</strong> to a question &mdash; a chart from
+          another app, a screenshot of a conversation. These are stored on our
+          server so the conversation still shows them when you come back, and they
+          are sent to our AI providers to be read.
+        </li>
       </ul>
+
+      <div className="callout">
+        <p>
+          A screenshot of a conversation contains someone else&rsquo;s words, and
+          they did not choose to send them to us. Please only attach what you are
+          comfortable sharing. We don&rsquo;t use uploaded images to train anything,
+          we don&rsquo;t show them to anyone but you, and you can delete any image
+          &mdash; or all of them, by closing your account &mdash; at any time.
+        </p>
+      </div>
 
       <h3>If you subscribe</h3>
       <ul>
@@ -131,6 +147,11 @@ export default function PrivacyPage() {
         <li>
           <strong>Your conversations</strong> &mdash; until you delete them or close
           your account
+        </li>
+        <li>
+          <strong>Images you attach</strong> &mdash; until you remove them or close
+          your account, at which point the files are erased from our server, not
+          just unlinked
         </li>
         <li>
           <strong>After you close your account</strong> &mdash; deleted within 30 days,
