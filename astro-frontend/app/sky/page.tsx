@@ -126,6 +126,22 @@ export default function SkyPage() {
               ecliptic &mdash; the path every planet follows, which is why they
               are strung along it rather than scattered.
             </p>
+
+            {/* Required by the catalogue's licence, and it belongs here anyway:
+                these are real stars, from real measurements someone made. */}
+            <p style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 14, lineHeight: 1.6 }}>
+              Planets calculated with the Swiss Ephemeris. 8,920 stars to
+              magnitude 6.5 from the{" "}
+              <a
+                href="https://codeberg.org/astronexus/hyg"
+                target="_blank"
+                rel="noreferrer noopener"
+                style={{ color: "var(--ink-3)", textDecoration: "underline" }}
+              >
+                HYG Database
+              </a>{" "}
+              by David Nash, used under CC BY-SA 4.0.
+            </p>
           </>
         )}
       </div>

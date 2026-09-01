@@ -1,0 +1,14 @@
+Star data: public/stars.json
+
+Derived from the HYG Database (v4.0) by David Nash / astronexus,
+https://codeberg.org/astronexus/hyg
+
+Licensed under Creative Commons Attribution-ShareAlike 4.0 International
+(CC BY-SA 4.0): https://creativecommons.org/licenses/by-sa/4.0/
+
+This file is a filtered subset -- stars to magnitude 6.5, reduced to
+right ascension, declination, visual magnitude and proper name -- and is
+therefore an adaptation, released under the same licence.
+
+The share-alike condition applies to this star data and adaptations of it.
+It does not extend to the application that displays it.

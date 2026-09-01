@@ -105,6 +105,10 @@ def build_sky_view(utc_dt, latitude: float, longitude: float) -> dict:
 
     return {
         "observer": {"latitude": latitude, "longitude": longitude},
+        # Local sidereal time is the one number a browser needs to turn a fixed
+        # star catalogue into "what was overhead here". Sent rather than
+        # recomputed client-side so both ends agree on the same sky.
+        "local_sidereal_hours": round((swe.sidtime(jd) + longitude / 15.0) % 24, 5),
         "moment_utc": utc_dt.isoformat(),
         "bodies": bodies,
         "ecliptic": ecliptic,
