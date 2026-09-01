@@ -172,6 +172,10 @@ def _openai_response(
         parts = [
             {
                 "type": "input_image",
+                # Required by the SDK's type for this block. "auto" lets the
+                # provider pick the resolution — screenshots have to be read as
+                # text, so forcing "low" here would cost accuracy, not just tokens.
+                "detail": "auto",
                 "image_url": (
                     f"data:{image['content_type']};base64,"
                     + base64.b64encode(image["content"]).decode()
