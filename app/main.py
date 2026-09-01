@@ -29,9 +29,10 @@ from app.attachment_service import (
     save_attachment,
 )
 from app.image_reading_service import read_images
+from app.sky_view_service import build_sky_view
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
-from datetime import datetime
+from datetime import datetime, timezone
 
 from app.celestial_events_service import build_cosmic_events, describe_moon_phase
 from app.chart_analysis_service import build_chart_analysis
@@ -1448,6 +1449,47 @@ def remove_attachment(
     if not delete_attachment(attachment_id, current_user["id"]):
         raise HTTPException(status_code=404, detail="Image not found")
     return {"message": "Image deleted"}
+
+
+# ---- The sky itself ----
+
+def _sky_for(current_user: dict, utc_dt=None) -> dict:
+    """Build a sky view from the signed-in person's birth place.
+
+    Their birth place is the vantage point for both views: the sky the night
+    they were born, and the sky over the same spot now.
+    """
+    natal_data = build_natal_chart_data(
+        BirthData(
+            birth_date=current_user["birth_date"],
+            birth_time=current_user["birth_time"],
+            birth_place=current_user["birth_place"],
+            birth_time_known=bool(current_user.get("birth_time_known", 1)),
+        )
+    )
+    location = natal_data["location_data"]
+    moment = utc_dt or datetime.fromisoformat(natal_data["utc_birth_time"])
+
+    sky = build_sky_view(moment, location["latitude"], location["longitude"])
+    sky["place"] = current_user["birth_place"]
+    sky["timezone"] = location.get("timezone")
+    return sky
+
+
+@app.get("/sky-at-birth")
+def sky_at_birth(current_user: dict = Depends(get_current_user)):
+    """The sky over their birthplace at the moment they were born."""
+    sky = _sky_for(current_user)
+    # Without a real birth time the chart is cast for noon, so this would be a
+    # picture of the wrong sky. Say so rather than quietly showing midday.
+    sky["birth_time_known"] = bool(current_user.get("birth_time_known", 1))
+    return sky
+
+
+@app.get("/sky-now")
+def sky_now(current_user: dict = Depends(get_current_user)):
+    """The sky over their birthplace right now."""
+    return _sky_for(current_user, utc_dt=datetime.now(timezone.utc))
 
 
 # ---- Subscription / tiers ----

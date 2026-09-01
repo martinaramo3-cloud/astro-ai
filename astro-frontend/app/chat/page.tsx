@@ -694,6 +694,23 @@ export default function ChatPage() {
           ✦ View my chart
         </button>
 
+        <a
+          href="/sky"
+          className="mt-2 block w-full text-left"
+          style={{
+            background: "transparent",
+            border: "1px solid var(--line-2)",
+            borderRadius: 16,
+            padding: "12px 16px",
+            fontSize: 14,
+            fontWeight: 300,
+            color: "var(--ink-2)",
+            textDecoration: "none",
+          }}
+        >
+          ☾ The sky I was born under
+        </a>
+
         {/* Conversations */}
         {sessions.length > 0 && (
           <div className="mt-6">
