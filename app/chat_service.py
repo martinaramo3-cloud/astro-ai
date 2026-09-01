@@ -85,3 +85,52 @@ def delete_chat_session_by_id(session_id: int) -> bool:
     deleted = cursor.rowcount > 0
     conn.close()
     return deleted
+
+
+def summarize_recent_sessions(
+    owner_user_id: int,
+    exclude_session_id: int | None = None,
+    limit: int = 5,
+) -> list[dict]:
+    """A light index of someone's other conversations.
+
+    Titles and opening questions only — enough for the astrologer to say
+    "you asked about your Saturn return last week", without shipping every
+    past transcript into the prompt or letting it invent details it never saw.
+    """
+    conn = get_db_connection()
+    rows = conn.execute(
+        """
+        SELECT id, title, messages_json, updated_at
+        FROM chat_sessions
+        WHERE owner_user_id = ?
+        ORDER BY updated_at DESC
+        LIMIT ?
+        """,
+        (owner_user_id, limit + 1),
+    ).fetchall()
+    conn.close()
+
+    summaries = []
+    for row in rows:
+        if exclude_session_id is not None and row["id"] == exclude_session_id:
+            continue
+
+        opening = ""
+        try:
+            for message in json.loads(row["messages_json"]):
+                if message.get("role") == "user":
+                    opening = message.get("content", "")[:120]
+                    break
+        except ValueError:
+            pass
+
+        summaries.append({
+            "title": row["title"],
+            "opening_question": opening,
+            "last_active": (row["updated_at"] or "")[:10],
+        })
+        if len(summaries) >= limit:
+            break
+
+    return summaries

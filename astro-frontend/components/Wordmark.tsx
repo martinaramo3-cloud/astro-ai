@@ -3,8 +3,10 @@
 /**
  * "Zodi" — an oversized Z beside widely tracked lowercase.
  *
- * The tracking on "odi" pushes the text right, so a matching text-indent
- * pulls it back and keeps the whole wordmark optically centred.
+ * The Z's own letter-spacing supplies the gap before "odi". What used to open
+ * that gap too wide was an additional text-indent on "odi", which pushed the
+ * whole word right rather than centring it. Centring is handled instead by a
+ * negative margin cancelling the trailing space after the final "i".
  */
 export default function Wordmark({
   zSize,
@@ -37,7 +39,8 @@ export default function Wordmark({
           fontSize: typeof restSize === "number" ? `${restSize}px` : restSize,
           fontWeight: 300,
           letterSpacing: animate ? undefined : "0.4em",
-          textIndent: "0.4em",
+          // Same for the trailing "i", so the pair sits optically centred.
+          marginRight: "-0.4em",
           color: "var(--ink)",
         }}
       >

@@ -126,6 +126,13 @@ export default function ChatPage() {
   const [accountOpen, setAccountOpen] = useState(false);
   const [deleteArmed, setDeleteArmed] = useState(false);
   const [accountBusy, setAccountBusy] = useState("");
+  // Anything irreversible routes through one confirmation dialog.
+  const [confirmAction, setConfirmAction] = useState<{
+    title: string;
+    body: string;
+    confirmLabel: string;
+    run: () => Promise<void> | void;
+  } | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
 
   // Dictation appends to whatever is already typed.
@@ -310,6 +317,8 @@ export default function ChatPage() {
           history: nextHistory,
           user_id: user.id,
           model: selectedModel ?? undefined,
+          // So the open conversation isn't also listed as a past one.
+          session_id: currentSessionId ?? undefined,
         };
 
     const attemptFetch = async (attemptsLeft: number): Promise<void> => {
@@ -394,17 +403,41 @@ export default function ChatPage() {
     setSavingProfile(false);
   };
 
-  const deleteSession = async (session: ChatSession) => {
-    try {
-      const res = await apiFetch(`/chat-sessions/${session.id}`, { method: "DELETE" });
-      if (!res.ok) return;
-      setSessions((prev) => prev.filter((s) => s.id !== session.id));
-      // If the open conversation was the one removed, start fresh.
-      if (currentSessionId === session.id) startNewChat(null);
-    } catch {
-      /* leaving it on screen is better than a false success */
-    }
-  };
+  const deleteSession = (session: ChatSession) =>
+    setConfirmAction({
+      title: "Delete this conversation?",
+      body: `“${session.title}” will be permanently deleted. This cannot be undone.`,
+      confirmLabel: "Delete conversation",
+      run: async () => {
+        try {
+          const res = await apiFetch(`/chat-sessions/${session.id}`, { method: "DELETE" });
+          if (!res.ok) return;
+          setSessions((prev) => prev.filter((s) => s.id !== session.id));
+          // If the open conversation was the one removed, start fresh.
+          if (currentSessionId === session.id) startNewChat(null);
+        } catch {
+          /* leaving it on screen is better than a false success */
+        }
+      },
+    });
+
+  const deleteProfile = (profile: SavedProfile) =>
+    setConfirmAction({
+      title: `Remove ${profile.label}?`,
+      body: `${profile.person_name}'s birth details will be permanently deleted, and you'll no longer be able to read your chart against theirs. This cannot be undone.`,
+      confirmLabel: "Remove person",
+      run: async () => {
+        try {
+          const res = await apiFetch(`/profiles/${profile.id}`, { method: "DELETE" });
+          if (!res.ok) return;
+          setProfiles((prev) => prev.filter((p) => p.id !== profile.id));
+          // Drop back to reading just their own chart.
+          if (selectedProfile?.id === profile.id) startNewChat(null);
+        } catch {
+          /* leave it on screen rather than claim success */
+        }
+      },
+    });
 
   /** Re-ask an earlier question, discarding everything that followed it. */
   const submitEdit = async (conversationIndex: number) => {
@@ -618,24 +651,42 @@ export default function ChatPage() {
             {profiles.map((profile) => {
               const active = selectedProfile?.id === profile.id;
               return (
-                <button
+                <div
                   key={profile.id}
-                  onClick={() => startNewChat(profile)}
-                  className="w-full text-left"
+                  className="group flex items-center gap-1"
                   style={{
                     borderRadius: 14,
-                    padding: "11px 14px",
-                    fontSize: 14,
-                    fontWeight: 300,
                     background: active ? "var(--gold-soft)" : "transparent",
-                    color: active ? "var(--ink)" : "var(--ink-2)",
                   }}
                 >
-                  <span className="block">{profile.label}</span>
-                  <span style={{ fontSize: 12, color: "var(--ink-3)" }}>
-                    {profile.person_name}
-                  </span>
-                </button>
+                  <button
+                    onClick={() => startNewChat(profile)}
+                    className="min-w-0 flex-1 text-left"
+                    style={{
+                      padding: "11px 14px",
+                      fontSize: 14,
+                      fontWeight: 300,
+                      color: active ? "var(--ink)" : "var(--ink-2)",
+                    }}
+                  >
+                    <span className="block truncate">{profile.label}</span>
+                    <span
+                      className="block truncate"
+                      style={{ fontSize: 12, color: "var(--ink-3)" }}
+                    >
+                      {profile.person_name}
+                    </span>
+                  </button>
+                  <button
+                    onClick={() => deleteProfile(profile)}
+                    aria-label={`Remove ${profile.label}`}
+                    title="Remove person"
+                    className="shrink-0 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
+                    style={{ padding: "8px 12px", fontSize: 13, color: "var(--ink-3)" }}
+                  >
+                    ✕
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -1110,6 +1161,64 @@ export default function ChatPage() {
           </div>
         </div>
       </div>
+
+      {/* ─── Confirm anything irreversible ─── */}
+      {confirmAction && (
+        <div
+          className="fixed inset-0 z-[70] flex items-center justify-center p-4"
+          style={{ background: "rgba(0,0,0,0.55)" }}
+          onClick={() => setConfirmAction(null)}
+        >
+          <div
+            className="w-full max-w-sm"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              background: "var(--surface)",
+              border: "1px solid var(--line)",
+              borderRadius: 24,
+              boxShadow: "var(--shadow)",
+              padding: 24,
+            }}
+          >
+            <h2 className="font-display" style={{ fontSize: 24, lineHeight: 1.2 }}>
+              {confirmAction.title}
+            </h2>
+            <p
+              className="font-reading mt-2"
+              style={{ fontSize: 16, lineHeight: 1.65, color: "var(--ink-2)" }}
+            >
+              {confirmAction.body}
+            </p>
+            <div className="mt-5 flex items-center justify-end gap-2">
+              <button
+                onClick={() => setConfirmAction(null)}
+                className="micro-label"
+                style={{ letterSpacing: "0.16em", padding: "10px 14px" }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  const action = confirmAction;
+                  setConfirmAction(null);
+                  await action.run();
+                }}
+                className="uppercase"
+                style={{
+                  borderRadius: 999,
+                  padding: "11px 18px",
+                  fontSize: 10,
+                  letterSpacing: "0.16em",
+                  background: "#a8503c",
+                  color: "#fffdf8",
+                }}
+              >
+                {confirmAction.confirmLabel}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Account & data ─── */}
       {accountOpen && (

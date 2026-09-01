@@ -9,6 +9,7 @@ from app.chat_service import (
     list_chat_sessions,
     update_chat_session,
     delete_chat_session_by_id,
+    summarize_recent_sessions,
 )
 from app.account_service import export_user_data, delete_user_account
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
@@ -143,6 +144,7 @@ class AstrologyQuestionRequest(BaseModel):
     user_id: Optional[int] = None
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
     effort: Optional[str] = None  # "low" | "medium" | "high"; gated by tier server-side
+    session_id: Optional[int] = None  # the open conversation, excluded from the past list
 
 
 class PredictiveRequest(BaseModel):
@@ -641,6 +643,10 @@ def ask_astrologer(
             ),
         },
         "chart_structure": chart_structure,
+        # Titles only, so a question can be picked back up across sessions.
+        "past_conversations": summarize_recent_sessions(
+            user_id, exclude_session_id=data.session_id
+        ),
     }
 
     answer, tokens = generate_astrologer_answer(

@@ -30,6 +30,7 @@
   --mark-ray: #c99a45;
   --mark-ray-opacity: 0.95;
   --color-scheme: light;
+  --theme-swap: 200ms;
 }
 
 [data-theme="night"] {
@@ -79,13 +80,19 @@ body {
   font-family: var(--font-jost), system-ui, sans-serif;
   font-weight: 300;
   color-scheme: var(--color-scheme);
-  transition: background 900ms ease, color 900ms ease;
+  transition: background var(--theme-swap) ease, color var(--theme-swap) ease;
 }
 
-/* The day↔night change should dissolve, never cut. */
+/* Day↔night softens rather than cuts — but briefly.
+   Each element animates its own colour and background independently, so a
+   long transition spends that whole time in combinations that were never
+   designed together (dark text part-way onto a dark ground). Keeping it short
+   means the in-between states pass before they can be read as broken. */
 body * {
-  transition: background-color 700ms ease, color 700ms ease,
-    border-color 700ms ease, box-shadow 700ms ease;
+  transition: background-color var(--theme-swap) ease,
+    color var(--theme-swap) ease,
+    border-color var(--theme-swap) ease,
+    box-shadow var(--theme-swap) ease;
 }
 
 a { color: inherit; text-decoration: none; }
