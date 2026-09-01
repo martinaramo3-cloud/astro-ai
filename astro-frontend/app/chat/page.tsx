@@ -483,13 +483,16 @@ export default function ChatPage() {
 
       {/* ─── Sidebar ─── */}
       <aside
-        className={`safe-top fixed inset-y-0 left-0 z-50 flex w-[86%] max-w-[300px] transform flex-col overflow-y-auto transition-transform duration-300 ease-out lg:static lg:w-[268px] lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[86%] max-w-[300px] transform flex-col overflow-y-auto transition-transform duration-300 ease-out lg:static lg:w-[268px] lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
           background: "var(--ground-2)",
           borderRight: "1px solid var(--line)",
-          padding: "18px 16px",
+          paddingTop: "calc(18px + env(safe-area-inset-top, 0px))",
+          paddingBottom: 18,
+          paddingLeft: 16,
+          paddingRight: 16,
         }}
       >
         <div className="flex items-center justify-between">
@@ -500,8 +503,8 @@ export default function ChatPage() {
           <button
             onClick={() => setSidebarOpen(false)}
             aria-label="Close menu"
-            className="lg:hidden"
-            style={{ color: "var(--ink-3)", fontSize: 18 }}
+            className="-mr-2 grid shrink-0 place-items-center lg:hidden"
+            style={{ width: 44, height: 44, color: "var(--ink-3)", fontSize: 18 }}
           >
             ✕
           </button>
@@ -751,9 +754,15 @@ export default function ChatPage() {
       {/* ─── Main column ─── */}
       <div className="flex min-w-0 flex-1 flex-col">
         <header
-          className="safe-top flex items-center justify-between gap-3"
+          className="flex items-center justify-between gap-3"
           style={{
-            padding: "14px 18px",
+            // The inset has to live in the inline padding: an inline shorthand
+            // would otherwise override a padding-top set by a class, and the
+            // header would sit under the status bar where it can't be tapped.
+            paddingTop: "calc(14px + env(safe-area-inset-top, 0px))",
+            paddingBottom: 14,
+            paddingLeft: 18,
+            paddingRight: 18,
             borderBottom: "1px solid var(--line)",
             background: "var(--ground-2)",
           }}
@@ -761,8 +770,10 @@ export default function ChatPage() {
           <button
             onClick={() => setSidebarOpen(true)}
             aria-label="Open menu"
-            className="lg:hidden"
-            style={{ fontSize: 18, color: "var(--ink-2)" }}
+            className="-ml-2 grid shrink-0 place-items-center lg:hidden"
+            // 44px is the smallest comfortable tap target; the glyph alone
+            // gave about 16px of hit area.
+            style={{ width: 44, height: 44, fontSize: 19, color: "var(--ink-2)" }}
           >
             ☰
           </button>

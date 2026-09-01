@@ -10,9 +10,11 @@ import { ThemeToggle, useTheme } from "../components/ThemeProvider";
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 // The splash is a ceiling, not a fixed wait — a warm load should not feel
-// padded. The floor exists so the wordmark animation isn't cut off mid-reveal.
-const SPLASH_MAX_MS = 3200;
-const SPLASH_MIN_MS = 1600;
+// padded. The floor has to outlast the wordmark reveal (300ms delay + 1800ms
+// animation), plus a beat to read the tagline, or a cached load cuts the brand
+// moment off halfway through.
+const SPLASH_MAX_MS = 3600;
+const SPLASH_MIN_MS = 2700;
 const SPLASH_SEEN_KEY = "zodi-splash-seen";
 
 const fieldStyle: React.CSSProperties = {
@@ -205,7 +207,12 @@ export default function Home() {
       className="zo-rise relative flex min-h-screen flex-col items-center px-6 py-12"
       style={{ background: "var(--sky)" }}
     >
-      <div className="safe-top absolute right-[22px] top-[22px] z-10">
+      {/* In flow on phones, where pinning it to the corner puts it on top of
+          the mark; back to the corner once there's room. */}
+      <div
+        className="z-10 mb-6 flex w-full justify-end lg:absolute lg:right-[22px] lg:top-[22px] lg:mb-0 lg:w-auto"
+        style={{ paddingTop: "env(safe-area-inset-top, 0px)" }}
+      >
         <ThemeToggle />
       </div>
 
