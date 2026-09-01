@@ -110,3 +110,22 @@ def filter_chart_context_by_question_type(
         )[:4]
 
     return context
+
+
+# The chat classifies questions by subject; the predictive engine thinks in its
+# own topics. This is the join between them.
+PREDICTIVE_TOPIC_BY_QUESTION_TYPE = {
+    "relationship":  "relationships",
+    "compatibility": "relationships",
+    "emotional":     "inner_life",
+    "career":        "career",
+}
+
+
+def predictive_topic_for(question_type: str | None) -> str | None:
+    """Which life area the predictive engine should assess, if we can tell.
+
+    None means "work it out from the chart" — the engine ranks every topic and
+    picks the loudest, which is the right answer to "what is going on with me".
+    """
+    return PREDICTIVE_TOPIC_BY_QUESTION_TYPE.get(question_type or "general")

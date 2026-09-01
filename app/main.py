@@ -43,6 +43,7 @@ from app.session_service import (
 )
 from app.question_router import (
     classify_question,
+    predictive_topic_for,
     filter_chart_context_by_question_type,
     get_focus_planets,
 )
@@ -741,6 +742,55 @@ def interpret_attachments(attachments: list[dict]) -> tuple[dict | None, list[di
     )
 
 
+def build_prediction(natal_data: dict, active_transits: list, question_type: str | None) -> dict | None:
+    """Run the predictive engine and trim its output for the prompt.
+
+    The engine ranks every life area by how hard it is currently being hit and
+    explains its own reasoning, which is exactly the judgement a language model
+    is worst at making unaided. It is pure arithmetic — no AI call, no cost —
+    so the only thing to be careful about is how much of it ships in the prompt.
+    """
+    if not natal_data.get("houses"):
+        # Every topic in the engine is defined by houses, so without a birth
+        # time there is nothing for it to rank.
+        return None
+
+    try:
+        result = run_predictive_engine(
+            natal_chart=natal_data,
+            transit_aspects=active_transits,
+            requested_topic=predictive_topic_for(question_type),
+        )
+    except Exception as exc:  # noqa: BLE001 - a reading is better than an error
+        print("Predictive engine failed:", repr(exc))
+        return None
+
+    return {
+        "note": (
+            "Computed from the transits above, not written by a model. "
+            "'why_active' is the engine's own reasoning — use it to decide what to "
+            "lead with, don't quote it back."
+        ),
+        "main_topic": result.main_topic.value,
+        "tone": result.tone.value,
+        "process_or_event": result.process_or_event,
+        "strongest_window": result.strongest_window,
+        "likely_manifestation": result.likely_manifestation,
+        "why_active": result.why_active[:6],
+        "competing_interpretations": result.competing_interpretations[:3],
+        # Ranked so the model can see which areas are loud and which are quiet.
+        "topics_by_activation": [
+            {
+                "topic": t.topic.value,
+                "score": t.activation_score,
+                "tone": t.tone.value,
+                "level": t.manifestation_level.value,
+            }
+            for t in result.topic_assessments[:5]
+        ],
+    }
+
+
 @app.post("/ask-astrologer")
 def ask_astrologer(
     data: AstrologyQuestionRequest,
@@ -842,6 +892,7 @@ def ask_astrologer(
             ),
         },
         "chart_structure": chart_structure,
+        "prediction": build_prediction(natal_data, active_transits, question_type),
         # Titles only, so a question can be picked back up across sessions.
         "past_conversations": summarize_recent_sessions(
             user_id, exclude_session_id=data.session_id
