@@ -17,19 +17,9 @@ const SPLASH_MAX_MS = 3600;
 const SPLASH_MIN_MS = 2700;
 const SPLASH_SEEN_KEY = "zodi-splash-seen";
 
-const fieldStyle: React.CSSProperties = {
-  border: "1px solid var(--line-2)",
-  background: "var(--ground)",
-  borderRadius: 14,
-  padding: "13px 16px",
-  fontSize: 16,
-  width: "100%",
-  outline: "none",
-};
-
 function Label({ children }: { children: React.ReactNode }) {
   return (
-    <span className="micro-label mb-[7px] block" style={{ letterSpacing: "0.22em" }}>
+    <span className="micro-label auth-label block" style={{ letterSpacing: "0.22em" }}>
       {children}
     </span>
   );
@@ -43,6 +33,9 @@ export default function Home() {
   const [showSplash, setShowSplash] = useState(true);
 
   const [mode, setMode] = useState<"signup" | "login">("signup");
+  // Six fields don't fit a laptop viewport, let alone a phone — so signup is
+  // split: who you are, then when and where you were born.
+  const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
     name: "", email: "", password: "", birth_date: "", birth_time: "", birth_place: "",
   });
@@ -90,7 +83,17 @@ export default function Home() {
 
   const switchMode = (next: "signup" | "login") => {
     setMode(next);
+    setSignupStep(1);
     setMessage("");
+  };
+
+  /** Check only the fields on the first step, then advance. */
+  const continueToBirthDetails = () => {
+    if (!form.name.trim()) return setMessage("Please enter your name.");
+    if (!EMAIL_RE.test(form.email)) return setMessage("Please enter a valid email address.");
+    if (form.password.length < 6) return setMessage("Password must be at least 6 characters.");
+    setMessage("");
+    setSignupStep(2);
   };
 
   const validate = () => {
@@ -123,7 +126,13 @@ export default function Home() {
 
   const handleSignup = async () => {
     setMessage("");
-    if (!validate()) return;
+    if (!validate()) {
+      // Send them back to whichever step holds the offending field.
+      const onFirstStep =
+        !form.name.trim() || !EMAIL_RE.test(form.email) || form.password.length < 6;
+      if (onFirstStep) setSignupStep(1);
+      return;
+    }
     setLoading(true);
     try {
       const response = await apiFetch("/signup", {
@@ -204,7 +213,7 @@ export default function Home() {
 
   return (
     <main
-      className="zo-rise relative flex min-h-screen flex-col items-center px-6 py-12"
+      className="auth-main zo-rise relative flex min-h-screen flex-col items-center"
       style={{ background: "var(--sky)" }}
     >
       {/* In flow on phones, where pinning it to the corner puts it on top of
@@ -217,30 +226,29 @@ export default function Home() {
       </div>
 
       <div style={{ width: "min(430px, 100%)" }} className="mx-auto flex flex-col items-center">
-        <ZodiMark size={96} night={night} />
-        <div style={{ marginTop: 14 }}>
-          <Wordmark zSize={52} restSize={28} />
+        <ZodiMark night={night} sizeFromCss className="auth-mark" />
+        <div style={{ marginTop: 10 }}>
+          <Wordmark zSize={46} restSize={25} />
         </div>
 
         <p
-          className="font-reading mt-3 text-center"
-          style={{ fontSize: 17, lineHeight: 1.6, color: "var(--ink-2)", maxWidth: "32ch" }}
+          className="font-reading auth-blurb text-center"
+          style={{ color: "var(--ink-2)", maxWidth: "34ch" }}
         >
-          {isSignup
-            ? "A few details about the sky when you arrived, and we can begin."
-            : "Welcome back. The sky has moved since you were here."}
+          {!isSignup
+            ? "Welcome back. The sky has moved since you were here."
+            : signupStep === 1
+              ? "First, who you are."
+              : "Now the sky when you arrived — this is what your chart is built from."}
         </p>
 
         {/* Card */}
         <div
-          className="w-full"
+          className="auth-card w-full"
           style={{
-            marginTop: 26,
             background: "var(--surface)",
             border: "1px solid var(--line)",
-            borderRadius: 28,
             boxShadow: "var(--shadow)",
-            padding: "26px 26px 24px",
           }}
         >
           {/* Tabs */}
@@ -274,8 +282,8 @@ export default function Home() {
           </div>
 
           {/* Fields */}
-          <div className="mt-5 flex flex-col" style={{ gap: 14 }}>
-            {isSignup && (
+          <div className="auth-fields mt-4 flex flex-col">
+            {isSignup && signupStep === 1 && (
               <label className="block">
                 <Label>Your name</Label>
                 <input
@@ -283,11 +291,12 @@ export default function Home() {
                   value={form.name}
                   onChange={handleChange}
                   placeholder="Martina"
-                  style={fieldStyle}
+                  className="auth-field"
                 />
               </label>
             )}
 
+            {(!isSignup || signupStep === 1) && (
             <label className="block">
               <Label>Email</Label>
               <input
@@ -296,10 +305,12 @@ export default function Home() {
                 value={form.email}
                 onChange={handleChange}
                 placeholder="you@somewhere.com"
-                style={fieldStyle}
+                className="auth-field"
               />
             </label>
+            )}
 
+            {(!isSignup || signupStep === 1) && (
             <label className="block">
               <Label>Password</Label>
               <input
@@ -308,11 +319,12 @@ export default function Home() {
                 value={form.password}
                 onChange={handleChange}
                 placeholder={isSignup ? "At least 6 characters" : "••••••••"}
-                style={fieldStyle}
+                className="auth-field"
               />
             </label>
+            )}
 
-            {isSignup && (
+            {isSignup && signupStep === 2 && (
               <>
                 <div>
                   <Label>Born</Label>
@@ -322,14 +334,14 @@ export default function Home() {
                       type="date"
                       value={form.birth_date}
                       onChange={handleChange}
-                      style={{ ...fieldStyle, flex: 1 }}
+                      className="auth-field" style={{ flex: 1 }}
                     />
                     <input
                       name="birth_time"
                       type="time"
                       value={form.birth_time}
                       onChange={handleChange}
-                      style={{ ...fieldStyle, width: 92 }}
+                      className="auth-field" style={{ width: 92 }}
                     />
                   </div>
                 </div>
@@ -341,7 +353,7 @@ export default function Home() {
                     value={form.birth_place}
                     onChange={(v) => setForm({ ...form, birth_place: v })}
                     placeholder="Lisbon, Portugal"
-                    style={fieldStyle}
+                    className="auth-field"
                   />
                 </label>
               </>
@@ -350,12 +362,16 @@ export default function Home() {
 
           {/* Primary CTA */}
           <button
-            onClick={isSignup ? handleSignup : handleLogin}
+            onClick={
+              !isSignup
+                ? handleLogin
+                : signupStep === 1
+                  ? continueToBirthDetails
+                  : handleSignup
+            }
             disabled={loading}
-            className="mt-5 w-full uppercase"
+            className="auth-cta w-full uppercase"
             style={{
-              borderRadius: 999,
-              padding: "15px 20px",
               background: "linear-gradient(135deg, var(--gold), var(--gold-deep))",
               color: "var(--on-gold)",
               fontSize: 13,
@@ -366,10 +382,22 @@ export default function Home() {
           >
             {loading
               ? "One moment…"
-              : isSignup
-                ? "Create account"
-                : "Continue"}
+              : !isSignup
+                ? "Continue"
+                : signupStep === 1
+                  ? "Next"
+                  : "Create account"}
           </button>
+
+          {isSignup && signupStep === 2 && !loading && (
+            <button
+              onClick={() => { setMessage(""); setSignupStep(1); }}
+              className="micro-label mt-3 w-full"
+              style={{ letterSpacing: "0.16em" }}
+            >
+              &larr; Back
+            </button>
+          )}
 
           {message && (
             <p

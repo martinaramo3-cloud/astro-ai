@@ -16,16 +16,19 @@ export default function ZodiMark({
   night = false,
   spin = false,
   className = "",
+  sizeFromCss = false,
 }: {
   size?: number;
   night?: boolean;
   spin?: boolean;
   className?: string;
+  /** Let a stylesheet set the dimensions — inline sizing would win otherwise. */
+  sizeFromCss?: boolean;
 }) {
   return (
     <div
       className={`relative shrink-0 ${className}`}
-      style={{ width: size, height: size }}
+      style={sizeFromCss ? undefined : { width: size, height: size }}
       aria-hidden="true"
     >
       {/* Halo. The centring lives on the wrapper because the animation drives

@@ -130,6 +130,56 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 
 .body-pretty { text-wrap: pretty; }
 
+/* ─── Auth screen ───
+   Create-account carries six fields, and at the desktop rhythm that ran to
+   ~1100px — so on a phone the form began below the fold and you had to scroll
+   before you could type. Everything below tightens the spacing on small
+   screens only; the desktop layout is unchanged.
+   Input font-size stays at 16px: anything smaller makes iOS zoom on focus. */
+
+.auth-main { padding: 32px 24px; }
+
+.auth-mark { width: 78px; height: 78px; }
+
+.auth-blurb { font-size: 16px; line-height: 1.55; margin-top: 10px; }
+
+.auth-card {
+  margin-top: 18px;
+  border-radius: 28px;
+  padding: 22px 24px 20px;
+}
+
+.auth-fields { gap: 12px; }
+
+.auth-field {
+  border: 1px solid var(--line-2);
+  background: var(--ground);
+  border-radius: 14px;
+  padding: 13px 16px;
+  font-size: 16px;
+  width: 100%;
+  outline: none;
+}
+
+.auth-label { margin-bottom: 7px; }
+
+.auth-cta {
+  margin-top: 20px;
+  padding: 15px 20px;
+  border-radius: 999px;
+}
+
+@media (max-width: 640px) {
+  .auth-main { padding: 18px 20px 28px; }
+  .auth-mark { width: 60px; height: 60px; }
+  .auth-blurb { font-size: 15px; line-height: 1.5; margin-top: 8px; }
+  .auth-card { margin-top: 16px; padding: 18px 18px 18px; border-radius: 24px; }
+  .auth-fields { gap: 9px; }
+  .auth-field { padding: 11px 14px; }
+  .auth-label { margin-bottom: 3px; }
+  .auth-cta { margin-top: 14px; padding: 13px 20px; }
+}
+
 /* Row actions (delete a chat, remove a person).
    Always present rather than revealed on hover: a touch screen has no hover,
    so hiding them there left them unreachable — tapping the row simply opened
