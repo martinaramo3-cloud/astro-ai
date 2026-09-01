@@ -606,8 +606,8 @@ export default function ChatPage() {
                       onClick={() => deleteSession(session)}
                       aria-label={`Delete "${session.title}"`}
                       title="Delete conversation"
-                      className="shrink-0 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
-                      style={{ padding: "8px 12px", fontSize: 13, color: "var(--ink-3)" }}
+                      className="row-action"
+                      style={{ fontSize: 14 }}
                     >
                       ✕
                     </button>
@@ -681,8 +681,8 @@ export default function ChatPage() {
                     onClick={() => deleteProfile(profile)}
                     aria-label={`Remove ${profile.label}`}
                     title="Remove person"
-                    className="shrink-0 opacity-0 transition group-hover:opacity-100 focus-visible:opacity-100"
-                    style={{ padding: "8px 12px", fontSize: 13, color: "var(--ink-3)" }}
+                    className="row-action"
+                    style={{ fontSize: 14 }}
                   >
                     ✕
                   </button>

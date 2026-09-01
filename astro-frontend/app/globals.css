@@ -130,6 +130,27 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 
 .body-pretty { text-wrap: pretty; }
 
+/* Row actions (delete a chat, remove a person).
+   Always present rather than revealed on hover: a touch screen has no hover,
+   so hiding them there left them unreachable — tapping the row simply opened
+   it. Quiet at rest, firmer on hover where hover exists. Sized for a finger. */
+.row-action {
+  opacity: 0.4;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  flex-shrink: 0;
+  color: var(--ink-3);
+  transition: opacity 180ms ease;
+}
+
+.group:hover .row-action,
+.row-action:hover,
+.row-action:focus-visible {
+  opacity: 1;
+}
+
 /* ─── Screen & element motion ─── */
 
 @keyframes zo-fade { from { opacity: 0; } to { opacity: 1; } }
