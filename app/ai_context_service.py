@@ -156,6 +156,13 @@ Question-specific priorities:
 - Career questions: prioritize {', '.join(CAREER_RULES)}.
 - Emotional questions: prioritize {', '.join(EMOTIONAL_RULES)}.
 
+When the birth time is unknown:
+- "chart_structure.birth_time_known" is false when this person doesn't know what time they were born. The chart is then cast for noon, and "unavailable_without_birth_time" lists what genuinely cannot be calculated: the Ascendant, the houses, the chart ruler, sect, house rulers and angularity.
+- Do not state, guess, or imply a rising sign or any house placement in that case. Never say "your Venus in the 7th" when there are no houses. This is the single easiest way to lose someone's trust, because they will know you made it up.
+- The Moon moves about 13 degrees a day, so its sign is usually right but can be wrong if they were born near a sign change, and its exact degree is not reliable. Treat it with a little care; don't build a whole reading on a precise Moon degree.
+- Everything else still works: signs, dignities, aspects between planets, element balance, retrogrades, and transits to those planets. That is plenty for a real reading — lead with it confidently rather than apologising.
+- Mention the limitation once, briefly and without hand-wringing, only where it actually bears on what they asked. If they ask something the missing data would answer, say plainly that it needs a birth time and offer what you can say instead.
+
 Chart structure — read this before anything else. It is in "chart_structure", and it is what separates a real reading from a generic one:
 - "chart_ruler" is the planet ruling their Ascendant. It describes how this person moves through life. Weight it heavily; it is often the single most telling placement in the chart.
 - "dignities" says how easily a planet operates. Domicile and exaltation work smoothly and confidently; detriment and fall struggle, overcompensate, or take years to mature. Never read a planet in fall the same way you would read it in domicile — this is usually where someone's real difficulty lives.
@@ -237,6 +244,7 @@ def build_compatibility_context(person_1_chart, person_2_chart, synastry_aspects
             "moon": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Moon"),
             "venus": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Venus"),
             "mars": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Mars"),
+            "birth_time_known": person_1_chart.get("birth_time_known", True),
             "ascendant": person_1_chart["ascendant"],
         },
         "person_2": {
@@ -244,6 +252,7 @@ def build_compatibility_context(person_1_chart, person_2_chart, synastry_aspects
             "moon": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Moon"),
             "venus": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Venus"),
             "mars": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Mars"),
+            "birth_time_known": person_2_chart.get("birth_time_known", True),
             "ascendant": person_2_chart["ascendant"],
         },
         "key_synastry_aspects": important_aspects,
@@ -260,6 +269,7 @@ You are an astrology assistant analyzing compatibility.
 
 Use only the chart data and synastry aspects below.
 Do not invent placements or aspects.
+Where "birth_time_known" is false for a person, their ascendant is null and there are no house overlays involving them. Never give that person a rising sign or a house placement — read the aspects between the charts instead.
 Prioritize the synastry engine method in this order: house overlays, tight aspects, Saturn/Pluto involvement, Moon condition, Venus/Mars, then signs.
 
 Write a concise compatibility overview that sounds warm, clear, and human.
@@ -292,6 +302,10 @@ def _compact_chart(chart: dict, name: str) -> dict:
     """
     return {
         "name": name,
+        # False when this person doesn't know their birth time. The Ascendant
+        # and every house number below are then null, and must stay unspoken
+        # rather than be filled in.
+        "birth_time_known": chart.get("birth_time_known", True),
         "ascendant": chart["ascendant"],
         "placements": [
             {
@@ -340,6 +354,11 @@ def build_ask_compatibility_prompt(context: dict) -> str:
 You are a warm, grounded astrologer answering a live compatibility question about two people.
 
 {_prompt_preamble()}
+
+Missing birth times:
+- Each person carries "birth_time_known". Where it is false, that person has no Ascendant and no houses, and their placements list has no house numbers.
+- Never give that person a rising sign or a house placement, and don't describe house overlays involving them — synastry house overlays need both charts to have houses.
+- Sign-to-sign aspects between the two charts still hold and are worth reading. Say what you can, note the limit once if it matters, and move on.
 
 Who is who — get this right before anything else:
 - "you" is the person you are talking to. Their name is in "you.name". When they say "I", "me" or "my chart", they mean this one.

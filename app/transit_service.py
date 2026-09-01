@@ -35,6 +35,11 @@ def get_transit_houses(
     life it is happening in. "Saturn is in your 7th" is a statement about
     relationships that no aspect alone conveys.
     """
+    # No birth time means no house cusps, so there is no life area to name.
+    # Better to say nothing than to place a transit in a house we invented.
+    if not natal_houses:
+        return []
+
     results = []
     for transit in transit_planets:
         # The slow planets are always worth reporting — a Saturn or Pluto

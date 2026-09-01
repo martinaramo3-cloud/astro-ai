@@ -32,6 +32,7 @@ type User = {
   birth_date: string;
   birth_time: string;
   birth_place: string;
+  birth_time_known?: boolean;
   subscription_tier?: string;
 };
 
@@ -56,6 +57,7 @@ type SavedProfile = {
   birth_date: string;
   birth_time: string;
   birth_place: string;
+  birth_time_known?: boolean;
 };
 
 type Message = { role: "user" | "assistant"; content: string };
@@ -110,6 +112,7 @@ export default function ChatPage() {
     birth_date: "",
     birth_time: "",
     birth_place: "",
+    birth_time_known: true,
   });
 
   const [messages, setMessages] = useState<Message[]>([DEFAULT_MESSAGE]);
@@ -203,6 +206,7 @@ export default function ChatPage() {
           birth_date: user.birth_date,
           birth_time: user.birth_time,
           birth_place: user.birth_place,
+          birth_time_known: user.birth_time_known ?? true,
         }),
       });
       const data = await res.json();
@@ -227,7 +231,8 @@ export default function ChatPage() {
 
   const birthLine = useMemo(() => {
     if (!user) return "";
-    return `${user.birth_date} · ${user.birth_time} · ${user.birth_place}`;
+    const when = user.birth_time_known === false ? "time unknown" : user.birth_time;
+    return `${user.birth_date} · ${when} · ${user.birth_place}`;
   }, [user]);
 
   const buildSessionTitle = (history: Message[]) => {
@@ -313,6 +318,7 @@ export default function ChatPage() {
           birth_date: user.birth_date,
           birth_time: user.birth_time,
           birth_place: user.birth_place,
+          birth_time_known: user.birth_time_known ?? true,
           question: userText,
           history: nextHistory,
           user_id: user.id,
@@ -367,7 +373,9 @@ export default function ChatPage() {
       [newProfile.label, "a label, like “My boyfriend”"],
       [newProfile.person_name, "their name"],
       [newProfile.birth_date, "their birth date"],
-      [newProfile.birth_time, "their birth time"],
+      ...(newProfile.birth_time_known
+        ? [[newProfile.birth_time, "their birth time, or tick that it's unknown"]]
+        : []),
       [newProfile.birth_place, "their birth place"],
     ].find(([value]) => !String(value).trim());
 
@@ -393,6 +401,7 @@ export default function ChatPage() {
         setNewProfile({
           label: "", person_name: "", relationship_type: "",
           birth_date: "", birth_time: "", birth_place: "",
+          birth_time_known: true,
         });
       } else {
         setProfileError(data.detail || "Could not save this person.");
@@ -730,15 +739,45 @@ export default function ChatPage() {
                   style={fieldStyle}
                 />
               </label>
-              <label className="block">
-                <span className="micro-label mb-1 block">Birth time</span>
+              {newProfile.birth_time_known && (
+                <label className="block">
+                  <span className="micro-label mb-1 block">Birth time</span>
+                  <input
+                    type="time"
+                    value={newProfile.birth_time}
+                    onChange={(e) => setNewProfile({ ...newProfile, birth_time: e.target.value })}
+                    style={fieldStyle}
+                  />
+                </label>
+              )}
+
+              <label className="flex cursor-pointer items-center gap-2">
                 <input
-                  type="time"
-                  value={newProfile.birth_time}
-                  onChange={(e) => setNewProfile({ ...newProfile, birth_time: e.target.value })}
-                  style={fieldStyle}
+                  type="checkbox"
+                  checked={!newProfile.birth_time_known}
+                  onChange={(e) =>
+                    setNewProfile({ ...newProfile, birth_time_known: !e.target.checked })
+                  }
+                  className="unknown-time-box"
                 />
+                <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
+                  They don&rsquo;t know their birth time
+                </span>
               </label>
+
+              {!newProfile.birth_time_known && (
+                <div className="time-warning">
+                  <p className="micro-label" style={{ letterSpacing: "0.18em" }}>
+                    Birth time unknown
+                  </p>
+                  <p className="font-reading mt-1">
+                    Without their exact birth time, we can&rsquo;t calculate their
+                    Rising sign, houses, or certain degrees and aspects. Your
+                    compatibility reading will still use the planetary placements
+                    available from their birth date.
+                  </p>
+                </div>
+              )}
               <PlaceAutocomplete
                 value={newProfile.birth_place}
                 onChange={(v) => setNewProfile({ ...newProfile, birth_place: v })}
@@ -1406,15 +1445,29 @@ export default function ChatPage() {
               <>
                 <ChartWheel chart={chart} night={night} />
                 <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-2">
-                  <div
-                    className="col-span-2 mb-1 flex items-center justify-between"
-                    style={{ background: "var(--sunk)", borderRadius: 12, padding: "8px 12px" }}
-                  >
-                    <span className="micro-label">Ascendant</span>
-                    <span className="font-reading" style={{ fontSize: 15 }}>
-                      {SIGN_GLYPH[chart.ascendant.sign]} {chart.ascendant.sign}
-                    </span>
-                  </div>
+                  {chart.ascendant ? (
+                    <div
+                      className="col-span-2 mb-1 flex items-center justify-between"
+                      style={{ background: "var(--sunk)", borderRadius: 12, padding: "8px 12px" }}
+                    >
+                      <span className="micro-label">Ascendant</span>
+                      <span className="font-reading" style={{ fontSize: 15 }}>
+                        {SIGN_GLYPH[chart.ascendant.sign]} {chart.ascendant.sign}
+                      </span>
+                    </div>
+                  ) : (
+                    <div className="time-warning col-span-2 mb-1" style={{ marginTop: 0 }}>
+                      <p className="micro-label" style={{ letterSpacing: "0.18em" }}>
+                        Birth time unknown
+                      </p>
+                      <p className="font-reading mt-1">
+                        Without your exact birth time, we can&rsquo;t calculate your
+                        Rising sign, houses, or certain degrees and aspects. Your
+                        reading will still use the planetary placements available
+                        from your birth date.
+                      </p>
+                    </div>
+                  )}
                   {chart.planet_positions.map((p) => (
                     <div
                       key={p.planet}
@@ -1425,7 +1478,8 @@ export default function ChatPage() {
                         {PLANET_GLYPH[p.planet] ?? "•"} {p.planet}
                       </span>
                       <span className="font-reading" style={{ fontSize: 14 }}>
-                        {SIGN_GLYPH[p.sign]} {Math.floor(p.degree_in_sign)}° · H{p.house}
+                        {SIGN_GLYPH[p.sign]} {Math.floor(p.degree_in_sign)}°
+                        {p.house ? ` · H${p.house}` : ""}
                         {p.retrograde ? " ℞" : ""}
                       </span>
                     </div>

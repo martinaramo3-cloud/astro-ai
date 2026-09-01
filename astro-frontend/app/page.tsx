@@ -38,6 +38,7 @@ export default function Home() {
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
     name: "", email: "", password: "", birth_date: "", birth_time: "", birth_place: "",
+    birth_time_known: true,
   });
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
@@ -113,8 +114,8 @@ export default function Home() {
       setMessage("Please enter your birth date.");
       return false;
     }
-    if (!form.birth_time) {
-      setMessage("Please enter your birth time.");
+    if (form.birth_time_known && !form.birth_time) {
+      setMessage("Please enter your birth time, or tick that you don't know it.");
       return false;
     }
     if (!form.birth_place.trim()) {
@@ -336,14 +337,44 @@ export default function Home() {
                       onChange={handleChange}
                       className="auth-field" style={{ flex: 1 }}
                     />
-                    <input
-                      name="birth_time"
-                      type="time"
-                      value={form.birth_time}
-                      onChange={handleChange}
-                      className="auth-field" style={{ width: 92 }}
-                    />
+                    {form.birth_time_known && (
+                      <input
+                        name="birth_time"
+                        type="time"
+                        value={form.birth_time}
+                        onChange={handleChange}
+                        className="auth-field" style={{ width: 92 }}
+                      />
+                    )}
                   </div>
+
+                  <label className="mt-2 flex cursor-pointer items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={!form.birth_time_known}
+                      onChange={(e) =>
+                        setForm({ ...form, birth_time_known: !e.target.checked })
+                      }
+                      className="unknown-time-box"
+                    />
+                    <span style={{ fontSize: 13, color: "var(--ink-2)" }}>
+                      I don&rsquo;t know my birth time
+                    </span>
+                  </label>
+
+                  {!form.birth_time_known && (
+                    <div className="time-warning">
+                      <p className="micro-label" style={{ letterSpacing: "0.18em" }}>
+                        Birth time unknown
+                      </p>
+                      <p className="font-reading mt-1">
+                        Without your exact birth time, we can&rsquo;t calculate your
+                        Rising sign, houses, or certain degrees and aspects. Your
+                        reading will still use the planetary placements available
+                        from your birth date.
+                      </p>
+                    </div>
+                  )}
                 </div>
 
                 <label className="block">

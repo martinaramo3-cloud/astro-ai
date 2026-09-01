@@ -328,7 +328,7 @@ def _relevant_house_rulers(
 
 def build_chart_analysis(
     planets: list,
-    ascendant: dict,
+    ascendant: dict | None,
     houses: list,
     aspects: list,
     utc_dt=None,
@@ -338,7 +338,13 @@ def build_chart_analysis(
 
     `question_type` trims the house rulers to the ones that bear on what was
     actually asked, which is most of the size of this payload.
+
+    With no birth time there is no Ascendant and no houses, so the chart ruler,
+    sect, house rulers and angularity are all unknowable. They are omitted
+    entirely rather than returned empty, so the interpreter cannot mistake
+    absence for a finding.
     """
+    time_known = bool(ascendant) and bool(houses)
     dignities = [
         {
             "planet": p["planet"],
@@ -349,19 +355,30 @@ def build_chart_analysis(
         if get_dignity(p["planet"], p["sign"])
     ]
 
+    # Valid with or without a birth time: these depend only on the date.
     analysis = {
-        "chart_ruler": get_chart_ruler(ascendant, planets),
-        "sect": get_sect(planets, houses),
+        "birth_time_known": time_known,
         "dignities": dignities,
-        "angularity": get_angularity(planets, ascendant, houses),
         "balance": get_balance(planets),
         "moon_phase_at_birth": get_moon_phase_at_birth(planets),
         "aspect_patterns": get_aspect_patterns(aspects, planets),
-        "house_rulers": _relevant_house_rulers(houses, planets, question_type),
         "retrograde_at_birth": [
             p["planet"] for p in planets if p.get("retrograde")
         ],
     }
+
+    if time_known:
+        analysis.update({
+            "chart_ruler": get_chart_ruler(ascendant, planets),
+            "sect": get_sect(planets, houses),
+            "angularity": get_angularity(planets, ascendant, houses),
+            "house_rulers": _relevant_house_rulers(houses, planets, question_type),
+        })
+    else:
+        analysis["unavailable_without_birth_time"] = [
+            "ascendant", "houses", "chart_ruler", "sect",
+            "house_rulers", "angularity",
+        ]
 
     if utc_dt is not None:
         analysis["lunar_nodes"] = get_lunar_nodes(utc_dt)

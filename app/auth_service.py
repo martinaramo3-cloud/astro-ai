@@ -27,7 +27,7 @@ def verify_password(password: str, stored_password: str) -> bool:
     return binascii.hexlify(hashed).decode() == hash_hex
 
 
-def create_account(name: str, email: str, password: str, birth_date: str, birth_time: str, birth_place: str):
+def create_account(name: str, email: str, password: str, birth_date: str, birth_time: str, birth_place: str, birth_time_known: bool = True):
     conn = get_db_connection()
     cursor = conn.cursor()
 
@@ -41,16 +41,17 @@ def create_account(name: str, email: str, password: str, birth_date: str, birth_
     hashed_password = hash_password(password)
 
     cursor.execute("""
-        INSERT INTO users (name, email, hashed_password, birth_date, birth_time, birth_place)
-        VALUES (?, ?, ?, ?, ?, ?)
-    """, (name, email, hashed_password, birth_date, birth_time, birth_place))
+        INSERT INTO users (name, email, hashed_password, birth_date, birth_time, birth_place, birth_time_known)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+    """, (name, email, hashed_password, birth_date, birth_time, birth_place, 1 if birth_time_known else 0))
 
     conn.commit()
 
     user_id = cursor.lastrowid
 
     cursor.execute(
-        "SELECT id, name, email, birth_date, birth_time, birth_place, subscription_tier FROM users WHERE id = ?",
+        "SELECT id, name, email, birth_date, birth_time, birth_place, "
+        "birth_time_known, subscription_tier FROM users WHERE id = ?",
         (user_id,),
     )
     user = cursor.fetchone()
@@ -83,5 +84,8 @@ def login_user(email: str, password: str):
         "birth_date": user["birth_date"],
         "birth_time": user["birth_time"],
         "birth_place": user["birth_place"],
+        # Kept on the client so the chat and chart views know not to show a
+        # Rising sign this account never supplied a time for.
+        "birth_time_known": bool(user.get("birth_time_known", 1)),
         "subscription_tier": user.get("subscription_tier", "free"),
     }

@@ -646,17 +646,31 @@ def build_big_three_summary(planets: list[dict[str, Any]], angles: dict[str, str
     moon = lookup.get("Moon")
     asc = angles.get("Ascendant") if angles else None
 
+    # Without a birth time there are no houses, so the sentence has to stand on
+    # the sign alone rather than name a life area we can't place.
     if sun:
-        parts.append(
-            f"Sun in {sun['sign']} in the {sun['house']}th house suggests a core identity expressed through "
-            f"{SIGNS[sun['sign']]['style']} qualities in the life area of {HOUSES[sun['house']]['area']}."
-        )
+        if sun.get("house"):
+            parts.append(
+                f"Sun in {sun['sign']} in the {sun['house']}th house suggests a core identity expressed through "
+                f"{SIGNS[sun['sign']]['style']} qualities in the life area of {HOUSES[sun['house']]['area']}."
+            )
+        else:
+            parts.append(
+                f"Sun in {sun['sign']} suggests a core identity expressed through "
+                f"{SIGNS[sun['sign']]['style']} qualities."
+            )
 
     if moon:
-        parts.append(
-            f"Moon in {moon['sign']} in the {moon['house']}th house suggests emotional needs shaped by "
-            f"{SIGNS[moon['sign']]['style']} qualities, especially around {HOUSES[moon['house']]['area']}."
-        )
+        if moon.get("house"):
+            parts.append(
+                f"Moon in {moon['sign']} in the {moon['house']}th house suggests emotional needs shaped by "
+                f"{SIGNS[moon['sign']]['style']} qualities, especially around {HOUSES[moon['house']]['area']}."
+            )
+        else:
+            parts.append(
+                f"Moon in {moon['sign']} suggests emotional needs shaped by "
+                f"{SIGNS[moon['sign']]['style']} qualities."
+            )
 
     if asc:
         sign_data = SIGNS.get(asc)

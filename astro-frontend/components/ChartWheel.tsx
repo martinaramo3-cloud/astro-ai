@@ -5,7 +5,7 @@ export type Planet = {
   degree: number; // absolute ecliptic longitude 0-360
   sign: string;
   degree_in_sign: number;
-  house: number;
+  house: number | null;
   retrograde?: boolean;
 };
 export type HouseCusp = { house: number; degree: number; sign: string };
@@ -14,8 +14,10 @@ export type Aspect = { planet_1: string; planet_2: string; aspect: string; orb: 
 
 export type NatalChart = {
   planet_positions: Planet[];
+  // Both are absent when the birth time is unknown — houses and the Ascendant
+  // rotate a full circle each day, so there is nothing honest to draw.
   houses: HouseCusp[];
-  ascendant: Ascendant;
+  ascendant: Ascendant | null;
   aspects: Aspect[];
 };
 
@@ -68,7 +70,10 @@ export default function ChartWheel({
   night?: boolean;
 }) {
   const C = PALETTES[night ? "night" : "day"];
-  const asc = chart.ascendant.degree;
+  const hasHouses = Boolean(chart.ascendant) && chart.houses.length === 12;
+  // With no Ascendant to anchor it, the wheel is oriented on 0° Aries — the
+  // conventional fallback, and the only one that isn't a guess about them.
+  const asc = chart.ascendant?.degree ?? 0;
 
   // Map an ecliptic longitude to a screen point. Ascendant sits at the left
   // (9 o'clock) and longitude increases counter-clockwise, as in a real chart.
@@ -112,8 +117,8 @@ export default function ChartWheel({
         );
       })}
 
-      {/* House cusps + numbers */}
-      {chart.houses.map((h, i) => {
+      {/* House cusps + numbers — only when a birth time made them real */}
+      {hasHouses && chart.houses.map((h, i) => {
         const outer = point(h.degree, 118);
         const inner = point(h.degree, 38);
         const next = chart.houses[(i + 1) % 12];
@@ -165,8 +170,14 @@ export default function ChartWheel({
         );
       })}
 
-      {/* Ascendant marker */}
-      <text x={point(asc, 205).x} y={point(asc, 205).y + 3} textAnchor="middle" fontSize="9" fill={C.sign}>ASC</text>
+      {/* Ascendant marker, or a note saying why there isn't one */}
+      {hasHouses ? (
+        <text x={point(asc, 205).x} y={point(asc, 205).y + 3} textAnchor="middle" fontSize="9" fill={C.sign}>ASC</text>
+      ) : (
+        <text x={CX} y={388} textAnchor="middle" fontSize="9" fill={C.houseNum}>
+          Birth time unknown — no houses or Rising sign
+        </text>
+      )}
     </svg>
   );
 }

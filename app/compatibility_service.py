@@ -126,6 +126,13 @@ def get_house_overlays(person_1_chart: dict, person_2_chart: dict):
     ]
 
     for direction, planets, houses in overlay_sets:
+        # An overlay drops one person's planets into the other's houses, so it
+        # needs the *receiving* chart to have houses. Without a birth time on
+        # that side there are none, and the direction is simply skipped —
+        # aspects between the two charts still carry the reading.
+        if len(houses) != 12:
+            continue
+
         overlaid_planets = add_house_to_planets(planets, houses)
         for planet in overlaid_planets:
             house_key = str(planet["house"])

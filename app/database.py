@@ -10,20 +10,32 @@ def get_db_connection():
     return conn
 
 
-def _ensure_user_columns(cursor):
-    """Add subscription columns to existing users tables (safe to run repeatedly)."""
-    cursor.execute("PRAGMA table_info(users)")
+def _add_missing_columns(cursor, table: str, migrations: dict[str, str]) -> None:
+    """Apply ALTERs for columns this table doesn't have yet. Safe to re-run."""
+    cursor.execute(f"PRAGMA table_info({table})")
     existing = {row[1] for row in cursor.fetchall()}
-
-    migrations = {
-        "subscription_tier": "ALTER TABLE users ADD COLUMN subscription_tier TEXT NOT NULL DEFAULT 'free'",
-        "daily_usage_count": "ALTER TABLE users ADD COLUMN daily_usage_count INTEGER NOT NULL DEFAULT 0",
-        "daily_usage_date": "ALTER TABLE users ADD COLUMN daily_usage_date TEXT",
-    }
-
     for column, statement in migrations.items():
         if column not in existing:
             cursor.execute(statement)
+
+
+def _ensure_user_columns(cursor):
+    _add_missing_columns(cursor, "users", {
+        "subscription_tier": "ALTER TABLE users ADD COLUMN subscription_tier TEXT NOT NULL DEFAULT 'free'",
+        "daily_usage_count": "ALTER TABLE users ADD COLUMN daily_usage_count INTEGER NOT NULL DEFAULT 0",
+        "daily_usage_date": "ALTER TABLE users ADD COLUMN daily_usage_date TEXT",
+        # Most people don't know their birth time. Without it there is no
+        # Ascendant, no houses and no reliable Moon degree — so the reading has
+        # to know to leave those out rather than invent them. Existing rows
+        # default to 1: they were required to supply a time.
+        "birth_time_known": "ALTER TABLE users ADD COLUMN birth_time_known INTEGER NOT NULL DEFAULT 1",
+    })
+
+
+def _ensure_profile_columns(cursor):
+    _add_missing_columns(cursor, "profiles", {
+        "birth_time_known": "ALTER TABLE profiles ADD COLUMN birth_time_known INTEGER NOT NULL DEFAULT 1",
+    })
 
 
 def init_db():
@@ -39,6 +51,7 @@ def init_db():
         birth_date TEXT NOT NULL,
         birth_time TEXT NOT NULL,
         birth_place TEXT NOT NULL,
+        birth_time_known INTEGER NOT NULL DEFAULT 1,
         subscription_tier TEXT NOT NULL DEFAULT 'free',
         daily_usage_count INTEGER NOT NULL DEFAULT 0,
         daily_usage_date TEXT
@@ -57,10 +70,13 @@ def init_db():
         birth_date TEXT NOT NULL,
         birth_time TEXT NOT NULL,
         birth_place TEXT NOT NULL,
+        birth_time_known INTEGER NOT NULL DEFAULT 1,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (owner_user_id) REFERENCES users(id)
 )
 """)
+
+    _ensure_profile_columns(cursor)
 
     # Login sessions. Only a hash of each token is stored, so a copy of the
     # database can't be used to impersonate anyone.

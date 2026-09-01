@@ -115,6 +115,11 @@ class BirthData(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    # False when the person doesn't know what time they were born. The chart is
+    # then cast for local noon and everything that depends on the exact moment
+    # — Ascendant, houses, the Moon's precise degree — is withheld rather than
+    # guessed at.
+    birth_time_known: bool = True
 
 from typing import List, Optional
 
@@ -140,6 +145,10 @@ class AstrologyQuestionRequest(BaseModel):
     birth_time: str
     birth_place: str
     question: str
+    # None means "the client didn't say" — an older cached build, say. The
+    # saved account is then the authority, so a user who told us they don't
+    # know their birth time never gets a Rising sign invented for them.
+    birth_time_known: Optional[bool] = None
     history: Optional[List[ChatMessage]] = None
     user_id: Optional[int] = None
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
@@ -151,12 +160,14 @@ class PredictiveRequest(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: bool = True
     topic: Optional[str] = None
 
 class PersonBirthData(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: bool = True
 
 class CompatibilityRequest(BaseModel):
     person_1: PersonBirthData
@@ -184,6 +195,7 @@ class SaveProfileRequest(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: bool = True
 
 class AskSavedCompatibilityRequest(BaseModel):
     owner_user_id: int
@@ -199,6 +211,7 @@ class SignupRequest(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: bool = True
 
 
 class LoginRequest(BaseModel):
@@ -213,6 +226,7 @@ class AuthUserResponse(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: bool = True
     subscription_tier: str = "free"
     token: str
 
@@ -222,6 +236,7 @@ class UserResponse(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: bool = True
     subscription_tier: str = "free"
 
 
@@ -238,11 +253,12 @@ class ChartSummaryRequest(BaseModel):
     birth_date: str
     birth_time: str
     birth_place: str
+    birth_time_known: Optional[bool] = None  # see AstrologyQuestionRequest
     user_id: Optional[int] = None
 
 PUBLIC_USER_FIELDS = (
     "id", "name", "email", "birth_date", "birth_time", "birth_place",
-    "subscription_tier",
+    "birth_time_known", "subscription_tier",
 )
 
 
@@ -322,7 +338,13 @@ def health_check():
     }
 
 
+# Noon minimises the error on the Moon, which moves ~13 degrees a day: any
+# other choice can be half a day wrong, noon at most half of that.
+UNKNOWN_BIRTH_TIME = "12:00"
+
+
 def build_natal_chart_data(data: BirthData):
+    time_known = getattr(data, "birth_time_known", True)
     location_data = get_location_data(data.birth_place)
 
     if not location_data:
@@ -343,7 +365,7 @@ def build_natal_chart_data(data: BirthData):
     try:
         utc_dt = convert_to_utc(
             data.birth_date,
-            data.birth_time,
+            data.birth_time if time_known else UNKNOWN_BIRTH_TIME,
             location_data["timezone"]
         )
     except ValueError as e:
@@ -351,30 +373,32 @@ def build_natal_chart_data(data: BirthData):
 
     planets = get_planet_positions_from_utc(utc_dt)
 
-    house_data = get_houses_and_ascendant(
-        utc_dt,
-        location_data["latitude"],
-        location_data["longitude"]
-    )
+    if time_known:
+        house_data = get_houses_and_ascendant(
+            utc_dt,
+            location_data["latitude"],
+            location_data["longitude"]
+        )
+        ascendant = house_data["ascendant"]
+        houses = house_data["houses"]
+        planets = add_house_to_planets(planets, houses)
+    else:
+        # Houses and the Ascendant rotate a full circle each day, so without a
+        # time they are not approximate — they are unknowable.
+        ascendant, houses = None, []
+        for planet in planets:
+            planet["house"] = None
 
-    planets_with_houses = add_house_to_planets(
-        planets,
-        house_data["houses"]
-    )
-
-    aspects = get_aspects(planets_with_houses)
-
-    interpretation = build_chart_interpretation(
-        planets_with_houses,
-        aspects
-    )
+    aspects = get_aspects(planets)
+    interpretation = build_chart_interpretation(planets, aspects)
 
     return {
         "location_data": location_data,
         "utc_birth_time": utc_dt.isoformat(),
-        "ascendant": house_data["ascendant"],
-        "houses": house_data["houses"],
-        "planet_positions": planets_with_houses,
+        "birth_time_known": time_known,
+        "ascendant": ascendant,
+        "houses": houses,
+        "planet_positions": planets,
         "aspects": aspects,
         "interpretation": interpretation
     }
@@ -474,6 +498,7 @@ def predictive_reading(data: PredictiveRequest):
             birth_date=data.birth_date,
             birth_time=data.birth_time,
             birth_place=data.birth_place,
+            birth_time_known=data.birth_time_known,
         )
     )
 
@@ -544,11 +569,15 @@ def chart_summary(
 ):
     tier_config = check_usage(current_user["id"])
 
+    if data.birth_time_known is None:
+        data.birth_time_known = bool(current_user.get("birth_time_known", 1))
+
     natal_data = build_natal_chart_data(
         BirthData(
             birth_date=data.birth_date,
             birth_time=data.birth_time,
             birth_place=data.birth_place,
+            birth_time_known=data.birth_time_known,
         )
     )
 
@@ -580,6 +609,9 @@ def ask_astrologer(
     tier = get_user_tier(user_id)
     model = resolve_model(tier, data.model)
     effort = resolve_effort(tier, data.effort)
+
+    if data.birth_time_known is None:
+        data.birth_time_known = bool(current_user.get("birth_time_known", 1))
 
     natal_data = build_natal_chart_data(data)
 
@@ -618,6 +650,10 @@ def ask_astrologer(
     chat_context = {
         "question": data.question,
         "history": [msg.model_dump() for msg in (data.history or [])],
+        # Stated up front, not just buried in chart_structure: everything the
+        # birth time would have given is null below, and the difference between
+        # "unknown" and "absent" is the difference between honest and invented.
+        "birth_time_known": natal_data["birth_time_known"],
         **filtered_context,
         "upcoming_transits": build_upcoming_transit_timeline(
             natal_data["planet_positions"],
@@ -801,11 +837,13 @@ def ask_saved_compatibility(
             birth_date=owner["birth_date"],
             birth_time=owner["birth_time"],
             birth_place=owner["birth_place"],
+            birth_time_known=bool(owner.get("birth_time_known", 1)),
         ),
         person_2=PersonBirthData(
             birth_date=profile["birth_date"],
             birth_time=profile["birth_time"],
             birth_place=profile["birth_place"],
+            birth_time_known=bool(profile.get("birth_time_known", 1)),
         ),
         question=data.question,
         history=data.history,
@@ -827,8 +865,9 @@ def signup(data: SignupRequest):
         email=data.email,
         password=data.password,
         birth_date=data.birth_date,
-        birth_time=data.birth_time,
-        birth_place=data.birth_place
+        birth_time=data.birth_time if data.birth_time_known else UNKNOWN_BIRTH_TIME,
+        birth_place=data.birth_place,
+        birth_time_known=data.birth_time_known,
     )
 
     if not user:
@@ -873,6 +912,7 @@ def cosmic_events(current_user: dict = Depends(get_current_user)):
             birth_date=current_user["birth_date"],
             birth_time=current_user["birth_time"],
             birth_place=current_user["birth_place"],
+            birth_time_known=bool(current_user.get("birth_time_known", 1)),
         )
     )
     return build_cosmic_events(
@@ -897,7 +937,8 @@ def get_saved_user_natal_chart(
     birth_data = BirthData(
         birth_date=current_user["birth_date"],
         birth_time=current_user["birth_time"],
-        birth_place=current_user["birth_place"]
+        birth_place=current_user["birth_place"],
+        birth_time_known=bool(current_user.get("birth_time_known", 1)),
     )
 
     natal_data = build_natal_chart_data(birth_data)
@@ -1007,8 +1048,9 @@ def save_profile(
         person_name=data.person_name,
         relationship_type=data.relationship_type,
         birth_date=data.birth_date,
-        birth_time=data.birth_time,
-        birth_place=data.birth_place
+        birth_time=data.birth_time if data.birth_time_known else UNKNOWN_BIRTH_TIME,
+        birth_place=data.birth_place,
+        birth_time_known=data.birth_time_known,
     )
 
 @app.get("/profiles/profile/{profile_id}")

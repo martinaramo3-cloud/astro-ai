@@ -180,6 +180,56 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   .auth-cta { margin-top: 14px; padding: 13px 20px; }
 }
 
+/* "I don't know my birth time" — the tick box and the warning it reveals.
+   Gold when ticked, so it reads as a deliberate choice rather than an error;
+   the warning itself is informational, not a failure state. */
+.unknown-time-box {
+  appearance: none;
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  border: 1px solid var(--line-2);
+  border-radius: 5px;
+  background: var(--ground);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease;
+}
+
+.unknown-time-box:checked {
+  background: var(--gold);
+  border-color: var(--gold);
+}
+
+.unknown-time-box:checked::after {
+  content: "";
+  width: 9px;
+  height: 5px;
+  border-left: 1.8px solid var(--on-gold);
+  border-bottom: 1.8px solid var(--on-gold);
+  transform: translateY(-1px) rotate(-45deg);
+}
+
+.unknown-time-box:focus-visible {
+  outline: 2px solid var(--gold);
+  outline-offset: 2px;
+}
+
+.time-warning {
+  margin-top: 8px;
+  border: 1px solid var(--gold-soft);
+  background: var(--sunk);
+  border-radius: 14px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  line-height: 1.45;
+  color: var(--ink-2);
+  animation: zo-fade 240ms ease both;
+}
+
+.time-warning .micro-label { color: var(--gold-deep); }
+
 /* Row actions (delete a chat, remove a person).
    Always present rather than revealed on hover: a touch screen has no hover,
    so hiding them there left them unreachable — tapping the row simply opened
