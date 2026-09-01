@@ -169,6 +169,10 @@ class AskCompatibilityRequest(BaseModel):
     question: str
     history: Optional[List[ChatMessage]] = None
     user_id: Optional[int] = None
+    # Without names the two charts are interchangeable, and answers about one
+    # person can silently describe the other.
+    person_1_name: Optional[str] = None
+    person_2_name: Optional[str] = None
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
     effort: Optional[str] = None  # "low" | "medium" | "high"; gated by tier server-side
 
@@ -762,7 +766,9 @@ def ask_compatibility(
         synastry_aspects,
         synastry_engine,
         data.question,
-        [msg.model_dump() for msg in (data.history or [])]
+        [msg.model_dump() for msg in (data.history or [])],
+        person_1_name=data.person_1_name or current_user.get("name") or "the person asking",
+        person_2_name=data.person_2_name or "the other person",
     )
 
     prompt = build_ask_compatibility_prompt(context)
@@ -805,6 +811,10 @@ def ask_saved_compatibility(
         history=data.history,
         user_id=owner["id"],
         model=data.model,
+        person_1_name=owner.get("name") or "the person asking",
+        # The label is what they call this person ("My boyfriend"); the name is
+        # who it actually is. Both help the astrologer speak naturally.
+        person_2_name=profile.get("person_name") or profile.get("label") or "the other person",
     )
 
     # Called directly, so the dependency has to be handed over explicitly.

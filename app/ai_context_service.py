@@ -284,6 +284,28 @@ def build_ask_astrologer_context(
         "chart_context": chart_context,
     }
 
+def _compact_chart(chart: dict, name: str) -> dict:
+    """One person's placements, carrying their name.
+
+    The name is the point: without it the two charts are just "person_1" and
+    "person_2", and an answer about his chart can silently describe hers.
+    """
+    return {
+        "name": name,
+        "ascendant": chart["ascendant"],
+        "placements": [
+            {
+                "planet": p["planet"],
+                "sign": p["sign"],
+                "degree_in_sign": p["degree_in_sign"],
+                "house": p["house"],
+                "retrograde": p.get("retrograde", False),
+            }
+            for p in chart["planet_positions"]
+        ],
+    }
+
+
 def build_ask_compatibility_context(
     person_1_chart,
     person_2_chart,
@@ -291,24 +313,21 @@ def build_ask_compatibility_context(
     synastry_engine: dict,
     question: str,
     history: list | None = None,
+    person_1_name: str = "the person asking",
+    person_2_name: str = "the other person",
 ):
     important_aspects = sorted(synastry_aspects, key=lambda x: (not x["is_priority"], x["orb"]))[:6]
     return {
         "question": question,
         "history": history or [],
-        "person_1": {
-            "sun": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Sun"),
-            "moon": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Moon"),
-            "venus": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Venus"),
-            "mars": next(p for p in person_1_chart["planet_positions"] if p["planet"] == "Mars"),
-            "ascendant": person_1_chart["ascendant"],
-        },
-        "person_2": {
-            "sun": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Sun"),
-            "moon": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Moon"),
-            "venus": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Venus"),
-            "mars": next(p for p in person_2_chart["planet_positions"] if p["planet"] == "Mars"),
-            "ascendant": person_2_chart["ascendant"],
+        # Named "you"/"them" rather than 1/2 so the two can't be transposed.
+        "you": _compact_chart(person_1_chart, person_1_name),
+        "them": _compact_chart(person_2_chart, person_2_name),
+        # The synastry engine speaks in person_1/person_2 throughout, which on
+        # its own says nothing about who is who. This is the key to reading it.
+        "who_is_who": {
+            "person_1": f"{person_1_name} — the person asking (\"you\")",
+            "person_2": f"{person_2_name} — the other person (\"them\")",
         },
         "key_synastry_aspects": important_aspects,
         "synastry_engine": synastry_engine,
@@ -321,6 +340,14 @@ def build_ask_compatibility_prompt(context: dict) -> str:
 You are a warm, grounded astrologer answering a live compatibility question about two people.
 
 {_prompt_preamble()}
+
+Who is who — get this right before anything else:
+- "you" is the person you are talking to. Their name is in "you.name". When they say "I", "me" or "my chart", they mean this one.
+- "them" is the other person. Their name is in "them.name". When they say "he", "she", "they", or "their chart", they mean this one.
+- These are two different people with two different charts. Never describe one as though it were the other, and never swap them. If asked for the other person's chart, read only from "them"; if asked about their own, read only from "you".
+- Use their names where it helps. It makes clear whose placement you are describing, and it reads as if you know them both.
+- The synastry aspects and the synastry engine label everything "person_1" and "person_2". Those labels alone say nothing about who is who — read them through "who_is_who": person_1 is always the one asking, person_2 is always the other person. So "person_1_planet: Mars" is the asker's Mars, never the other person's.
+- Synastry aspects are directional: an aspect from one chart to the other means something different in each direction. Keep track of which planet belongs to whom.
 
 Use only the chart data and synastry aspects provided below.
 Do not invent placements, houses, aspects, or relationship facts.
