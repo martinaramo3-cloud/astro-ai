@@ -414,7 +414,12 @@ export default function ChatPage() {
           session_id: currentSessionId ?? undefined,
         };
 
-    const attemptFetch = async (attemptsLeft: number): Promise<void> => {
+    // Deliberately one attempt, no retry. A question that reaches the server
+    // is billed the moment the model starts generating, so a browser-side
+    // timeout does not mean nothing happened — it means the answer is still
+    // being written, and paid for. Retrying it silently multiplied the cost of
+    // every slow reading. If it fails, say so and let them ask again.
+    const attemptFetch = async (): Promise<void> => {
       try {
         const response = await apiFetch(endpoint, {
           method: "POST",
@@ -435,20 +440,21 @@ export default function ChatPage() {
         await persistSession(finalMessages);
         refreshUsage();
       } catch {
-        if (attemptsLeft > 1) {
-          await new Promise((r) => setTimeout(r, 4000));
-          return attemptFetch(attemptsLeft - 1);
-        }
         const fallbackMessages = [
           ...nextHistory,
-          { role: "assistant" as const, content: "Something went wrong. Please try again." },
+          {
+            role: "assistant" as const,
+            content:
+              "That took too long to come back. Your question may still have gone through — " +
+              "give it a moment before asking again.",
+          },
         ];
         setMessages(fallbackMessages);
         await persistSession(fallbackMessages);
       }
     };
 
-    await attemptFetch(4);
+    await attemptFetch();
     setLoading(false);
   };
 

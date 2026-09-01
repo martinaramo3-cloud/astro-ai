@@ -17,8 +17,11 @@ DEFAULT_MODEL = "gpt-4.1-mini"
 
 # Claude models think before answering, and thinking tokens count toward
 # max_tokens. The visible reply is kept short by the prompt itself, so this
-# budget is headroom for reasoning rather than a length target.
-ANTHROPIC_MAX_TOKENS = 8000
+# budget is headroom for reasoning rather than a length target — but it is also
+# the ceiling on what a single reading can cost, since thinking bills as
+# output. 4000 leaves roughly 3,400 tokens of reasoning behind a ~550-token
+# answer, which is ample; 8000 was paying for headroom nothing used.
+ANTHROPIC_MAX_TOKENS = 4000
 
 # How hard the model works. Thinking bills as output, and at $50/M on the
 # premium model that was most of the cost per answer — for interpretive
@@ -30,6 +33,14 @@ DEFAULT_EFFORT = "medium"
 # Lets a refused request be retried on another model server-side instead of
 # simply failing. Paired with the scalar "default" routing form.
 FALLBACK_BETA = "server-side-fallback-2026-07-01"
+
+# Both SDKs retry twice by default. That is right for an idempotent read and
+# wrong for a paid generation: a read timeout does not mean the model stopped
+# writing, so each automatic retry is a second and third answer we are billed
+# for and never show anyone. Off, with a timeout long enough that a normal
+# reading finishes well inside it.
+AI_MAX_RETRIES = 0
+AI_TIMEOUT_SECONDS = 180.0
 
 
 def _is_anthropic(model: str) -> bool:
@@ -53,7 +64,11 @@ def _get_openai_client() -> OpenAI:
                 status_code=503,
                 detail="OPENAI_API_KEY is not configured on the server.",
             )
-        _openai_client = OpenAI(api_key=api_key)
+        _openai_client = OpenAI(
+            api_key=api_key,
+            max_retries=AI_MAX_RETRIES,
+            timeout=AI_TIMEOUT_SECONDS,
+        )
     return _openai_client
 
 
@@ -66,7 +81,11 @@ def _get_anthropic_client() -> Anthropic:
                 status_code=503,
                 detail="ANTHROPIC_API_KEY is not configured on the server.",
             )
-        _anthropic_client = Anthropic(api_key=api_key)
+        _anthropic_client = Anthropic(
+            api_key=api_key,
+            max_retries=AI_MAX_RETRIES,
+            timeout=AI_TIMEOUT_SECONDS,
+        )
     return _anthropic_client
 
 
