@@ -33,6 +33,7 @@ from app.sky_view_service import build_sky_view
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 
 from app.celestial_events_service import build_cosmic_events, describe_moon_phase
 from app.chart_analysis_service import build_chart_analysis
@@ -1473,6 +1474,17 @@ def _sky_for(current_user: dict, utc_dt=None) -> dict:
     sky = build_sky_view(moment, location["latitude"], location["longitude"])
     sky["place"] = current_user["birth_place"]
     sky["timezone"] = location.get("timezone")
+
+    # The hour as a clock on the wall there would have read it. "Night" is
+    # wrong for half of all births, so the page needs to know it was a morning.
+    zone = location.get("timezone")
+    if zone:
+        try:
+            local = moment.astimezone(ZoneInfo(zone))
+            sky["local_hour"] = local.hour
+            sky["local_time"] = local.strftime("%H:%M")
+        except Exception:
+            pass
     return sky
 
 

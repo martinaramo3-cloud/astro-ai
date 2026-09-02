@@ -8,6 +8,25 @@ import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
 
 type Which = "birth" | "now";
 
+/**
+ * What to call the moment someone arrived.
+ *
+ * "The night you arrived" was written for the sound of it and is wrong for
+ * roughly half of everyone — including anyone born at breakfast. The hour is
+ * the one the clock on the wall there would have shown.
+ */
+function arrivalHeading(sky: SkyData | null): string {
+  if (!sky || sky.birth_time_known === false || sky.local_hour === undefined) {
+    // No time means no hour to name, and midday is a placeholder, not a fact.
+    return "The sky you arrived under";
+  }
+  const h = sky.local_hour;
+  if (h >= 5 && h < 12) return "The morning you arrived";
+  if (h >= 12 && h < 17) return "The afternoon you arrived";
+  if (h >= 17 && h < 21) return "The evening you arrived";
+  return "The night you arrived";
+}
+
 export default function SkyPage() {
   const { theme } = useTheme();
   const night = theme === "night";
@@ -60,7 +79,7 @@ export default function SkyPage() {
                 Your sky
               </p>
               <h1 className="font-display" style={{ fontSize: 27, lineHeight: 1.15, marginTop: 2 }}>
-                {which === "birth" ? "The night you arrived" : "Above you now"}
+                {which === "birth" ? arrivalHeading(sky.birth) : "Above you now"}
               </h1>
             </div>
           </div>

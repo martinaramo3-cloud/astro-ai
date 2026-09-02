@@ -43,6 +43,8 @@ export type SkyData = {
   visible_count: number;
   visible_names: string[];
   birth_time_known?: boolean;
+  local_hour?: number;
+  local_time?: string;
 };
 
 const GLYPH: Record<string, string> = {
