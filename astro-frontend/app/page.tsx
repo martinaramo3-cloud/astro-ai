@@ -125,6 +125,27 @@ export default function Home() {
     return true;
   };
 
+  /**
+   * Retry a sign-in or sign-up through a short server restart.
+   *
+   * These calls cost nothing and are safe to repeat — a duplicate signup is
+   * refused by the unique email, and a duplicate login just issues a token. A
+   * deploy takes the API down for a minute or so, and there is no reason to
+   * hand that to the person trying to get in.
+   */
+  const withRetry = async (attempt: () => Promise<Response>): Promise<Response> => {
+    let lastError: unknown;
+    for (const wait of [0, 2500, 5000]) {
+      if (wait) await new Promise((r) => setTimeout(r, wait));
+      try {
+        return await attempt();
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    throw lastError;
+  };
+
   const handleSignup = async () => {
     setMessage("");
     if (!validate()) {
@@ -136,10 +157,9 @@ export default function Home() {
     }
     setLoading(true);
     try {
-      const response = await apiFetch("/signup", {
-        method: "POST",
-        body: JSON.stringify(form),
-      });
+      const response = await withRetry(() =>
+        apiFetch("/signup", { method: "POST", body: JSON.stringify(form) }),
+      );
       const data = await response.json();
       if (!response.ok) {
         setMessage(data.detail || "Signup failed.");
@@ -150,7 +170,7 @@ export default function Home() {
       setMessage("Account created successfully.");
       setTimeout(() => { window.location.href = "/chat"; }, 700);
     } catch {
-      setMessage("Taking a moment to wake up — please try again in 30 seconds.");
+      setMessage("Couldn\u2019t reach the server just now — it may be updating. Try again in a moment.");
     }
     setLoading(false);
   };
@@ -163,10 +183,12 @@ export default function Home() {
     }
     setLoading(true);
     try {
-      const response = await apiFetch("/login", {
-        method: "POST",
-        body: JSON.stringify({ email: form.email, password: form.password }),
-      });
+      const response = await withRetry(() =>
+        apiFetch("/login", {
+          method: "POST",
+          body: JSON.stringify({ email: form.email, password: form.password }),
+        }),
+      );
       const data = await response.json();
       if (!response.ok) {
         setMessage(data.detail || "Invalid email or password.");
@@ -176,7 +198,7 @@ export default function Home() {
       saveAuth(data);
       window.location.href = "/chat";
     } catch {
-      setMessage("Taking a moment to wake up — please try again in 30 seconds.");
+      setMessage("Couldn\u2019t reach the server just now — it may be updating. Try again in a moment.");
     }
     setLoading(false);
   };
