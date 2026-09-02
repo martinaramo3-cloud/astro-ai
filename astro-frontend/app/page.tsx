@@ -9,6 +9,31 @@ import { ThemeToggle, useTheme } from "../components/ThemeProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+/** Mirrors the server's rule exactly. The server is the one that counts. */
+const PASSWORD_RULES: { label: string; ok: (p: string) => boolean }[] = [
+  { label: "8 characters or more", ok: (p) => p.length >= 8 },
+  { label: "a capital letter", ok: (p) => /[A-Z]/.test(p) },
+  { label: "a number", ok: (p) => /[0-9]/.test(p) },
+  { label: "a symbol, like ! or ?", ok: (p) => /[^A-Za-z0-9]/.test(p) },
+];
+
+const passwordMisses = (p: string) => PASSWORD_RULES.filter((r) => !r.ok(p));
+
+function EyeIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="19" height="19" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M2 12s3.6-6.5 10-6.5S22 12 22 12s-3.6 6.5-10 6.5S2 12 2 12Z"
+        stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"
+      />
+      <circle cx="12" cy="12" r="2.6" stroke="currentColor" strokeWidth="1.4" />
+      {!open && (
+        <path d="M4 20 20 4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+      )}
+    </svg>
+  );
+}
+
 // The splash is a ceiling, not a fixed wait — a warm load should not feel
 // padded. The floor has to outlast the wordmark reveal (300ms delay + 1800ms
 // animation), plus a beat to read the tagline, or a cached load cuts the brand
@@ -37,9 +62,13 @@ export default function Home() {
   // split: who you are, then when and where you were born.
   const [signupStep, setSignupStep] = useState<1 | 2>(1);
   const [form, setForm] = useState({
-    name: "", email: "", password: "", birth_date: "", birth_time: "", birth_place: "",
+    name: "", email: "", password: "", confirm: "",
+    birth_date: "", birth_time: "", birth_place: "",
     birth_time_known: true,
   });
+  // Typing a password you cannot see, twice, is how typos become lockouts.
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -92,7 +121,11 @@ export default function Home() {
   const continueToBirthDetails = () => {
     if (!form.name.trim()) return setMessage("Please enter your name.");
     if (!EMAIL_RE.test(form.email)) return setMessage("Please enter a valid email address.");
-    if (form.password.length < 6) return setMessage("Password must be at least 6 characters.");
+    const missing = passwordMisses(form.password);
+    if (missing.length) {
+      return setMessage(`Password needs ${missing.map((m) => m.label).join(", ")}.`);
+    }
+    if (form.confirm !== form.password) return setMessage("The two passwords don't match.");
     setMessage("");
     setSignupStep(2);
   };
@@ -106,8 +139,13 @@ export default function Home() {
       setMessage("Please enter a valid email address.");
       return false;
     }
-    if (form.password.length < 6) {
-      setMessage("Password must be at least 6 characters.");
+    const missing = passwordMisses(form.password);
+    if (missing.length) {
+      setMessage(`Password needs ${missing.map((m) => m.label).join(", ")}.`);
+      return false;
+    }
+    if (form.confirm !== form.password) {
+      setMessage("The two passwords don't match.");
       return false;
     }
     if (!form.birth_date) {
@@ -151,7 +189,10 @@ export default function Home() {
     if (!validate()) {
       // Send them back to whichever step holds the offending field.
       const onFirstStep =
-        !form.name.trim() || !EMAIL_RE.test(form.email) || form.password.length < 6;
+        !form.name.trim() ||
+        !EMAIL_RE.test(form.email) ||
+        passwordMisses(form.password).length > 0 ||
+        form.confirm !== form.password;
       if (onFirstStep) setSignupStep(1);
       return;
     }
@@ -334,17 +375,79 @@ export default function Home() {
             )}
 
             {(!isSignup || signupStep === 1) && (
-            <label className="block">
-              <Label>Password</Label>
-              <input
-                name="password"
-                type="password"
-                value={form.password}
-                onChange={handleChange}
-                placeholder={isSignup ? "At least 6 characters" : "••••••••"}
-                className="auth-field"
-              />
-            </label>
+            <>
+              <label className="block">
+                <Label>Password</Label>
+                <div className="pw-wrap">
+                  <input
+                    name="password"
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={handleChange}
+                    placeholder={isSignup ? "Make it a good one" : "••••••••"}
+                    className="auth-field"
+                    autoComplete={isSignup ? "new-password" : "current-password"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                    className="pw-eye"
+                  >
+                    <EyeIcon open={showPassword} />
+                  </button>
+                </div>
+              </label>
+
+              {/* Only while signing up, and only once they have started: an
+                  empty field does not need telling off. */}
+              {isSignup && form.password.length > 0 && (
+                <ul className="pw-rules">
+                  {PASSWORD_RULES.map((rule) => {
+                    const met = rule.ok(form.password);
+                    return (
+                      <li key={rule.label} className={met ? "is-met" : ""}>
+                        <span aria-hidden="true">{met ? "\u2713" : "\u00B7"}</span>
+                        {rule.label}
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+
+              {isSignup && (
+                <label className="block">
+                  <Label>Confirm password</Label>
+                  <div className="pw-wrap">
+                    <input
+                      name="confirm"
+                      type={showConfirm ? "text" : "password"}
+                      value={form.confirm}
+                      onChange={handleChange}
+                      placeholder="Type it again"
+                      className="auth-field"
+                      autoComplete="new-password"
+                      style={
+                        form.confirm.length > 0 && form.confirm !== form.password
+                          ? { borderColor: "var(--gold-deep)" }
+                          : undefined
+                      }
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((v) => !v)}
+                      aria-label={showConfirm ? "Hide password" : "Show password"}
+                      className="pw-eye"
+                    >
+                      <EyeIcon open={showConfirm} />
+                    </button>
+                  </div>
+                  {form.confirm.length > 0 && form.confirm !== form.password && (
+                    <span className="pw-mismatch">These don&rsquo;t match yet.</span>
+                  )}
+                </label>
+              )}
+            </>
             )}
 
             {isSignup && signupStep === 2 && (

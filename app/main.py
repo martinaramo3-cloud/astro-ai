@@ -231,6 +231,28 @@ class AskSavedCompatibilityRequest(BaseModel):
     history: Optional[List[ChatMessage]] = None
     model: Optional[str] = None  # "fast" | "smart" | "deep"; gated by tier server-side
 
+PASSWORD_RULES = (
+    (lambda p: len(p) >= 8, "at least 8 characters"),
+    (lambda p: any(c.isupper() for c in p), "one capital letter"),
+    (lambda p: any(c.isdigit() for c in p), "one number"),
+    (lambda p: any(not c.isalnum() for c in p), "one symbol, like ! or ?"),
+)
+
+
+def check_password(password: str) -> None:
+    """Reject a weak password with the specific thing that is missing.
+
+    Listing what failed is friendlier than restating the whole rule, and it is
+    not a security leak: these are the published requirements.
+    """
+    missing = [label for ok, label in PASSWORD_RULES if not ok(password)]
+    if missing:
+        raise HTTPException(
+            status_code=400,
+            detail="Password needs " + ", ".join(missing) + ".",
+        )
+
+
 class SignupRequest(BaseModel):
     name: str
     email: str
@@ -1077,6 +1099,8 @@ def ask_saved_compatibility(
 
 @app.post("/signup", response_model=AuthUserResponse)
 def signup(data: SignupRequest):
+    check_password(data.password)
+
     user = create_account(
         name=data.name,
         email=data.email,
