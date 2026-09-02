@@ -20,6 +20,23 @@ def get_timezone_from_coordinates(latitude: float, longitude: float) -> Optional
         return None
 
 
+def describe_coordinates(latitude: float, longitude: float) -> tuple[Optional[str], str]:
+    """A timezone and a readable label for a pair of coordinates, computed offline.
+
+    Deliberately no reverse geocoding. Someone's live location is more sensitive
+    than the birthplace they typed in, and it should not be handed to a third
+    party just to print a city name in a heading. The IANA timezone already
+    carries one — "America/New_York" becomes "New York" — and timezonefinder
+    resolves it locally, so the coordinates never leave this server.
+    """
+    zone = get_timezone_from_coordinates(latitude, longitude)
+    if not zone:
+        return None, "your location"
+
+    city = zone.split("/")[-1].replace("_", " ")
+    return zone, city or "your location"
+
+
 def _normalize_location_result(place_name: str, latitude: float, longitude: float, timezone: Optional[str], country: Optional[str], city: Optional[str]) -> dict:
     return {
         "place_name": place_name,

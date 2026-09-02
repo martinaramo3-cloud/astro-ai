@@ -78,10 +78,32 @@ const CX = SIZE / 2;
 const CY = SIZE / 2;
 const RAD = Math.PI / 180;
 
-function project(altitude: number, azimuth: number) {
+type View = { zoom: number; panX: number; panY: number };
+
+const HOME: View = { zoom: 1, panX: 0, panY: 0 };
+const MAX_ZOOM = 4;
+
+function project(altitude: number, azimuth: number, view: View = HOME) {
   const r = ((90 - altitude) / 90) * R;
   const a = azimuth * RAD;
-  return { x: CX - r * Math.sin(a), y: CY - r * Math.cos(a) };
+  const x = CX - r * Math.sin(a);
+  const y = CY - r * Math.cos(a);
+  // The dome stays the same size on screen; its contents magnify inside it.
+  return {
+    x: CX + (x - CX) * view.zoom + view.panX,
+    y: CY + (y - CY) * view.zoom + view.panY,
+  };
+}
+
+/** Keep the sky from being dragged out of its own window. */
+function clampView(view: View): View {
+  const zoom = Math.max(1, Math.min(MAX_ZOOM, view.zoom));
+  const slack = R * (zoom - 1);
+  return {
+    zoom,
+    panX: Math.max(-slack, Math.min(slack, view.panX)),
+    panY: Math.max(-slack, Math.min(slack, view.panY)),
+  };
 }
 
 /**
@@ -140,7 +162,7 @@ function galacticToRaDec(lDeg: number, bDeg: number) {
 
 const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(hi, v));
 
-function drawMilkyWay(ctx: CanvasRenderingContext2D, lst: number, lat: number) {
+function drawMilkyWay(ctx: CanvasRenderingContext2D, lst: number, lat: number, view: View) {
   ctx.globalCompositeOperation = "lighter";
   for (let l = 0; l < 360; l += 1.2) {
     for (const k of [-1, 0, 1]) {
@@ -149,8 +171,8 @@ function drawMilkyWay(ctx: CanvasRenderingContext2D, lst: number, lat: number) {
       const { altitude, azimuth } = starPosition(raHours, decDeg, lst, lat);
       if (altitude <= -2) continue;
 
-      const { x, y } = project(altitude, azimuth);
-      const radius = 46 - Math.abs(k) * 12;
+      const { x, y } = project(altitude, azimuth, view);
+      const radius = (46 - Math.abs(k) * 12) * view.zoom;
       const alpha = (0.03 - Math.abs(k) * 0.009) * clamp((altitude + 2) / 25, 0.15, 1);
       if (alpha <= 0) continue;
 
@@ -176,18 +198,24 @@ function starColour(c: number) {
   return `255,${Math.round(246 - 36 * c * c)},${Math.round(255 - 96 * c * c)}`;
 }
 
-function drawStars(ctx: CanvasRenderingContext2D, stars: Star[], lst: number, lat: number) {
+function drawStars(ctx: CanvasRenderingContext2D, stars: Star[], lst: number, lat: number, view: View) {
   for (const [ra, dec, mag, colour] of stars) {
     const { altitude, azimuth } = starPosition(ra, dec, lst, lat);
     if (altitude <= 0.2) continue;
 
-    const { x, y } = project(altitude, azimuth);
+    const { x, y } = project(altitude, azimuth, view);
     const scaled = Math.pow(Math.pow(2.512, -mag), 0.3);
 
-    ctx.globalAlpha = Math.min(1, 0.16 + scaled * 0.52) * extinction(altitude);
+    // Stars grow with the square root of the zoom, not linearly and not at all.
+    // Fixed radii made a magnified sky look emptier than the whole one — the
+    // same stars, further apart — which is the opposite of leaning in. The
+    // square root lets them gain presence without becoming blobs.
+    const growth = Math.sqrt(view.zoom);
+
+    ctx.globalAlpha = Math.min(1, (0.16 + scaled * 0.52) * (1 + (view.zoom - 1) * 0.06)) * extinction(altitude);
     ctx.fillStyle = `rgb(${starColour(colour)})`;
     ctx.beginPath();
-    ctx.arc(x, y, 0.34 + scaled * 0.95, 0, Math.PI * 2);
+    ctx.arc(x, y, (0.34 + scaled * 0.95) * growth, 0, Math.PI * 2);
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -218,7 +246,7 @@ function drawGround(ctx: CanvasRenderingContext2D, daylight: boolean) {
   ctx.fillRect(0, 0, SIZE, SIZE);
 }
 
-function drawGrid(ctx: CanvasRenderingContext2D, daylight: boolean) {
+function drawGrid(ctx: CanvasRenderingContext2D, daylight: boolean, view: View) {
   const strong = daylight ? "rgba(12,20,34,0.10)" : "rgba(236,237,244,0.055)";
   const weak = daylight ? "rgba(12,20,34,0.07)" : "rgba(236,237,244,0.035)";
 
@@ -226,14 +254,14 @@ function drawGrid(ctx: CanvasRenderingContext2D, daylight: boolean) {
   ctx.strokeStyle = strong;
   for (const alt of [30, 60]) {
     ctx.beginPath();
-    ctx.arc(CX, CY, ((90 - alt) / 90) * R, 0, Math.PI * 2);
+    ctx.arc(CX + view.panX, CY + view.panY, ((90 - alt) / 90) * R * view.zoom, 0, Math.PI * 2);
     ctx.stroke();
   }
 
   ctx.strokeStyle = weak;
   for (let az = 0; az < 360; az += 45) {
-    const a = project(6, az);
-    const b = project(72, az);
+    const a = project(6, az, view);
+    const b = project(72, az, view);
     ctx.beginPath();
     ctx.moveTo(a.x, a.y);
     ctx.lineTo(b.x, b.y);
@@ -241,14 +269,14 @@ function drawGrid(ctx: CanvasRenderingContext2D, daylight: boolean) {
   }
 }
 
-function drawEcliptic(ctx: CanvasRenderingContext2D, sky: SkyData) {
+function drawEcliptic(ctx: CanvasRenderingContext2D, sky: SkyData, view: View) {
   const arc = sky.ecliptic.filter((p) => p.altitude > 0);
   if (arc.length < 2) return;
 
   const trace = () => {
     ctx.beginPath();
     arc.forEach((p, i) => {
-      const { x, y } = project(p.altitude, p.azimuth);
+      const { x, y } = project(p.altitude, p.azimuth, view);
       if (i === 0) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     });
@@ -259,7 +287,7 @@ function drawEcliptic(ctx: CanvasRenderingContext2D, sky: SkyData) {
   ctx.save();
   ctx.lineCap = "round";
   ctx.strokeStyle = "rgba(217,176,106,0.13)";
-  ctx.lineWidth = 14;
+  ctx.lineWidth = 14 * view.zoom;
   trace();
   ctx.stroke();
 
@@ -285,7 +313,19 @@ export default function SkyView({
   onSelect: (name: string | null) => void;
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const boxRef = useRef<HTMLDivElement | null>(null);
   const [stars, setStars] = useState<Star[] | null>(null);
+  const [view, setView] = useState<View>(HOME);
+
+  // Gesture bookkeeping. Kept in a ref because it changes on every touchmove
+  // and none of it should cause a render on its own.
+  const gesture = useRef<{
+    mode: "none" | "pan" | "pinch";
+    startX: number; startY: number;
+    startPanX: number; startPanY: number;
+    startSpread: number; startZoom: number;
+    moved: boolean;
+  }>({ mode: "none", startX: 0, startY: 0, startPanX: 0, startPanY: 0, startSpread: 0, startZoom: 1, moved: false });
 
   useEffect(() => {
     let cancelled = false;
@@ -315,19 +355,19 @@ export default function SkyView({
 
     drawGround(ctx, sky.daylight);
     if (!sky.daylight) {
-      drawMilkyWay(ctx, sky.local_sidereal_hours, sky.observer.latitude);
-      if (stars) drawStars(ctx, stars, sky.local_sidereal_hours, sky.observer.latitude);
+      drawMilkyWay(ctx, sky.local_sidereal_hours, sky.observer.latitude, view);
+      if (stars) drawStars(ctx, stars, sky.local_sidereal_hours, sky.observer.latitude, view);
     }
-    drawGrid(ctx, sky.daylight);
-    drawEcliptic(ctx, sky);
+    drawGrid(ctx, sky.daylight, view);
+    drawEcliptic(ctx, sky, view);
     ctx.restore();
-  }, [stars, sky]);
+  }, [stars, sky, view]);
 
   /* Planet markers, with labels lifted clear of one another. */
   const markers = useMemo<Marker[]>(() => {
     const visible = sky.bodies
       .filter((b) => b.above_horizon)
-      .map((body) => ({ body, ...project(body.altitude, body.azimuth) }))
+      .map((body) => ({ body, ...project(body.altitude, body.azimuth, view) }))
       .sort((a, b) => a.x - b.x);
 
     const placed: Marker[] = [];
@@ -346,15 +386,58 @@ export default function SkyView({
       placed.push({ body, x, y, core, lift });
     }
     return placed;
-  }, [sky]);
+  }, [sky, view]);
 
   const pct = (v: number) => `${(v / SIZE) * 100}%`;
 
   return (
     <div
+      ref={boxRef}
       className="sky-dome"
-      style={{ maxWidth: 620 }}
-      onClick={() => onSelect(null)}
+      style={{ maxWidth: 620, touchAction: "none" }}
+      onClick={() => { if (!gesture.current.moved) onSelect(null); }}
+      onWheel={(e) => {
+        const factor = Math.exp(-e.deltaY * 0.0015);
+        setView((v) => clampView({ ...v, zoom: v.zoom * factor }));
+      }}
+      onDoubleClick={() => setView(HOME)}
+      onTouchStart={(e) => {
+        const g = gesture.current;
+        g.moved = false;
+        if (e.touches.length === 2) {
+          const [a, b] = [e.touches[0], e.touches[1]];
+          g.mode = "pinch";
+          g.startSpread = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          g.startZoom = view.zoom;
+        } else if (e.touches.length === 1) {
+          g.mode = "pan";
+          g.startX = e.touches[0].clientX;
+          g.startY = e.touches[0].clientY;
+          g.startPanX = view.panX;
+          g.startPanY = view.panY;
+        }
+      }}
+      onTouchMove={(e) => {
+        const g = gesture.current;
+        const box = boxRef.current?.getBoundingClientRect();
+        if (!box) return;
+        // Gesture pixels are screen-sized; the sky is drawn in an 840-unit
+        // space, so drags have to be converted or they move the wrong distance.
+        const scale = SIZE / box.width;
+
+        if (g.mode === "pinch" && e.touches.length === 2) {
+          const [a, b] = [e.touches[0], e.touches[1]];
+          const spread = Math.hypot(a.clientX - b.clientX, a.clientY - b.clientY);
+          g.moved = true;
+          setView((v) => clampView({ ...v, zoom: g.startZoom * (spread / g.startSpread) }));
+        } else if (g.mode === "pan" && e.touches.length === 1) {
+          const dx = (e.touches[0].clientX - g.startX) * scale;
+          const dy = (e.touches[0].clientY - g.startY) * scale;
+          if (Math.abs(dx) + Math.abs(dy) > 6) g.moved = true;
+          setView(() => clampView({ zoom: view.zoom, panX: g.startPanX + dx, panY: g.startPanY + dy }));
+        }
+      }}
+      onTouchEnd={() => { gesture.current.mode = "none"; }}
     >
       <canvas
         ref={canvasRef}
@@ -369,7 +452,7 @@ export default function SkyView({
       >
         <circle cx={CX} cy={CY} r={R} fill="none" stroke="rgba(217,176,106,.34)" strokeWidth="1.5" />
         {([["N", 0], ["E", 90], ["S", 180], ["W", 270]] as const).map(([label, bearing]) => {
-          const { x, y } = project(-5.5, bearing);
+          const { x, y } = project(-5.5, bearing, view);
           return (
             <text
               key={label}
@@ -382,6 +465,15 @@ export default function SkyView({
           );
         })}
       </svg>
+
+      {view.zoom > 1.02 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); setView(HOME); }}
+          className="sky-reset uppercase"
+        >
+          Whole sky
+        </button>
+      )}
 
       {markers.map(({ body, x, y, core, lift }) => {
         const style = BODY_STYLE[body.name] ?? { size: 0.5, tint: "#cbd3e2" };

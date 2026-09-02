@@ -263,6 +263,23 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   margin: 0 auto;
 }
 
+.sky-reset {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3;
+  border-radius: 999px;
+  border: 1px solid rgba(217, 176, 106, 0.4);
+  background: rgba(10, 15, 26, 0.72);
+  color: #d9b06a;
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
 .sky-marker {
   position: absolute;
   /* A comfortable finger target regardless of how small the planet is drawn. */

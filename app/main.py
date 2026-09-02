@@ -61,7 +61,7 @@ from app.astrology_engine import (
     add_house_to_planets,
 )
 from app.aspect_services import get_aspects
-from app.location_service import get_location_data
+from app.location_service import get_location_data, describe_coordinates
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.transit_service import (
@@ -1454,11 +1454,13 @@ def remove_attachment(
 
 # ---- The sky itself ----
 
-def _sky_for(current_user: dict, utc_dt=None) -> dict:
-    """Build a sky view from the signed-in person's birth place.
+def _sky_for(current_user: dict, utc_dt=None, at: tuple | None = None) -> dict:
+    """Build a sky view.
 
-    Their birth place is the vantage point for both views: the sky the night
-    they were born, and the sky over the same spot now.
+    The vantage point is their birth place unless `at` says otherwise. That
+    distinction matters: the sky they were born under is fixed to where they
+    were born, but the sky *now* is above wherever they are standing, which is
+    very often somewhere else entirely.
     """
     natal_data = build_natal_chart_data(
         BirthData(
@@ -1471,13 +1473,20 @@ def _sky_for(current_user: dict, utc_dt=None) -> dict:
     location = natal_data["location_data"]
     moment = utc_dt or datetime.fromisoformat(natal_data["utc_birth_time"])
 
-    sky = build_sky_view(moment, location["latitude"], location["longitude"])
-    sky["place"] = current_user["birth_place"]
-    sky["timezone"] = location.get("timezone")
+    if at is not None:
+        latitude, longitude, label, zone = at
+    else:
+        latitude = location["latitude"]
+        longitude = location["longitude"]
+        label = current_user["birth_place"]
+        zone = location.get("timezone")
+
+    sky = build_sky_view(moment, latitude, longitude)
+    sky["place"] = label
+    sky["timezone"] = zone
 
     # The hour as a clock on the wall there would have read it. "Night" is
     # wrong for half of all births, so the page needs to know it was a morning.
-    zone = location.get("timezone")
     if zone:
         try:
             local = moment.astimezone(ZoneInfo(zone))
@@ -1499,9 +1508,24 @@ def sky_at_birth(current_user: dict = Depends(get_current_user)):
 
 
 @app.get("/sky-now")
-def sky_now(current_user: dict = Depends(get_current_user)):
-    """The sky over their birthplace right now."""
-    return _sky_for(current_user, utc_dt=datetime.now(timezone.utc))
+def sky_now(
+    latitude: float | None = None,
+    longitude: float | None = None,
+    current_user: dict = Depends(get_current_user),
+):
+    """The sky right now — over wherever they are, or their birthplace.
+
+    Coordinates are optional because asking the browser for a location is a
+    permission prompt, and someone who declines should still get a sky.
+    """
+    at = None
+    if latitude is not None and longitude is not None:
+        if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+            raise HTTPException(status_code=400, detail="That location isn't on Earth.")
+        zone, label = describe_coordinates(latitude, longitude)
+        at = (latitude, longitude, label, zone)
+
+    return _sky_for(current_user, utc_dt=datetime.now(timezone.utc), at=at)
 
 
 # ---- Subscription / tiers ----

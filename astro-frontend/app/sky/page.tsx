@@ -45,6 +45,34 @@ export default function SkyPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
+  // "Right now" is about where you are standing, which is very often not where
+  // you were born. Never asked for unprompted: a location prompt on arrival is
+  // rude, and the birthplace is a reasonable answer until someone says otherwise.
+  const [here, setHere] = useState<{ lat: number; lon: number } | null>(null);
+  const [locating, setLocating] = useState(false);
+  const [locationError, setLocationError] = useState("");
+
+  const useMyLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError("This browser can't share a location.");
+      return;
+    }
+    setLocating(true);
+    setLocationError("");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setHere({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+        setSky((prev) => ({ ...prev, now: null }));   // refetch from the new spot
+        setLocating(false);
+      },
+      () => {
+        setLocating(false);
+        setLocationError("Couldn't get your location. Showing your birthplace instead.");
+      },
+      { timeout: 10000, maximumAge: 300000 },
+    );
+  };
+
   useEffect(() => {
     // Each view is fetched once and kept: the sky at birth never changes, and
     // the sky now changes too slowly to be worth refetching on a tab press.
@@ -58,7 +86,13 @@ export default function SkyPage() {
 
     (async () => {
       try {
-        const res = await apiFetch(which === "birth" ? "/sky-at-birth" : "/sky-now");
+        const path =
+          which === "birth"
+            ? "/sky-at-birth"
+            : here
+            ? `/sky-now?latitude=${here.lat}&longitude=${here.lon}`
+            : "/sky-now";
+        const res = await apiFetch(path);
         const data = await res.json();
         if (cancelled) return;
         if (res.ok) setSky((prev) => ({ ...prev, [which]: data }));
@@ -70,13 +104,22 @@ export default function SkyPage() {
     })();
 
     return () => { cancelled = true; };
-  }, [which, sky]);
+  }, [which, sky, here]);
 
   const current = sky[which];
   const up = current?.bodies.filter((b) => b.above_horizon) ?? [];
 
   return (
-    <main className="min-h-screen" style={{ background: "var(--sky)", padding: "clamp(18px, 4vw, 44px)" }}>
+    <main
+      className="min-h-screen"
+      style={{
+        background: "var(--sky)",
+        paddingTop: "calc(clamp(18px, 4vw, 44px) + env(safe-area-inset-top, 0px))",
+        paddingBottom: "calc(clamp(18px, 4vw, 44px) + env(safe-area-inset-bottom, 0px))",
+        paddingLeft: "calc(clamp(18px, 4vw, 44px) + env(safe-area-inset-left, 0px))",
+        paddingRight: "calc(clamp(18px, 4vw, 44px) + env(safe-area-inset-right, 0px))",
+      }}
+    >
       <div className="mx-auto flex w-full flex-col" style={{ maxWidth: 1120 }}>
         <header className="mb-7 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
@@ -123,7 +166,39 @@ export default function SkyPage() {
               {current.local_time} · {current.place}
             </span>
           )}
+
+          {which === "now" && (
+            <>
+              <span className="micro-label" style={{ marginLeft: 4, color: "var(--ink-3)" }}>
+                Over {current?.place ?? "…"}
+              </span>
+              {!here && (
+                <button
+                  onClick={useMyLocation}
+                  disabled={locating}
+                  className="uppercase"
+                  style={{
+                    borderRadius: 999,
+                    padding: "7px 14px",
+                    fontSize: 10,
+                    letterSpacing: "0.16em",
+                    border: "1px dashed var(--line-2)",
+                    background: "transparent",
+                    color: "var(--gold-deep)",
+                  }}
+                >
+                  {locating ? "Finding you…" : "Not there? Use my location"}
+                </button>
+              )}
+            </>
+          )}
         </div>
+
+        {locationError && which === "now" && (
+          <p className="font-reading" style={{ fontSize: 13, color: "var(--gold-deep)", marginTop: -12, marginBottom: 14 }}>
+            {locationError}
+          </p>
+        )}
 
         {loading && !current && (
           <p className="font-reading" style={{ fontSize: 15, color: "var(--ink-3)" }}>
