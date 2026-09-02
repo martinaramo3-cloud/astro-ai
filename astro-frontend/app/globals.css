@@ -251,6 +251,196 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   opacity: 1;
 }
 
+/* ─── The sky dome ───
+   Planets are built from stacked layers rather than drawn into the canvas:
+   they are the subject of the picture, they carry text, and they have to be
+   tappable. Stars are the setting and stay on the canvas, in their thousands. */
+
+.sky-dome {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+}
+
+.sky-marker {
+  position: absolute;
+  /* A comfortable finger target regardless of how small the planet is drawn. */
+  width: 46px;
+  height: 46px;
+  transform: translate(-50%, -50%);
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+}
+
+.sky-marker > span {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.sky-bloom {
+  animation: sky-breathe 6s ease-in-out infinite;
+}
+
+.sky-ring {
+  border: 1px solid;
+  animation: sky-ring 6s ease-in-out infinite;
+  transition: border-color 250ms ease;
+}
+
+.sky-halo {
+  border: 1px dotted rgba(217, 176, 106, 0.35);
+  transition: opacity 300ms ease;
+}
+
+.sky-body {
+  transition: box-shadow 250ms ease;
+}
+
+.sky-stem {
+  width: 1px;
+  border-radius: 0;
+  background: linear-gradient(to top, rgba(217, 176, 106, 0.05), rgba(217, 176, 106, 0.42));
+}
+
+.sky-label {
+  border-radius: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  white-space: nowrap;
+}
+
+.sky-glyph {
+  font-family: var(--font-eb-garamond), Georgia, serif;
+  color: var(--gold);
+  text-shadow: 0 0 14px rgba(217, 176, 106, 0.55), 0 1px 6px rgba(10, 15, 26, 0.9);
+  line-height: 1;
+  transition: font-size 250ms ease, color 250ms ease;
+}
+
+.sky-marker[aria-pressed="true"] .sky-glyph { color: var(--gold-deep); }
+
+/* A planet near the rim carries its label over the edge of the dome and onto
+   the page, where pale text on a cream background disappears. The backdrop
+   travels with the label so it stays legible wherever it lands. */
+.sky-name {
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: 9.5px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #d7dced;
+  background: rgba(10, 15, 26, 0.72);
+  border: 1px solid rgba(217, 176, 106, 0.22);
+  border-radius: 999px;
+  padding: 3px 8px;
+  transition: opacity 300ms ease;
+}
+
+@keyframes sky-breathe {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50%      { opacity: 0.85; transform: scale(1.09); }
+}
+
+@keyframes sky-ring {
+  0%, 100% { opacity: 0.42; }
+  50%      { opacity: 0.72; }
+}
+
+/* Someone who has asked for less movement should get a still sky, not a
+   quieter one. */
+@media (prefers-reduced-motion: reduce) {
+  .sky-bloom, .sky-ring { animation: none; opacity: 0.65; }
+}
+
+/* Dome beside the list on a wide screen; list underneath on a phone, where
+   the picture should have the whole width to itself. */
+.sky-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 30px;
+}
+
+@media (min-width: 900px) {
+  .sky-layout { grid-template-columns: minmax(0, 1fr) 348px; gap: 48px; align-items: start; }
+}
+
+.wanderers-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(217, 176, 106, 0.22);
+  margin-bottom: 2px;
+}
+
+.wanderer {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  gap: 14px;
+  align-items: center;
+  width: 100%;
+  padding: 11px 6px 11px 2px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 200ms ease;
+}
+
+.wanderer.is-selected { background: var(--gold-soft); }
+
+/* Still listed, because "where was Mars" has an answer even when the answer is
+   "under your feet" — just quieter than the ones that were up. */
+.wanderer.is-down { opacity: 0.45; }
+
+.wanderer-medallion {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 1px solid rgba(217, 176, 106, 0.34);
+  font-family: var(--font-eb-garamond), Georgia, serif;
+  font-size: 16px;
+  color: var(--gold);
+}
+
+.wanderer.is-selected .wanderer-medallion {
+  border-color: rgba(217, 176, 106, 0.9);
+  color: var(--gold-deep);
+}
+
+.wanderer-name {
+  display: block;
+  font-size: 21px;
+  line-height: 1.15;
+  color: var(--ink);
+}
+
+.wanderer-sub {
+  display: block;
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: 9.5px;
+  letter-spacing: 0.17em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+.wanderer-sign {
+  font-size: 14px;
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
 /* ─── Screen & element motion ─── */
 
 @keyframes zo-fade { from { opacity: 0; } to { opacity: 1; } }

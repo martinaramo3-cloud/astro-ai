@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { apiFetch } from "../../lib/api";
-import SkyView, { type SkyData } from "../../components/SkyView";
+import SkyView, { GLYPH, type SkyData } from "../../components/SkyView";
 import ZodiMark from "../../components/ZodiMark";
 import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
 
@@ -12,12 +12,11 @@ type Which = "birth" | "now";
  * What to call the moment someone arrived.
  *
  * "The night you arrived" was written for the sound of it and is wrong for
- * roughly half of everyone — including anyone born at breakfast. The hour is
- * the one the clock on the wall there would have shown.
+ * roughly half of everyone, including anyone born at breakfast. The hour is the
+ * one a clock on the wall there would have shown.
  */
 function arrivalHeading(sky: SkyData | null): string {
   if (!sky || sky.birth_time_known === false || sky.local_hour === undefined) {
-    // No time means no hour to name, and midday is a placeholder, not a fact.
     return "The sky you arrived under";
   }
   const h = sky.local_hour;
@@ -27,12 +26,22 @@ function arrivalHeading(sky: SkyData | null): string {
   return "The night you arrived";
 }
 
+/** Which way you would have had to turn to see it. */
+function compassWord(azimuth: number): string {
+  const points = [
+    "north", "north-east", "east", "south-east",
+    "south", "south-west", "west", "north-west",
+  ];
+  return points[Math.round(azimuth / 45) % 8];
+}
+
 export default function SkyPage() {
   const { theme } = useTheme();
   const night = theme === "night";
 
   const [which, setWhich] = useState<Which>("birth");
   const [sky, setSky] = useState<Record<Which, SkyData | null>>({ birth: null, now: null });
+  const [selected, setSelected] = useState<string | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
@@ -64,21 +73,25 @@ export default function SkyPage() {
   }, [which, sky]);
 
   const current = sky[which];
+  const up = current?.bodies.filter((b) => b.above_horizon) ?? [];
 
   return (
-    <main
-      className="min-h-screen"
-      style={{ background: "var(--sky)", padding: "clamp(18px, 4vw, 40px)" }}
-    >
-      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: 640 }}>
-        <header className="mb-6 flex items-start justify-between gap-4">
+    <main className="min-h-screen" style={{ background: "var(--sky)", padding: "clamp(18px, 4vw, 44px)" }}>
+      <div className="mx-auto flex w-full flex-col" style={{ maxWidth: 1120 }}>
+        <header className="mb-7 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
             <ZodiMark size={34} night={night} />
             <div>
-              <p className="micro-label" style={{ letterSpacing: "0.24em" }}>
-                Your sky
-              </p>
-              <h1 className="font-display" style={{ fontSize: 27, lineHeight: 1.15, marginTop: 2 }}>
+              <p className="micro-label" style={{ letterSpacing: "0.26em" }}>Your sky</p>
+              <h1
+                className="font-display"
+                style={{
+                  fontSize: "clamp(27px, 5vw, 42px)",
+                  lineHeight: 1.1,
+                  marginTop: 2,
+                  textWrap: "balance",
+                }}
+              >
                 {which === "birth" ? arrivalHeading(sky.birth) : "Above you now"}
               </h1>
             </div>
@@ -86,11 +99,11 @@ export default function SkyPage() {
           <ThemeToggle />
         </header>
 
-        <div className="mb-6 flex gap-2">
+        <div className="mb-6 flex flex-wrap items-center gap-2">
           {([["birth", "At my birth"], ["now", "Right now"]] as const).map(([key, label]) => (
             <button
               key={key}
-              onClick={() => setWhich(key)}
+              onClick={() => { setWhich(key); setSelected(null); }}
               className="uppercase"
               style={{
                 borderRadius: 999,
@@ -105,6 +118,11 @@ export default function SkyPage() {
               {label}
             </button>
           ))}
+          {current?.local_time && which === "birth" && (
+            <span className="micro-label" style={{ marginLeft: 4, color: "var(--ink-3)" }}>
+              {current.local_time} · {current.place}
+            </span>
+          )}
         </div>
 
         {loading && !current && (
@@ -114,43 +132,101 @@ export default function SkyPage() {
         )}
 
         {error && (
-          <p className="font-reading" style={{ fontSize: 15, color: "var(--gold-deep)" }}>
-            {error}
-          </p>
+          <p className="font-reading" style={{ fontSize: 15, color: "var(--gold-deep)" }}>{error}</p>
         )}
 
         {current && (
           <>
             {which === "birth" && current.birth_time_known === false && (
-              <div className="time-warning" style={{ marginTop: 0, marginBottom: 16 }}>
-                <p className="micro-label" style={{ letterSpacing: "0.18em" }}>
-                  Birth time unknown
-                </p>
+              <div className="time-warning" style={{ marginTop: 0, marginBottom: 18 }}>
+                <p className="micro-label" style={{ letterSpacing: "0.18em" }}>Birth time unknown</p>
                 <p className="font-reading mt-1">
-                  This is cast for midday, so it isn&rsquo;t the sky you were actually
-                  born under &mdash; the whole picture turns a full circle every day.
-                  Add your birth time and it becomes yours.
+                  This is cast for midday, so it isn&rsquo;t the sky you were actually born
+                  under &mdash; the whole picture turns a full circle every day. Add your
+                  birth time and it becomes yours.
                 </p>
               </div>
             )}
 
-            <SkyView sky={current} night={night} />
+            <div className="sky-layout">
+              <div>
+                <SkyView sky={current} selected={selected} onSelect={setSelected} />
+                <p
+                  className="font-reading"
+                  style={{ fontSize: 14, color: "var(--ink-3)", marginTop: 18, lineHeight: 1.65 }}
+                >
+                  {current.daylight
+                    ? "The Sun was up, so the sky was too bright to see any of this — but it was all there."
+                    : current.twilight
+                    ? "Twilight. The brightest of these were just coming out."
+                    : `${current.visible_count} of these were visible to the naked eye.`}{" "}
+                  Looking straight up from {current.place}: the centre is directly overhead,
+                  the edge is the horizon, and the gold band is the ecliptic &mdash; the road
+                  the planets keep to.
+                </p>
+              </div>
 
-            <p
-              className="font-reading"
-              style={{ fontSize: 14, color: "var(--ink-3)", marginTop: 20, lineHeight: 1.65 }}
-            >
-              Looking straight up from {current.place}. The centre is directly
-              overhead, the edge is the horizon, and the dotted line is the
-              ecliptic &mdash; the path every planet follows, which is why they
-              are strung along it rather than scattered.
-            </p>
+              {/* The list answers the only question the picture provokes: which
+                  one is that? Tapping either side selects both. */}
+              <aside>
+                <div className="wanderers-head">
+                  <span
+                    className="micro-label"
+                    style={{ letterSpacing: "0.32em", color: "var(--gold-deep)" }}
+                  >
+                    The wanderers
+                  </span>
+                  <span className="micro-label" style={{ color: "var(--ink-3)" }}>
+                    {up.length} of {current.bodies.length} up
+                  </span>
+                </div>
 
-            {/* Required by the catalogue's licence, and it belongs here anyway:
-                these are real stars, from real measurements someone made. */}
-            <p style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 14, lineHeight: 1.6 }}>
-              Planets calculated with the Swiss Ephemeris. 8,920 stars to
-              magnitude 6.5 from the{" "}
+                {current.bodies.map((b) => {
+                  const isSelected = selected === b.name;
+                  return (
+                    <button
+                      key={b.name}
+                      onClick={() => setSelected(isSelected ? null : b.name)}
+                      aria-pressed={isSelected}
+                      className={
+                        "wanderer" +
+                        (isSelected ? " is-selected" : "") +
+                        (b.above_horizon ? "" : " is-down")
+                      }
+                    >
+                      <span className="wanderer-medallion">{GLYPH[b.name] ?? b.name[0]}</span>
+                      <span className="min-w-0 text-left">
+                        <span className="wanderer-name font-display">{b.name}</span>
+                        <span className="wanderer-sub">
+                          {b.above_horizon
+                            ? `${Math.round(b.altitude)}° up, ${compassWord(b.azimuth)}`
+                            : "below the horizon"}
+                        </span>
+                      </span>
+                      <span className="wanderer-sign font-reading">
+                        {Math.round(b.degree_in_sign)}° {b.sign}
+                        {b.retrograde ? " ℞" : ""}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                <p
+                  className="font-reading"
+                  style={{ fontSize: 13, color: "var(--ink-3)", marginTop: 14, lineHeight: 1.6 }}
+                >
+                  {current.moon_illumination > 0.97
+                    ? "The Moon was full."
+                    : current.moon_illumination < 0.03
+                    ? "The Moon was new — dark, and in the sky regardless."
+                    : `The Moon was ${Math.round(current.moon_illumination * 100)}% lit.`}
+                </p>
+              </aside>
+            </div>
+
+            <p style={{ fontSize: 11.5, color: "var(--ink-3)", marginTop: 26, lineHeight: 1.6, maxWidth: 620 }}>
+              Planets calculated with the Swiss Ephemeris. 8,920 stars to magnitude 6.5
+              from the{" "}
               <a
                 href="https://codeberg.org/astronexus/hyg"
                 target="_blank"
