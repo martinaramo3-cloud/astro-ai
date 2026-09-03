@@ -68,6 +68,7 @@ from app.transit_service import (
     get_current_transit_positions,
     get_transit_aspects,
     get_transit_houses,
+    build_relationship_timing,
     build_upcoming_transit_timeline,
 )
 from app.predictive_adapter_service import run_predictive_engine
@@ -1035,6 +1036,14 @@ def ask_compatibility(
         synastry_aspects
     )
 
+    # Synastry alone cannot answer "why now" — it describes a permanent
+    # dynamic. The transits are what make a timing question answerable.
+    timing = build_relationship_timing(
+        person_1_chart["planet_positions"],
+        person_2_chart["planet_positions"],
+        synastry_aspects,
+    )
+
     context = build_ask_compatibility_context(
         person_1_chart,
         person_2_chart,
@@ -1045,6 +1054,7 @@ def ask_compatibility(
         person_1_name=data.person_1_name or current_user.get("name") or "the person asking",
         person_2_name=data.person_2_name or "the other person",
     )
+    context["timing"] = timing
 
     prompt = build_ask_compatibility_prompt(context)
     answer, tokens = generate_compatibility_answer(prompt, model=model)

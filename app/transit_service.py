@@ -203,3 +203,95 @@ def build_upcoming_transit_timeline(
     # Tightest peaks first so a cap keeps the most meaningful activations.
     timeline.sort(key=lambda e: (e["peak_orb"], e["peaks"]))
     return timeline[:max_events]
+
+# What a relationship question turns on. Uranus and Neptune are left out: they
+# are too slow to explain "why this week", and they tempt an answer toward the
+# cosmic when the question is about a person.
+RELATIONSHIP_PLANETS = {"Sun", "Moon", "Venus", "Mars", "Jupiter", "Saturn", "Pluto"}
+
+
+def build_relationship_timing(
+    person_1_planets: list,
+    person_2_planets: list,
+    synastry_aspects: list,
+    max_each: int = 5,
+) -> dict:
+    """What the sky is currently doing to two people and to the thing between them.
+
+    Synastry says what two charts are like together — permanently. It cannot say
+    why something is happening this month, which is what people actually ask.
+    That needs transits, and the third list below is the one that earns its
+    place: a transit landing on a degree where their two charts already touch
+    each other is the difference between "you two have a Venus-Mars square" and
+    "Saturn is sitting on it right now".
+    """
+    transits = get_current_transit_positions()
+
+    def hits(natal: list) -> list:
+        found = get_transit_aspects(natal_planets=natal, transit_planets=transits)
+        found = [t for t in found if t["natal_planet"] in RELATIONSHIP_PLANETS]
+        # Compact deliberately. The full record carries both bodies' signs and
+        # absolute degrees, none of which is read here — the prompt needs to
+        # know what is hitting what, how close, and which way it is moving.
+        return [
+            {
+                "transit": t["transit_planet"],
+                "aspect": t["aspect"],
+                "natal": t["natal_planet"],
+                "orb": t["orb"],
+                "motion": t["motion"],
+                **({"retrograde": True} if t["transit_retrograde"] else {}),
+            }
+            for t in found[:max_each]
+        ]
+
+    yours = hits(person_1_planets)
+    theirs = hits(person_2_planets)
+
+    # A synastry contact is "live" when a transiting planet is within orb of
+    # either end of it. Both ends being lit is rarer and stronger, so it sorts
+    # first.
+    activated = []
+    for contact in synastry_aspects[:12]:
+        p1, p2 = contact.get("person_1_planet"), contact.get("person_2_planet")
+        touching_yours = [t for t in yours if t["natal"] == p1]
+        touching_theirs = [t for t in theirs if t["natal"] == p2]
+        if not touching_yours and not touching_theirs:
+            continue
+
+        activated.append({
+            "contact": f"your {p1} {contact['aspect']} their {p2}",
+            "contact_orb": contact.get("orb"),
+            "lit_on_your_side": [
+                f"{t['transit']} {t['aspect']}, orb {t['orb']}, {t['motion']}"
+                for t in touching_yours[:2]
+            ],
+            "lit_on_their_side": [
+                f"{t['transit']} {t['aspect']}, orb {t['orb']}, {t['motion']}"
+                for t in touching_theirs[:2]
+            ],
+            "both_sides": bool(touching_yours and touching_theirs),
+        })
+
+    activated.sort(key=lambda a: (not a["both_sides"], a["contact_orb"] or 99))
+
+    return {
+        "note": (
+            "Current transits. Synastry says what the two charts are like; these say "
+            "why now. 'activated_contacts' is the strongest evidence for timing — a "
+            "transit landing where their charts already touch."
+        ),
+        "to_your_chart": yours,
+        "to_their_chart": theirs,
+        "activated_contacts": activated[:3],
+        "upcoming_for_you": [
+            {
+                "when": f"{e['starts']} to {e['fades']}, peaks {e['peaks']}",
+                "what": f"{e['transit_planet']} {e['aspect']} your {e['natal_planet']}",
+                "peak_orb": e["peak_orb"],
+            }
+            for e in build_upcoming_transit_timeline(
+                person_1_planets, max_events=4, focus_planets=RELATIONSHIP_PLANETS
+            )
+        ],
+    }
