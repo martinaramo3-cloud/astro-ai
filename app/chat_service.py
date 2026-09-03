@@ -91,12 +91,18 @@ def summarize_recent_sessions(
     owner_user_id: int,
     exclude_session_id: int | None = None,
     limit: int = 5,
+    profile_id: int | None = None,
 ) -> list[dict]:
     """A light index of someone's other conversations.
 
     Titles and opening questions only — enough for the astrologer to say
     "you asked about your Saturn return last week", without shipping every
     past transcript into the prompt or letting it invent details it never saw.
+
+    `profile_id` narrows it to conversations about one saved person. A chat
+    about someone should see the earlier chats about that same someone, and
+    nothing else — which is both more useful and the opposite of the bleed
+    that happens when every conversation can see every other one.
     """
     conn = get_db_connection()
     rows = conn.execute(
@@ -105,10 +111,11 @@ def summarize_recent_sessions(
         FROM chat_sessions s
         LEFT JOIN profiles p ON p.id = s.profile_id
         WHERE s.owner_user_id = ?
+          AND (? IS NULL OR s.profile_id = ?)
         ORDER BY s.updated_at DESC
         LIMIT ?
         """,
-        (owner_user_id, limit + 1),
+        (owner_user_id, profile_id, profile_id, limit + 1),
     ).fetchall()
     conn.close()
 

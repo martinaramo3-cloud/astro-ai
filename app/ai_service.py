@@ -299,4 +299,7 @@ def generate_compatibility_reading(
 def generate_compatibility_answer(
     prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
 ) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=220, system=system)
+    # Matched to the solo astrologer. At 220 there was no room to say anything
+    # that had not been said, so answers about a relationship came out thin and
+    # repetitive next to answers about the person themselves.
+    return _create_response(prompt, model=model, max_output_tokens=550, system=system)

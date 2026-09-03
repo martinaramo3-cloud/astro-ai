@@ -1018,6 +1018,7 @@ def compatibility_reading(
 def ask_compatibility(
     data: AskCompatibilityRequest,
     current_user: dict = Depends(get_current_user),
+    profile_id: int | None = None,
 ):
     user_id = current_user["id"]
     tier_config = check_usage(user_id)
@@ -1055,6 +1056,12 @@ def ask_compatibility(
         person_2_name=data.person_2_name or "the other person",
     )
     context["timing"] = timing
+    # Earlier chats about this same person, and nothing else. Continuity where
+    # it belongs, without one relationship's conversation reaching into another.
+    if profile_id is not None:
+        context["past_conversations"] = summarize_recent_sessions(
+            current_user["id"], profile_id=profile_id
+        )
 
     prompt = build_ask_compatibility_prompt(context)
     answer, tokens = generate_compatibility_answer(prompt, model=model)
@@ -1105,7 +1112,9 @@ def ask_saved_compatibility(
     )
 
     # Called directly, so the dependency has to be handed over explicitly.
-    return ask_compatibility(compatibility_data, current_user=current_user)
+    return ask_compatibility(
+        compatibility_data, current_user=current_user, profile_id=data.profile_id
+    )
 
 @app.post("/signup", response_model=AuthUserResponse)
 def signup(data: SignupRequest):

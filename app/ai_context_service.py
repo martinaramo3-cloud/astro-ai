@@ -370,7 +370,12 @@ def build_ask_compatibility_context(
 
 
 def build_ask_compatibility_prompt(context: dict) -> str:
-    context_json = json.dumps(context, indent=2)
+    # History is rendered once, by _history_guidance, which caps it to the
+    # recent turns. Dropping it here stops a long conversation shipping a
+    # second, uncapped copy of itself on every question.
+    context_json = json.dumps(
+        {k: v for k, v in context.items() if k != "history"}, indent=2
+    )
     return f"""
 You are a warm, grounded astrologer answering a live compatibility question about two people.
 
@@ -402,8 +407,15 @@ If the question goes beyond the data, answer cautiously.
 Use the synastry engine first: prioritize house overlays, then tight aspects, then the relationship indices and flags.
 If attachment, control, or instability are relevant, use the attachment profile, power profile, double-whammies, and trajectory from the synastry engine.
 
+Earlier conversations about this person:
+- "past_conversations" lists the other chats about this same person — a title, the opening question, and when. You do not have the contents, so never quote or paraphrase what you supposedly said before.
+- Use it to avoid saying the same thing twice. If a previous conversation opened on the same ground, take it further rather than restating it.
+
 Answer the user's actual question first.
 Sound like a real person in conversation, not a written report.
+Do not restate the relationship's core dynamic every time. Once it has been
+established in this conversation, build on it — answer what was just asked, add
+something that was not said before, and trust that they remember the rest.
 Focus on the 2 or 3 most relevant compatibility signals.
 For "should I continue?" or advice-style questions, do not give a rigid yes or no prediction.
 Instead, explain the core dynamic, name the main green flag, name the main red flag, and say what to watch for in real life.
@@ -411,7 +423,7 @@ Be specific, practical, and emotionally intelligent.
 Avoid long placement-by-placement summaries and avoid vague filler.
 Use short paragraphs, not bullets.
 If helpful, end with one brief follow-up question.
-Keep the answer under 170 words.
+Keep the answer under 260 words.
 Do not use bullet points.
 
 {_history_guidance(context)}
