@@ -29,6 +29,7 @@ from app.attachment_service import (
     save_attachment,
 )
 from app.image_reading_service import read_images
+from app.usage_log_service import usage_summary
 from app.sky_view_service import build_sky_view
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
@@ -662,7 +663,7 @@ def chart_summary(
     )
 
     prompt = build_summary_prompt(chart_context)
-    summary, tokens = generate_chart_summary(prompt, model=tier_config["model"])
+    summary, tokens = generate_chart_summary(prompt, model=tier_config["model"], user_id=current_user["id"])
     record_usage(current_user["id"], tokens)
 
     return {
@@ -672,7 +673,7 @@ def chart_summary(
         "tier": tier_config["label"],
     }
 
-def interpret_attachments(attachments: list[dict]) -> tuple[dict | None, list[dict], int]:
+def interpret_attachments(attachments: list[dict], user_id: int | None = None) -> tuple[dict | None, list[dict], int]:
     """Turn attached pictures into something the answering model can use.
 
     Returns (context, images_to_send, tokens_spent).
@@ -686,7 +687,7 @@ def interpret_attachments(attachments: list[dict]) -> tuple[dict | None, list[di
     if not attachments:
         return None, [], 0
 
-    reading = read_images(attachments)
+    reading = read_images(attachments, user_id=user_id)
     tokens = reading.get("tokens", 0)
     kind = reading.get("kind")
 
@@ -841,7 +842,7 @@ def ask_astrologer(
     if attachments:
         require_image_tier(user_id)
 
-    image_context, images_for_model, image_tokens = interpret_attachments(attachments)
+    image_context, images_for_model, image_tokens = interpret_attachments(attachments, user_id=user_id)
 
     natal_data = build_natal_chart_data(data)
 
@@ -933,6 +934,7 @@ def ask_astrologer(
         system=build_ask_astrologer_system(),
         effort=effort,
         images=images_for_model or None,
+        user_id=user_id,
     )
     # The inspection pass is billed too — it is a real call on the user's behalf.
     record_usage(user_id, tokens + image_tokens)
@@ -1004,7 +1006,7 @@ def compatibility_reading(
 
     prompt = build_compatibility_prompt(context)
 
-    reading, tokens = generate_compatibility_reading(prompt, model=tier_config["model"])
+    reading, tokens = generate_compatibility_reading(prompt, model=tier_config["model"], user_id=current_user["id"])
     record_usage(current_user["id"], tokens)
 
     return {
@@ -1064,7 +1066,7 @@ def ask_compatibility(
         )
 
     prompt = build_ask_compatibility_prompt(context)
-    answer, tokens = generate_compatibility_answer(prompt, model=model)
+    answer, tokens = generate_compatibility_answer(prompt, model=model, user_id=user_id)
     record_usage(user_id, tokens)
 
     return {
@@ -1592,13 +1594,8 @@ def usage_for_user(user_id: int, current_user: dict = Depends(get_current_user))
     return get_usage_status(user_id)
 
 
-@app.patch("/admin/users/{user_id}/tier")
-def admin_update_tier(
-    user_id: int,
-    data: TierUpdateRequest,
-    x_admin_secret: str | None = Header(default=None),
-):
-    """Promote/demote a user's subscription tier. Guarded by ADMIN_SECRET env var."""
+def _require_admin(x_admin_secret: str | None) -> None:
+    """Shared gate for every admin route: a matching ADMIN_SECRET header."""
     expected = os.getenv("ADMIN_SECRET")
     if not expected:
         raise HTTPException(
@@ -1607,6 +1604,27 @@ def admin_update_tier(
         )
     if x_admin_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
+
+
+@app.get("/admin/usage")
+def admin_usage(x_admin_secret: str | None = Header(default=None)):
+    """What the app has cost, per model and per user, this month and all time.
+
+    The provider dashboards can't do per-user — only the app knows who its users
+    are. This reads the usage log the app writes on every AI call.
+    """
+    _require_admin(x_admin_secret)
+    return usage_summary()
+
+
+@app.patch("/admin/users/{user_id}/tier")
+def admin_update_tier(
+    user_id: int,
+    data: TierUpdateRequest,
+    x_admin_secret: str | None = Header(default=None),
+):
+    """Promote/demote a user's subscription tier. Guarded by ADMIN_SECRET env var."""
+    _require_admin(x_admin_secret)
 
     updated = set_user_tier(user_id, data.tier)
     if not updated:

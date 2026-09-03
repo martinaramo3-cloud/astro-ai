@@ -112,7 +112,7 @@ def _clean_birth_data(raw) -> dict | None:
     }
 
 
-def read_images(images: list[dict]) -> dict:
+def read_images(images: list[dict], user_id: int | None = None) -> dict:
     """Inspect attachments and return what was found.
 
     Never raises for a bad reply — a failed inspection just means the picture
@@ -122,7 +122,7 @@ def read_images(images: list[dict]) -> dict:
         return {"kind": "none", "tokens": 0}
 
     try:
-        text, tokens = inspect_images(INSPECTION_PROMPT, images)
+        text, tokens = inspect_images(INSPECTION_PROMPT, images, user_id=user_id)
     except Exception as exc:  # noqa: BLE001 - degrade, don't fail the question
         print("Image inspection failed:", repr(exc))
         return {"kind": "unknown", "tokens": 0}

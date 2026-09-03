@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 from fastapi import HTTPException
 from openai import OpenAI
 
+from app.usage_log_service import log_usage
+
 load_dotenv()
 
 _openai_client: OpenAI | None = None
@@ -89,17 +91,19 @@ def _get_anthropic_client() -> Anthropic:
     return _anthropic_client
 
 
-def _anthropic_tokens(usage) -> int:
-    """Total billable tokens, including anything read from or written to cache."""
+def _anthropic_usage(usage) -> dict:
+    """Input and output token counts for one Anthropic call.
+
+    Cache reads and writes count as input — they are billed cheaper than fresh
+    input, so folding them in at the input rate slightly over-states cost, which
+    is the safe direction for a spend tracker.
+    """
     if usage is None:
-        return 0
-    fields = (
-        "input_tokens",
-        "output_tokens",
-        "cache_read_input_tokens",
-        "cache_creation_input_tokens",
-    )
-    return sum(getattr(usage, field, 0) or 0 for field in fields)
+        return {"tokens_in": 0, "tokens_out": 0, "total": 0}
+    g = lambda f: getattr(usage, f, 0) or 0
+    tin = g("input_tokens") + g("cache_read_input_tokens") + g("cache_creation_input_tokens")
+    tout = g("output_tokens")
+    return {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
 
 
 def _anthropic_response(
@@ -173,7 +177,7 @@ def _anthropic_response(
     text = "".join(
         block.text for block in message.content if getattr(block, "type", None) == "text"
     )
-    return text, _anthropic_tokens(message.usage)
+    return text, _anthropic_usage(message.usage)
 
 
 def _openai_response(
@@ -212,8 +216,10 @@ def _openai_response(
         input=payload,
         max_output_tokens=max_output_tokens,
     )
-    tokens = response.usage.total_tokens if response.usage else 0
-    return response.output_text, tokens
+    u = response.usage
+    tin = getattr(u, "input_tokens", 0) or 0 if u else 0
+    tout = getattr(u, "output_tokens", 0) or 0 if u else 0
+    return response.output_text, {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
 
 
 def _create_response(
@@ -223,19 +229,31 @@ def _create_response(
     system: str | None = None,
     effort: str | None = None,
     images: list[dict] | None = None,
+    user_id: int | None = None,
 ) -> tuple[str, int]:
+    """Run one AI call and return (text, total_tokens).
+
+    Every path funnels through here, so this is the one place spend is logged.
+    Callers keep getting the token total they always did; passing `user_id`
+    additionally records the cost of the call against that user.
+    """
     try:
         if _is_anthropic(model):
-            return _anthropic_response(
+            text, usage = _anthropic_response(
                 user_prompt, model=model, system=system, effort=effort, images=images
             )
-        return _openai_response(
-            user_prompt,
-            model=model,
-            max_output_tokens=max_output_tokens,
-            system=system,
-            images=images,
-        )
+        else:
+            text, usage = _openai_response(
+                user_prompt,
+                model=model,
+                max_output_tokens=max_output_tokens,
+                system=system,
+                images=images,
+            )
+        # Logged here rather than at each call site: one choke point, so no
+        # future endpoint can spend money without it showing up.
+        log_usage(user_id, model, usage["tokens_in"], usage["tokens_out"])
+        return text, usage["total"]
     except HTTPException:
         raise
     except Exception as exc:
@@ -250,9 +268,11 @@ def _create_response(
 
 
 def generate_chart_summary(
-    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None,
+    user_id: int | None = None,
 ) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=180, system=system)
+    return _create_response(prompt, model=model, max_output_tokens=180, system=system,
+                            user_id=user_id)
 
 
 def generate_astrologer_answer(
@@ -261,6 +281,7 @@ def generate_astrologer_answer(
     system: str | None = None,
     effort: str | None = None,
     images: list[dict] | None = None,
+    user_id: int | None = None,
 ) -> tuple[str, int]:
     # A little more room when there's a picture: reading a screenshot back and
     # then answering takes more words than answering alone.
@@ -271,6 +292,7 @@ def generate_astrologer_answer(
         system=system,
         effort=effort,
         images=images,
+        user_id=user_id,
     )
 
 
@@ -280,26 +302,31 @@ def generate_astrologer_answer(
 INSPECTION_MODEL = "gpt-4.1-mini"
 
 
-def inspect_images(prompt: str, images: list[dict]) -> tuple[str, int]:
+def inspect_images(prompt: str, images: list[dict], user_id: int | None = None) -> tuple[str, int]:
     """A first read of an attached picture: what is it, and what does it say?"""
     return _create_response(
         prompt,
         model=INSPECTION_MODEL,
         max_output_tokens=1200,
         images=images,
+        user_id=user_id,
     )
 
 
 def generate_compatibility_reading(
-    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None,
+    user_id: int | None = None,
 ) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=220, system=system)
+    return _create_response(prompt, model=model, max_output_tokens=220, system=system,
+                            user_id=user_id)
 
 
 def generate_compatibility_answer(
-    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None
+    prompt: str, model: str = DEFAULT_MODEL, system: str | None = None,
+    user_id: int | None = None,
 ) -> tuple[str, int]:
     # Matched to the solo astrologer. At 220 there was no room to say anything
     # that had not been said, so answers about a relationship came out thin and
     # repetitive next to answers about the person themselves.
-    return _create_response(prompt, model=model, max_output_tokens=550, system=system)
+    return _create_response(prompt, model=model, max_output_tokens=550, system=system,
+                            user_id=user_id)

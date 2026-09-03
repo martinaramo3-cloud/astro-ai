@@ -93,6 +93,28 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)"
     )
 
+    # One row per AI call. This is how spend is tracked per user and per model
+    # — the provider dashboards only ever show the whole bill blended together.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS usage_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        model_key TEXT,
+        model_id TEXT NOT NULL,
+        tokens_in INTEGER NOT NULL DEFAULT 0,
+        tokens_out INTEGER NOT NULL DEFAULT 0,
+        cost_usd REAL NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_usage_user ON usage_events(user_id)"
+    )
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_usage_created ON usage_events(created_at)"
+    )
+
     # Images attached to a question. The file lives on disk beside this
     # database; only the pointer is stored here.
     cursor.execute("""
