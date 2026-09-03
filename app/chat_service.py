@@ -101,10 +101,11 @@ def summarize_recent_sessions(
     conn = get_db_connection()
     rows = conn.execute(
         """
-        SELECT id, title, messages_json, updated_at
-        FROM chat_sessions
-        WHERE owner_user_id = ?
-        ORDER BY updated_at DESC
+        SELECT s.id, s.title, s.messages_json, s.updated_at, p.label AS person
+        FROM chat_sessions s
+        LEFT JOIN profiles p ON p.id = s.profile_id
+        WHERE s.owner_user_id = ?
+        ORDER BY s.updated_at DESC
         LIMIT ?
         """,
         (owner_user_id, limit + 1),
@@ -129,6 +130,10 @@ def summarize_recent_sessions(
             "title": row["title"],
             "opening_question": opening,
             "last_active": (row["updated_at"] or "")[:10],
+            # Whose chart that conversation was about. Without this a chat
+            # about a partner is indistinguishable from one about themselves,
+            # and the two bleed into each other.
+            "about": row["person"] or "themselves",
         })
         if len(summaries) >= limit:
             break
