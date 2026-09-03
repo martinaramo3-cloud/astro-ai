@@ -40,7 +40,11 @@ TIERS: dict[str, TierConfig] = {
     },
     "premium": {
         "label": "Premium",
-        "model": "claude-fable-5",
+        # Opus 5, not Fable 5: half the token price ($5/$25 vs $10/$50) for
+        # what is almost certainly indistinguishable quality on warm
+        # interpretive writing. Flip both this and MODELS["deep"] back to
+        # "claude-fable-5" to revert.
+        "model": "claude-opus-5",
         "daily_token_limit": None,
     },
 }
@@ -52,9 +56,9 @@ DEFAULT_TIER = "free"
 # Friendly model catalog. `key` is the stable id the frontend sends and stores;
 # `id` is the actual OpenAI model name.
 MODELS: dict[str, dict] = {
-    "fast":  {"key": "fast",  "id": "gpt-4.1-mini",   "label": "Fast",  "blurb": "Quick, everyday readings"},
-    "smart": {"key": "smart", "id": "claude-sonnet-5", "label": "Smart", "blurb": "Deeper, more nuanced readings"},
-    "deep":  {"key": "deep",  "id": "claude-fable-5", "label": "Deep",  "blurb": "The most thorough, insightful readings"},
+    "fast":  {"key": "fast",  "id": "gpt-4.1-mini",   "label": "Fast",  "blurb": "Quick, everyday chats"},
+    "smart": {"key": "smart", "id": "claude-sonnet-5", "label": "Smart", "blurb": "Deeper, more nuanced answers"},
+    "deep":  {"key": "deep",  "id": "claude-opus-5", "label": "Deep",  "blurb": "The most thorough, insightful answers"},
 }
 
 # Which model keys each tier may use (cheapest first).
