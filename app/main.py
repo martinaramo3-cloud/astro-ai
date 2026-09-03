@@ -92,6 +92,9 @@ from app.ai_service import (
 )
 from app.subscription_service import (
     check_usage,
+    check_model_allowance,
+    check_people_limit,
+    model_key_for_id,
     record_usage,
     get_usage_status,
     set_user_tier,
@@ -827,6 +830,8 @@ def ask_astrologer(
     tier_config = check_usage(user_id)
     tier = get_user_tier(user_id)
     model = resolve_model(tier, data.model)
+    # Stop here if this model's token budget is already spent for this tier.
+    check_model_allowance(user_id, tier, model_key_for_id(model))
     effort = resolve_effort(tier, data.effort)
 
     if data.birth_time_known is None:
@@ -1024,7 +1029,9 @@ def ask_compatibility(
 ):
     user_id = current_user["id"]
     tier_config = check_usage(user_id)
-    model = resolve_model(get_user_tier(user_id), data.model)
+    tier = get_user_tier(user_id)
+    model = resolve_model(tier, data.model)
+    check_model_allowance(user_id, tier, model_key_for_id(model))
 
     person_1_chart = build_natal_chart_data(data.person_1)
     person_2_chart = build_natal_chart_data(data.person_2)
@@ -1304,6 +1311,10 @@ def save_profile(
     data: SaveProfileRequest,
     current_user: dict = Depends(get_current_user),
 ):
+    # Free saves one person, standard three, premium unlimited.
+    existing = list_profiles_by_owner(current_user["id"])
+    check_people_limit(get_user_tier(current_user["id"]), len(existing))
+
     return create_profile(
         owner_user_id=current_user["id"],
         label=data.label,

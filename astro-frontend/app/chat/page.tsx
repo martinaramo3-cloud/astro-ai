@@ -40,6 +40,15 @@ type User = {
 
 type ModelOption = { key: string; label: string; blurb: string };
 
+type ModelLimit = {
+  limit_tokens: number;
+  used_tokens: number;
+  remaining_tokens: number;
+  fraction_used: number;
+  window: "month" | "lifetime";
+  resets_at?: string;
+};
+
 type UsageStatus = {
   tier: string;
   tier_label: string;
@@ -48,6 +57,7 @@ type UsageStatus = {
   daily_token_limit: number | null;
   tokens_used_today: number;
   tokens_remaining_today: number | null;
+  model_limits?: Record<string, ModelLimit>;
 };
 
 type SavedProfile = {
@@ -206,7 +216,7 @@ export default function ChatPage() {
     const keys = usage.available_models?.map((m) => m.key) ?? [];
     if (keys.length === 0) return;
     const saved = typeof window !== "undefined" ? window.localStorage.getItem("model") : null;
-    setSelectedModel(saved && keys.includes(saved) ? saved : keys[keys.length - 1]);
+    setSelectedModel(saved && keys.includes(saved) ? saved : keys[0]);
   }, [usage]);
 
   const selectModel = (key: string) => {
@@ -1404,13 +1414,37 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {usage && (
-                <p className="micro-label" style={{ letterSpacing: "0.16em" }}>
-                  {usage.daily_token_limit
-                    ? `${(usage.tokens_remaining_today ?? 0).toLocaleString()} tokens left today`
-                    : `${usage.tier_label} · unlimited`}
-                </p>
-              )}
+              {usage && (() => {
+                const lim = selectedModel ? usage.model_limits?.[selectedModel] : undefined;
+                const label =
+                  usage.available_models?.find((m) => m.key === selectedModel)?.label ??
+                  selectedModel ?? "";
+                if (!lim) {
+                  // Unmetered for this tier + model (Fast, or a paid plan).
+                  return (
+                    <p className="micro-label" style={{ letterSpacing: "0.16em", color: "var(--ink-3)" }}>
+                      {label} · unlimited
+                    </p>
+                  );
+                }
+                const spent = lim.remaining_tokens <= 0;
+                const left = lim.remaining_tokens.toLocaleString();
+                const line = spent
+                  ? lim.window === "lifetime"
+                    ? `${label} welcome used`
+                    : `${label} used up this month`
+                  : lim.window === "lifetime"
+                  ? `${left} ${label} welcome tokens left`
+                  : `${left} ${label} tokens left this month`;
+                return (
+                  <p
+                    className="micro-label"
+                    style={{ letterSpacing: "0.16em", color: spent ? "var(--gold-deep)" : "var(--ink-3)" }}
+                  >
+                    {line}
+                  </p>
+                );
+              })()}
             </div>
           </div>
         </div>

@@ -25,18 +25,20 @@ class TierConfig(TypedDict):
 
 
 TIERS: dict[str, TierConfig] = {
-    # Each question now carries the chart, its structure, transits, the
-    # ephemeris timeline and sky events — roughly 5k tokens in. The limits
-    # below are sized so a tier means "about N questions", not "four".
+    # `daily_token_limit` is the old blunt cap and is now None everywhere —
+    # limits are per model and counted in messages, in ALLOWANCES below, which
+    # is both what people understand and what lets Fast stay unlimited while
+    # Smart and Deep are metered. `model` is only the fallback when a request
+    # names no model.
     "free": {
         "label": "Free",
         "model": "gpt-4.1-mini",
-        "daily_token_limit": 120_000,
+        "daily_token_limit": None,
     },
     "standard": {
         "label": "Standard",
         "model": "claude-sonnet-5",
-        "daily_token_limit": 600_000,
+        "daily_token_limit": None,
     },
     "premium": {
         "label": "Premium",
@@ -49,8 +51,49 @@ TIERS: dict[str, TierConfig] = {
     },
 }
 
+# How many TOKENS of each model a tier may spend, and over what window. Tokens,
+# not messages, because a message is not a fixed size — a long synastry message
+# costs several times a short solo one, so a token budget tracks real cost.
+# Fast is unlimited for everyone, so it is never listed. A model absent from a
+# tier's entry is unlimited for that tier. Only free is metered today; the paid
+# tiers stay open until there is real usage data and a checkout to upgrade into.
+#   window "month"    — resets on the 1st of each month
+#   window "lifetime" — never resets (a one-time welcome, like free's Deep)
+# Sizing, from real usage: a solo Smart message is ~4,000 tokens in+out, so
+# 50,000 is about a dozen Smart messages; Deep messages run larger, so 20,000
+# is a real first Deep conversation to feel it once.
+ALLOWANCES: dict[str, dict[str, dict]] = {
+    "free": {
+        "smart": {"limit": 50_000, "window": "month"},
+        "deep":  {"limit": 20_000, "window": "lifetime"},
+    },
+}
+
 VALID_TIERS = set(TIERS.keys())
 DEFAULT_TIER = "free"
+
+# How many other people a tier may save for synastry. None = unlimited. Free
+# gets exactly one — enough to taste compatibility on a single person (the
+# crush, the ex) and want more. Costs nothing to store; this is pure upsell.
+PEOPLE_LIMITS: dict[str, int | None] = {
+    "free": 1,
+    "standard": 3,
+    "premium": None,
+}
+
+
+def check_people_limit(tier: str | None, current_count: int) -> None:
+    """Refuse a new saved person once the tier's allowance is full."""
+    limit = PEOPLE_LIMITS.get(tier or DEFAULT_TIER, 1)
+    if limit is not None and current_count >= limit:
+        one = limit == 1
+        raise HTTPException(
+            status_code=402,
+            detail=(
+                f"Your plan lets you save {limit} {'person' if one else 'people'} "
+                "for compatibility. Upgrade to add more — subscriptions coming soon."
+            ),
+        )
 
 
 # Friendly model catalog. `key` is the stable id the frontend sends and stores;
@@ -61,10 +104,13 @@ MODELS: dict[str, dict] = {
     "deep":  {"key": "deep",  "id": "claude-opus-5", "label": "Deep",  "blurb": "The most thorough, insightful answers"},
 }
 
-# Which model keys each tier may use (cheapest first).
+# Which model keys each tier may pick (cheapest first). Everyone can now pick
+# all three — free can taste Smart and Deep — and how much they may actually use
+# is governed by ALLOWANCES above, not by hiding the model. Cheapest first, so
+# a tier's fallback model is the cheapest one it can reach.
 TIER_MODELS: dict[str, list[str]] = {
-    "free":     ["fast"],
-    "standard": ["fast", "smart"],
+    "free":     ["fast", "smart", "deep"],
+    "standard": ["fast", "smart", "deep"],
     "premium":  ["fast", "smart", "deep"],
 }
 
@@ -93,9 +139,12 @@ def resolve_effort(tier: str | None, requested: str | None) -> str | None:
     """
     if requested not in VALID_EFFORTS:
         return None
-    allowed = TIER_MODELS.get(tier or DEFAULT_TIER, TIER_MODELS[DEFAULT_TIER])
-    has_thinking_model = any(MODELS[k]["id"].startswith("claude-") for k in allowed)
-    return requested if has_thinking_model else None
+    # Effort is a paid lever now that free can *taste* the thinking models —
+    # honouring high effort on a free message would let it cost several times a
+    # normal one, and the free taste is meant to be predictable, not deep.
+    if (tier or DEFAULT_TIER) == "free":
+        return None
+    return requested
 
 
 def resolve_model(tier: str | None, requested_key: str | None) -> str:
@@ -108,6 +157,99 @@ def resolve_model(tier: str | None, requested_key: str | None) -> str:
     if requested_key in allowed:
         return MODELS[requested_key]["id"]
     return get_tier_config(tier)["model"]
+
+
+def model_key_for_id(model_id: str) -> str:
+    """Map a raw model id back to its friendly key (fast/smart/deep)."""
+    for key, meta in MODELS.items():
+        if meta["id"] == model_id:
+            return key
+    return "fast"
+
+
+def _next_month_start() -> datetime:
+    now = datetime.now(timezone.utc)
+    year, month = (now.year + 1, 1) if now.month == 12 else (now.year, now.month + 1)
+    return datetime(year, month, 1, tzinfo=timezone.utc)
+
+
+def _human_until(when: datetime) -> str:
+    """A rough 'in 3 days' / 'in 5 hours', for the 'resets in…' message."""
+    delta = when - datetime.now(timezone.utc)
+    hours = max(0, int(delta.total_seconds() // 3600))
+    if hours >= 48:
+        return f"in {hours // 24} days"
+    if hours >= 1:
+        return f"in {hours} hours"
+    return "soon"
+
+
+def check_model_allowance(user_id: int | None, tier: str | None, model_key: str) -> None:
+    """Stop a metered model once its allowance is spent. Fast is never metered.
+
+    Counts how many of this model the user has already sent inside the window,
+    from the usage log, and refuses the next one with a message that says when
+    it comes back. The refusal is a 402, not a 429: this is 'you need to
+    upgrade', not 'the server is busy'.
+    """
+    from app.usage_log_service import sum_user_model_tokens, month_start_iso
+
+    if user_id is None:
+        return
+    allowance = ALLOWANCES.get(tier or DEFAULT_TIER, {}).get(model_key)
+    if not allowance:
+        return  # unlimited for this tier + model
+
+    window = allowance["window"]
+    since = month_start_iso() if window == "month" else None
+    used = sum_user_model_tokens(user_id, model_key, since)
+    # Only block a *new* message once already over — never a message already in
+    # flight. Someone at 49k who sends one more finishes it; the next is blocked.
+    if used < allowance["limit"]:
+        return
+
+    label = MODELS.get(model_key, {}).get("label", model_key)
+    if window == "lifetime":
+        detail = (
+            f"You've used your welcome {label} messages. "
+            f"{label} is part of a paid plan — subscriptions are coming soon. "
+            "Fast is always free and unlimited."
+        )
+    else:
+        detail = (
+            f"You've used your free {label} for this month (resets "
+            f"{_human_until(_next_month_start())}). Fast is always free and unlimited, "
+            "or upgrade for more."
+        )
+    raise HTTPException(status_code=402, detail=detail)
+
+
+def model_limits_for(user_id: int | None, tier: str | None) -> dict:
+    """Per-model token budget and how much is left, for the app to show.
+
+    The raw token numbers are here for the app to render however it likes —
+    a bar, a percentage, or a quiet 'running low' — since a bare token count
+    means nothing to a person.
+    """
+    from app.usage_log_service import sum_user_model_tokens, month_start_iso
+
+    out: dict[str, dict] = {}
+    for model_key, allowance in ALLOWANCES.get(tier or DEFAULT_TIER, {}).items():
+        window = allowance["window"]
+        since = month_start_iso() if window == "month" else None
+        used = sum_user_model_tokens(user_id, model_key, since) if user_id else 0
+        limit = allowance["limit"]
+        entry = {
+            "limit_tokens": limit,
+            "used_tokens": used,
+            "remaining_tokens": max(0, limit - used),
+            "fraction_used": round(min(1.0, used / limit), 3) if limit else 1.0,
+            "window": window,
+        }
+        if window == "month":
+            entry["resets_at"] = _next_month_start().isoformat()
+        out[model_key] = entry
+    return out
 
 
 def _today_iso() -> str:
@@ -144,6 +286,7 @@ def get_usage_status(user_id: int | None) -> dict:
             "daily_token_limit": config["daily_token_limit"],
             "tokens_used_today": 0,
             "tokens_remaining_today": config["daily_token_limit"],
+            "model_limits": model_limits_for(None, DEFAULT_TIER),
         }
 
     conn = get_db_connection()
@@ -165,6 +308,7 @@ def get_usage_status(user_id: int | None) -> dict:
             "daily_token_limit": config["daily_token_limit"],
             "tokens_used_today": 0,
             "tokens_remaining_today": config["daily_token_limit"],
+            "model_limits": model_limits_for(None, DEFAULT_TIER),
         }
 
     tier = row["subscription_tier"] if row["subscription_tier"] in VALID_TIERS else DEFAULT_TIER
@@ -181,6 +325,9 @@ def get_usage_status(user_id: int | None) -> dict:
         "daily_token_limit": limit,
         "tokens_used_today": tokens_used,
         "tokens_remaining_today": remaining,
+        # Per-model message allowances, so the picker can show "7 of 10 left"
+        # and Deep can show its remaining welcome messages.
+        "model_limits": model_limits_for(user_id, tier),
     }
 
 

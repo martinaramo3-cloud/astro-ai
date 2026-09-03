@@ -67,9 +67,31 @@ def log_usage(user_id: int | None, model_id: str, tokens_in: int, tokens_out: in
         print("usage log failed:", repr(exc))
 
 
-def _month_start_iso() -> str:
+def month_start_iso() -> str:
     now = datetime.now(timezone.utc)
     return now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+
+# Kept for internal callers that used the private name.
+_month_start_iso = month_start_iso
+
+
+def sum_user_model_tokens(user_id: int, model_key: str, since_iso: str | None = None) -> int:
+    """Total tokens this user has spent on this model — this month, or ever.
+
+    Input and output added together, since the free-tier budget is a plain
+    token count. `since_iso` None means all time (a lifetime allowance, like the
+    Deep welcome); a month-start means the current calendar month.
+    """
+    conn = get_db_connection()
+    base = "SELECT COALESCE(SUM(tokens_in + tokens_out), 0) FROM usage_events " \
+           "WHERE user_id = ? AND model_key = ?"
+    if since_iso is None:
+        row = conn.execute(base, (user_id, model_key)).fetchone()
+    else:
+        row = conn.execute(base + " AND created_at >= ?", (user_id, model_key, since_iso)).fetchone()
+    conn.close()
+    return int(row[0] if row else 0)
 
 
 def usage_summary() -> dict:
