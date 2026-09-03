@@ -35,6 +35,7 @@ type User = {
   birth_time: string;
   birth_place: string;
   birth_time_known?: boolean;
+  email_verified?: boolean;
   subscription_tier?: string;
 };
 
@@ -70,6 +71,7 @@ type SavedProfile = {
   birth_time: string;
   birth_place: string;
   birth_time_known?: boolean;
+  email_verified?: boolean;
 };
 
 type Message = {
@@ -549,6 +551,27 @@ export default function ChatPage() {
     setProfiles((prev) => prev.map((p) => (p.id === next.id ? next : p)));
     setSelectedProfile((prev) => (prev?.id === next.id ? next : prev));
     setEditing(null);
+  };
+
+  // A quiet nudge for unverified emails — never blocks anything, just offers
+  // to resend and can be dismissed for the session.
+  const [verifyDismissed, setVerifyDismissed] = useState(false);
+  const [verifyMsg, setVerifyMsg] = useState("");
+  const resendVerification = async () => {
+    setVerifyMsg("Sending…");
+    try {
+      const res = await apiFetch("/resend-verification", { method: "POST" });
+      const data = await res.json();
+      setVerifyMsg(
+        res.ok
+          ? data.email_configured === false
+            ? "Email isn't switched on yet — ask the Zodi team."
+            : "Sent — check your inbox."
+          : "Couldn't send just now.",
+      );
+    } catch {
+      setVerifyMsg("Couldn't reach the server.");
+    }
   };
 
   const deleteProfile = (profile: SavedProfile) =>
@@ -1035,6 +1058,38 @@ export default function ChatPage() {
         {/* Transcript */}
         <div className="flex-1 overflow-y-auto">
           <div className="mx-auto w-full max-w-[800px] px-[18px] py-6 lg:px-[30px]">
+            {user?.email_verified === false && !verifyDismissed && (
+              <div
+                className="mb-4 flex flex-wrap items-center justify-between gap-2"
+                style={{
+                  background: "var(--sunk)",
+                  border: "1px solid var(--line-2)",
+                  borderRadius: 14,
+                  padding: "11px 14px",
+                }}
+              >
+                <span className="font-reading" style={{ fontSize: 14, color: "var(--ink-2)" }}>
+                  {verifyMsg || "Confirm your email so you never get locked out."}
+                </span>
+                <span className="flex items-center gap-3">
+                  <button
+                    onClick={resendVerification}
+                    className="micro-label"
+                    style={{ letterSpacing: "0.14em", color: "var(--gold-deep)" }}
+                  >
+                    Resend
+                  </button>
+                  <button
+                    onClick={() => setVerifyDismissed(true)}
+                    aria-label="Dismiss"
+                    style={{ fontSize: 15, color: "var(--ink-3)" }}
+                  >
+                    ✕
+                  </button>
+                </span>
+              </div>
+            )}
+
             <CosmicAlert onAsk={(question) => sendMessage(question)} />
 
             {isFresh && (

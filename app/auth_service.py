@@ -41,8 +41,8 @@ def create_account(name: str, email: str, password: str, birth_date: str, birth_
     hashed_password = hash_password(password)
 
     cursor.execute("""
-        INSERT INTO users (name, email, hashed_password, birth_date, birth_time, birth_place, birth_time_known)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO users (name, email, hashed_password, birth_date, birth_time, birth_place, birth_time_known, email_verified)
+        VALUES (?, ?, ?, ?, ?, ?, ?, 0)
     """, (name, email, hashed_password, birth_date, birth_time, birth_place, 1 if birth_time_known else 0))
 
     conn.commit()
@@ -51,7 +51,7 @@ def create_account(name: str, email: str, password: str, birth_date: str, birth_
 
     cursor.execute(
         "SELECT id, name, email, birth_date, birth_time, birth_place, "
-        "birth_time_known, subscription_tier FROM users WHERE id = ?",
+        "birth_time_known, subscription_tier, email_verified FROM users WHERE id = ?",
         (user_id,),
     )
     user = cursor.fetchone()
@@ -88,4 +88,21 @@ def login_user(email: str, password: str):
         # Rising sign this account never supplied a time for.
         "birth_time_known": bool(user.get("birth_time_known", 1)),
         "subscription_tier": user.get("subscription_tier", "free"),
+        "email_verified": bool(user.get("email_verified", 1)),
     }
+
+def set_password(user_id: int, new_password: str) -> bool:
+    """Replace a user's password with a fresh hash. Returns False if no such user."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT id FROM users WHERE id = ?", (user_id,))
+    if not cursor.fetchone():
+        conn.close()
+        return False
+    cursor.execute(
+        "UPDATE users SET hashed_password = ? WHERE id = ?",
+        (hash_password(new_password), user_id),
+    )
+    conn.commit()
+    conn.close()
+    return True

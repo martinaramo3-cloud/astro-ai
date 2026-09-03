@@ -545,6 +545,16 @@ export default function Home() {
                   : "Create account"}
           </button>
 
+          {!isSignup && !loading && (
+            <a
+              href="/forgot-password"
+              className="mt-3 block text-center micro-label"
+              style={{ letterSpacing: "0.16em", color: "var(--ink-3)", textDecoration: "none" }}
+            >
+              Forgot your password?
+            </a>
+          )}
+
           {isSignup && signupStep === 2 && !loading && (
             <button
               onClick={() => { setMessage(""); setSignupStep(1); }}

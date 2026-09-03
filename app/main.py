@@ -1,6 +1,6 @@
 import os
 from fastapi.middleware.cors import CORSMiddleware
-from app.auth_service import create_account, login_user
+from app.auth_service import create_account, login_user, set_password
 from app.user_service import get_user_by_id, update_user
 from app.profile_service import (
     create_profile,
@@ -30,6 +30,13 @@ from app.attachment_service import (
 )
 from app.image_reading_service import read_images
 from app.usage_log_service import usage_summary
+from app.email_service import (
+    send_password_reset,
+    send_verification,
+    email_configured,
+    frontend_base,
+)
+from app.auth_token_service import issue_token, consume_token, PURPOSE_RESET, PURPOSE_VERIFY
 from app.sky_view_service import build_sky_view
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
@@ -41,6 +48,7 @@ from app.chart_analysis_service import build_chart_analysis
 from app.session_service import (
     create_session,
     delete_session,
+    delete_all_sessions_for_user,
     get_user_id_for_token,
     purge_expired_sessions,
 )
@@ -282,6 +290,7 @@ class AuthUserResponse(BaseModel):
     birth_place: str
     birth_time_known: bool = True
     subscription_tier: str = "free"
+    email_verified: bool = True
     token: str
 
 class UserResponse(BaseModel):
@@ -292,6 +301,7 @@ class UserResponse(BaseModel):
     birth_place: str
     birth_time_known: bool = True
     subscription_tier: str = "free"
+    email_verified: bool = True
 
 
 class TierUpdateRequest(BaseModel):
@@ -336,7 +346,7 @@ class ChartSummaryRequest(BaseModel):
 
 PUBLIC_USER_FIELDS = (
     "id", "name", "email", "birth_date", "birth_time", "birth_place",
-    "birth_time_known", "subscription_tier",
+    "birth_time_known", "subscription_tier", "email_verified",
 )
 
 
@@ -1142,7 +1152,97 @@ def signup(data: SignupRequest):
     if not user:
         raise HTTPException(status_code=400, detail="Email already exists")
 
+    # New accounts start unverified and are sent a confirmation link. This is
+    # soft — they can use Zodi right away; the email just confirms we can reach
+    # them, which is what makes a password reset trustworthy later.
+    _send_verification_email(user["id"], user["email"], user["name"])
+
     return {**user, "token": create_session(user["id"])}
+
+
+def _send_verification_email(user_id: int, email: str, name: str) -> None:
+    token = issue_token(user_id, PURPOSE_VERIFY)
+    link = f"{frontend_base()}/verify-email?token={token}"
+    send_verification(email, name, link)
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    password: str
+
+
+class TokenOnlyRequest(BaseModel):
+    token: str
+
+
+@app.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest):
+    """Email a reset link — but never reveal whether the address has an account.
+
+    The response is identical whether or not the email is registered, so this
+    can't be used to discover who has a Zodi account.
+    """
+    user_id = find_user_id_by_email(data.email)
+    if user_id:
+        user = get_user_by_id(user_id)
+        token = issue_token(user_id, PURPOSE_RESET)
+        link = f"{frontend_base()}/reset-password?token={token}"
+        send_password_reset(data.email.strip(), (user or {}).get("name", ""), link)
+
+    return {
+        "message": "If that email has an account, a reset link is on its way.",
+        "email_configured": email_configured(),
+    }
+
+
+@app.post("/reset-password", response_model=AuthUserResponse)
+def reset_password(data: ResetPasswordRequest):
+    """Set a new password from a valid reset link, then sign in fresh."""
+    # Validate the new password BEFORE spending the token, so a weak choice
+    # doesn't burn the one-time link and strand the user.
+    check_password(data.password)
+
+    user_id = consume_token(data.token, PURPOSE_RESET)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="This reset link is invalid or has expired.")
+
+    if not set_password(user_id, data.password):
+        raise HTTPException(status_code=404, detail="Account not found.")
+
+    # A reset means the account may have been compromised — cut every existing
+    # session so a stolen one can't outlive the old password.
+    delete_all_sessions_for_user(user_id)
+
+    user = get_user_by_id(user_id)
+    public = {key: user[key] for key in PUBLIC_USER_FIELDS if key in user}
+    return {**public, "token": create_session(user_id)}
+
+
+@app.post("/verify-email")
+def verify_email(data: TokenOnlyRequest):
+    """Mark an email confirmed from the link in the verification message."""
+    user_id = consume_token(data.token, PURPOSE_VERIFY)
+    if not user_id:
+        raise HTTPException(status_code=400, detail="This confirmation link is invalid or has expired.")
+
+    conn = get_db_connection()
+    conn.execute("UPDATE users SET email_verified = 1 WHERE id = ?", (user_id,))
+    conn.commit()
+    conn.close()
+    return {"message": "Email confirmed. Thank you."}
+
+
+@app.post("/resend-verification")
+def resend_verification(current_user: dict = Depends(get_current_user)):
+    """Send the confirmation email again, for someone who lost the first."""
+    if current_user.get("email_verified"):
+        return {"message": "Your email is already confirmed."}
+    _send_verification_email(current_user["id"], current_user["email"], current_user["name"])
+    return {"message": "Confirmation email sent.", "email_configured": email_configured()}
 
 
 @app.post("/login", response_model=AuthUserResponse)

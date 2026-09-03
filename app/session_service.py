@@ -78,3 +78,12 @@ def purge_expired_sessions() -> None:
     )
     conn.commit()
     conn.close()
+
+
+def delete_all_sessions_for_user(user_id: int) -> None:
+    """Sign a user out everywhere. Used after a password reset, so a stolen
+    session can't outlive the password it was created under."""
+    conn = get_db_connection()
+    conn.execute("DELETE FROM sessions WHERE user_id = ?", (user_id,))
+    conn.commit()
+    conn.close()

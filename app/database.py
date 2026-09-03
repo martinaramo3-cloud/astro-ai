@@ -29,6 +29,10 @@ def _ensure_user_columns(cursor):
         # to know to leave those out rather than invent them. Existing rows
         # default to 1: they were required to supply a time.
         "birth_time_known": "ALTER TABLE users ADD COLUMN birth_time_known INTEGER NOT NULL DEFAULT 1",
+        # 1 once the person has clicked the link in their verification email.
+        # Existing accounts default to 1 — they predate verification and
+        # shouldn't be retroactively told to verify.
+        "email_verified": "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1",
     })
 
 
@@ -91,6 +95,26 @@ def init_db():
     """)
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_sessions_user ON sessions(user_id)"
+    )
+
+    # Single-use links sent by email: a password reset or an email
+    # verification. Only the hash of each token is stored, so a leaked database
+    # can't be used to reset anyone's password. `purpose` keeps the two kinds
+    # apart so a verification link can't be replayed as a reset.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS auth_tokens (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        purpose TEXT NOT NULL,
+        token_hash TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        used_at TEXT,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_auth_tokens_hash ON auth_tokens(token_hash)"
     )
 
     # One row per AI call. This is how spend is tracked per user and per model
