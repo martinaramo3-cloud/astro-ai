@@ -165,6 +165,7 @@ export default function ChatPage() {
     run: () => Promise<void> | void;
   } | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const lastReplyRef = useRef<HTMLDivElement | null>(null);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Images picked for the next message. They upload as soon as they're chosen,
@@ -183,10 +184,6 @@ export default function ChatPage() {
       window.location.href = "/";
     }
   }, [user]);
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
 
   useEffect(() => {
     const loadData = async () => {
@@ -655,6 +652,22 @@ export default function ChatPage() {
   );
   const isFresh = conversation.length === 0;
 
+  useEffect(() => {
+    // Where to land depends on what just arrived. After your own message (and
+    // while Zodi is thinking) the bottom is right — that's where the action is.
+    // But a long reply is taller than the screen, so scrolling to the bottom
+    // drops you at its last line with the whole answer above you, and you have
+    // to scroll up to find the beginning. Put its FIRST line at the top
+    // instead, so it reads like a page rather than something you arrive at the
+    // end of.
+    const last = conversation[conversation.length - 1];
+    if (!loading && last?.role === "assistant" && lastReplyRef.current) {
+      lastReplyRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      return;
+    }
+    endRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [conversation, loading]);
+
   return (
     <div className="flex h-screen overflow-hidden" style={{ background: "var(--sky)" }}>
       {/* Backdrop for the mobile drawer */}
@@ -1119,8 +1132,12 @@ export default function ChatPage() {
                 return (
                   <div
                     key={index}
+                    ref={index === conversation.length - 1 ? lastReplyRef : undefined}
                     className="zo-msg"
                     style={{
+                      // A reply scrolled to the top of the screen needs room
+                      // beneath it, or a short one sits stranded mid-page.
+                      scrollMarginTop: 18,
                       animationDelay: `${delay}ms`,
                       paddingTop: index === 0 ? 0 : 22,
                       borderTop: index === 0 ? "none" : "1px solid var(--line)",
