@@ -170,6 +170,7 @@ export default function ChatPage() {
   } | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const lastReplyRef = useRef<HTMLDivElement | null>(null);
+  const positionedFor = useRef(-1);
   const fileRef = useRef<HTMLInputElement | null>(null);
 
   // Images picked for the next message. They upload as soon as they're chosen,
@@ -450,8 +451,84 @@ export default function ChatPage() {
     // timeout does not mean nothing happened — it means the answer is still
     // being written, and paid for. Retrying it silently multiplied the cost of
     // every slow reading. If it fails, say so and let them ask again.
+    // Read the answer as it is written. Same total wait, but it starts being
+    // readable at the first words instead of the last, which is most of what
+    // "faster" actually feels like. Person chats still use the blocking call.
+    const streamAnswer = async (): Promise<boolean> => {
+      const response = await apiFetch("/ask-astrologer/stream", {
+        method: "POST",
+        body: JSON.stringify(body),
+      });
+
+      // Anything refusable — the tier gate, a spent token budget — is decided
+      // before the stream opens and arrives as an ordinary error.
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        setMessages([
+          ...nextHistory,
+          { role: "assistant" as const, content: errorMessage(data, "The astrologer service returned an error.") },
+        ]);
+        return true;
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let text = "";
+      let streamError = "";
+
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        // SSE frames are separated by a blank line; a partial one waits.
+        const frames = buffer.split("\n\n");
+        buffer = frames.pop() ?? "";
+
+        for (const frame of frames) {
+          const name = /^event: (.+)$/m.exec(frame)?.[1];
+          const raw = /^data: (.+)$/m.exec(frame)?.[1];
+          if (!raw) continue;
+          let payload: { text?: string; detail?: string };
+          try { payload = JSON.parse(raw); } catch { continue; }
+
+          if (name === "delta" && payload.text) {
+            text += payload.text;
+            setMessages([...nextHistory, { role: "assistant" as const, content: text }]);
+          } else if (name === "error") {
+            streamError = payload.detail ?? "Something went wrong.";
+          }
+        }
+      }
+
+      // A stream that died halfway keeps what it managed to say; the note is
+      // appended rather than replacing it.
+      const finalText = streamError
+        ? (text ? `${text}\n\n(${streamError})` : streamError)
+        : text;
+      if (!finalText) return false;   // nothing arrived — let the caller retry unstreamed
+
+      const finalMessages = [...nextHistory, { role: "assistant" as const, content: finalText }];
+      setMessages(finalMessages);
+      await persistSession(finalMessages);
+      refreshUsage();
+      return true;
+    };
+
     const attemptFetch = async (): Promise<void> => {
       try {
+        // Only the solo chat streams so far.
+        if (!selectedProfile) {
+          try {
+            if (await streamAnswer()) return;
+          } catch (e) {
+            // Streaming unavailable (an old build, a proxy that buffers) —
+            // quietly use the endpoint that has always worked.
+            console.warn("Streaming unavailable, falling back", e);
+          }
+        }
+
         const response = await apiFetch(endpoint, {
           method: "POST",
           body: JSON.stringify(body),
@@ -682,9 +759,16 @@ export default function ChatPage() {
     // to scroll up to find the beginning. Put its FIRST line at the top
     // instead, so it reads like a page rather than something you arrive at the
     // end of.
-    const last = conversation[conversation.length - 1];
-    if (!loading && last?.role === "assistant" && lastReplyRef.current) {
-      lastReplyRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    const lastIndex = conversation.length - 1;
+    const last = conversation[lastIndex];
+    if (last?.role === "assistant" && lastReplyRef.current) {
+      // Position once, when the reply first appears, and then stop. While an
+      // answer streams in it grows every few milliseconds, and re-scrolling on
+      // each chunk would drag the page out from under someone mid-sentence.
+      if (positionedFor.current !== lastIndex) {
+        positionedFor.current = lastIndex;
+        lastReplyRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
       return;
     }
     endRef.current?.scrollIntoView({ behavior: "smooth" });

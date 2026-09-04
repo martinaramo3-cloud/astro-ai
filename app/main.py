@@ -1,3 +1,4 @@
+import json
 import os
 from fastapi.middleware.cors import CORSMiddleware
 from app.auth_service import create_account, login_user, set_password
@@ -61,7 +62,7 @@ from app.question_router import (
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 
 from app.astrology_engine import (
@@ -93,6 +94,7 @@ from app.ai_context_service import (
     build_ask_compatibility_prompt,
 )
 from app.ai_service import (
+    stream_astrologer_answer,
     generate_chart_summary,
     generate_astrologer_answer,
     generate_compatibility_reading,
@@ -830,11 +832,15 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
     }
 
 
-@app.post("/ask-astrologer")
-def ask_astrologer(
+def _prepare_astrologer_call(
     data: AstrologyQuestionRequest,
-    current_user: dict = Depends(get_current_user),
-):
+    current_user: dict,
+) -> dict:
+    """Everything that happens before the model is asked anything.
+
+    Shared by the blocking endpoint and the streaming one, so the two can
+    never drift apart: same tier gate, same chart, same context.
+    """
     # Usage and tier follow the token, so nobody can bill another account.
     user_id = current_user["id"]
     tier_config = check_usage(user_id)
@@ -943,25 +949,116 @@ def ask_astrologer(
     if image_context:
         chat_context["attached_image"] = image_context
 
+    return {
+        "user_id": user_id,
+        "tier_config": tier_config,
+        "model": model,
+        "effort": effort,
+        "images": images_for_model or None,
+        "image_tokens": image_tokens,
+        "question_type": question_type,
+        "chat_context": chat_context,
+    }
+
+
+@app.post("/ask-astrologer")
+def ask_astrologer(
+    data: AstrologyQuestionRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    prep = _prepare_astrologer_call(data, current_user)
+
     answer, tokens = generate_astrologer_answer(
-        build_ask_astrologer_user(chat_context),
-        model=model,
+        build_ask_astrologer_user(prep["chat_context"]),
+        model=prep["model"],
         system=build_ask_astrologer_system(),
-        effort=effort,
-        images=images_for_model or None,
-        user_id=user_id,
+        effort=prep["effort"],
+        images=prep["images"],
+        user_id=prep["user_id"],
     )
     # The inspection pass is billed too — it is a real call on the user's behalf.
-    record_usage(user_id, tokens + image_tokens)
+    record_usage(prep["user_id"], tokens + prep["image_tokens"])
 
     return {
         "message": "Astrologer answer generated",
         "question": data.question,
-        "question_type": question_type,
-        "context": chat_context,
+        "question_type": prep["question_type"],
+        "context": prep["chat_context"],
         "answer": answer,
-        "tier": tier_config["label"],
+        "tier": prep["tier_config"]["label"],
     }
+@app.post("/ask-astrologer/stream")
+def ask_astrologer_stream(
+    data: AstrologyQuestionRequest,
+    current_user: dict = Depends(get_current_user),
+):
+    """The same answer as /ask-astrologer, sent as it is written.
+
+    Everything that can refuse the request — the tier gate, the token budget —
+    runs here, before the response begins, so those still come back as ordinary
+    HTTP errors. Once the stream has opened the status is already sent, so a
+    later failure has to travel as an event instead.
+    """
+    prep = _prepare_astrologer_call(data, current_user)
+    prompt = build_ask_astrologer_user(prep["chat_context"])
+
+    def event(name: str, payload: dict) -> str:
+        return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+
+    def events():
+        usage: dict = {}
+        try:
+            if prep["images"]:
+                # A picture is read and answered in one go: the interesting part
+                # is the reading, and it doesn't stream usefully. Sent down the
+                # same channel so the client keeps one code path.
+                answer, tokens = generate_astrologer_answer(
+                    prompt,
+                    model=prep["model"],
+                    system=build_ask_astrologer_system(),
+                    effort=prep["effort"],
+                    images=prep["images"],
+                    user_id=prep["user_id"],
+                )
+                record_usage(prep["user_id"], tokens + prep["image_tokens"])
+                yield event("delta", {"text": answer})
+            else:
+                for piece in stream_astrologer_answer(
+                    prompt,
+                    model=prep["model"],
+                    system=build_ask_astrologer_system(),
+                    effort=prep["effort"],
+                    user_id=prep["user_id"],
+                    usage_out=usage,
+                ):
+                    yield event("delta", {"text": piece})
+                # Metered after the fact, from what the stream actually reported.
+                record_usage(prep["user_id"], usage.get("total", 0) + prep["image_tokens"])
+
+            yield event("done", {
+                "question_type": prep["question_type"],
+                "tier": prep["tier_config"]["label"],
+            })
+        except HTTPException as exc:
+            yield event("error", {"detail": exc.detail})
+        except Exception as exc:  # noqa: BLE001
+            print("Streaming answer failed:", repr(exc))
+            yield event("error", {
+                "detail": "The astrologer is temporarily unavailable. Please try again in a moment.",
+            })
+
+    return StreamingResponse(
+        events(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            # Render sits behind a proxy that will otherwise buffer the whole
+            # response and hand it over at the end, undoing the point of this.
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
 @app.post("/compatibility")
 def get_compatibility(data: CompatibilityRequest):
     person_1_chart = build_natal_chart_data(data.person_1)

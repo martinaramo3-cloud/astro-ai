@@ -106,6 +106,29 @@ def _anthropic_usage(usage) -> dict:
     return {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
 
 
+def _anthropic_request(content, model: str, system: str | None, effort: str | None) -> dict:
+    """The request body, built once so streaming and non-streaming can't drift."""
+    request = {
+        "model": model,
+        "max_tokens": ANTHROPIC_MAX_TOKENS,
+        "messages": [{"role": "user", "content": content}],
+        "output_config": {
+            "effort": effort or EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)
+        },
+    }
+    if system:
+        # Cached as a stable prefix: the standing instructions are identical on
+        # every call, so repeat questions in a session only pay for the chart data.
+        request["system"] = [
+            {
+                "type": "text",
+                "text": system,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+    return request
+
+
 def _anthropic_response(
     user_prompt: str,
     model: str,
@@ -133,24 +156,7 @@ def _anthropic_response(
     else:
         content = user_prompt
 
-    request = {
-        "model": model,
-        "max_tokens": ANTHROPIC_MAX_TOKENS,
-        "messages": [{"role": "user", "content": content}],
-        "output_config": {
-            "effort": effort or EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)
-        },
-    }
-    if system:
-        # Cached as a stable prefix: the standing instructions are identical on
-        # every call, so repeat questions in a session only pay for the chart data.
-        request["system"] = [
-            {
-                "type": "text",
-                "text": system,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ]
+    request = _anthropic_request(content, model=model, system=system, effort=effort)
 
     # Thinking is intentionally not configured: it is on by default on these
     # models, and passing an explicit configuration is rejected.
@@ -330,3 +336,106 @@ def generate_compatibility_answer(
     # repetitive next to answers about the person themselves.
     return _create_response(prompt, model=model, max_output_tokens=550, system=system,
                             user_id=user_id)
+
+
+# ── Streaming ──────────────────────────────────────────────────────────────
+# The answer arrives as it is written rather than in one blob at the end. The
+# total wait is the same; what changes is that reading starts at the first word
+# instead of the last, which is most of what "fast" feels like.
+
+
+def _stream_anthropic(content, model: str, system: str | None, effort: str | None, usage_out: dict):
+    """Yield text as Claude writes it; record what it cost in `usage_out`."""
+    client = _get_anthropic_client()
+    request = _anthropic_request(content, model=model, system=system, effort=effort)
+
+    def run(with_fallbacks: bool):
+        extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if with_fallbacks else {}
+        with client.beta.messages.stream(**extra, **request) as stream:
+            for text in stream.text_stream:
+                yield text
+            message = stream.get_final_message()
+            if message.stop_reason == "refusal":
+                raise HTTPException(
+                    status_code=502,
+                    detail="The astrologer couldn't take that one on. Try rephrasing it.",
+                )
+            usage_out.update(_anthropic_usage(message.usage))
+
+    # Generators are lazy, so nothing has reached the caller until the first
+    # chunk is pulled. That makes it safe to retry without fallbacks here — an
+    # account that doesn't have them fails at the opening request, before a
+    # single word has been shown to anyone.
+    stream = run(True)
+    try:
+        first = next(stream)
+    except StopIteration:
+        return
+    except HTTPException:
+        raise
+    except Exception as exc:
+        if "fallback" not in str(exc).lower():
+            raise
+        print("Anthropic fallbacks unavailable, streaming without:", repr(exc))
+        stream = run(False)
+        try:
+            first = next(stream)
+        except StopIteration:
+            return
+
+    yield first
+    yield from stream
+
+
+def _stream_openai(prompt: str, model: str, max_output_tokens: int, usage_out: dict):
+    """The same, for the Responses API."""
+    events = _get_openai_client().responses.create(
+        model=model,
+        input=prompt,
+        max_output_tokens=max_output_tokens,
+        stream=True,
+    )
+    for event in events:
+        kind = getattr(event, "type", "")
+        if kind == "response.output_text.delta":
+            yield event.delta
+        elif kind == "response.completed":
+            u = getattr(event.response, "usage", None)
+            tin = (getattr(u, "input_tokens", 0) or 0) if u else 0
+            tout = (getattr(u, "output_tokens", 0) or 0) if u else 0
+            usage_out.update({"tokens_in": tin, "tokens_out": tout, "total": tin + tout})
+
+
+def stream_astrologer_answer(
+    prompt: str,
+    model: str = DEFAULT_MODEL,
+    system: str | None = None,
+    effort: str | None = None,
+    user_id: int | None = None,
+    usage_out: dict | None = None,
+):
+    """Yield an answer in pieces, then log its cost exactly as the blocking path does.
+
+    Spend is still recorded through `log_usage`, so a streamed answer counts
+    against a tier's token budget the same as any other.
+    """
+    usage: dict = usage_out if usage_out is not None else {}
+    try:
+        if _is_anthropic(model):
+            yield from _stream_anthropic(prompt, model, system, effort, usage)
+        else:
+            # The Responses API takes one string, so the standing instructions
+            # ride at the front, exactly as in the non-streaming path.
+            joined = f"{system}\n\n{prompt}" if system else prompt
+            yield from _stream_openai(joined, model, 550, usage)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        cause = getattr(exc, "__cause__", None)
+        print("AI stream error:", repr(exc), "| cause:", repr(cause))
+        raise
+    finally:
+        # Whatever happened, bill for what was actually generated. A reader who
+        # closes the tab mid-answer still cost real tokens.
+        if usage:
+            log_usage(user_id, model, usage.get("tokens_in", 0), usage.get("tokens_out", 0))
