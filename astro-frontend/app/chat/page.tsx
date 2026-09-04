@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
@@ -124,6 +124,10 @@ export default function ChatPage() {
 
   const [profiles, setProfiles] = useState<SavedProfile[]>([]);
   const [sessions, setSessions] = useState<ChatSession[]>([]);
+  // True only once a load has genuinely failed twice. An empty sidebar and a
+  // failed request look identical to the eye, and the wrong one of those reads
+  // as "my conversations have been deleted".
+  const [loadFailed, setLoadFailed] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<number | null>(null);
   const [selectedProfile, setSelectedProfile] = useState<SavedProfile | null>(null);
   const [showAddProfile, setShowAddProfile] = useState(false);
@@ -185,29 +189,47 @@ export default function ChatPage() {
     }
   }, [user]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      if (!user) return;
-
-      try {
-        const [profilesRes, sessionsRes, usageRes] = await Promise.all([
-          apiFetch(`/profiles/${user.id}`),
-          apiFetch(`/chat-sessions/${user.id}`),
-          apiFetch(`/subscription/usage/${user.id}`),
-        ]);
-        const profilesData = await profilesRes.json();
-        const sessionsData = await sessionsRes.json();
-        const usageData = await usageRes.json();
-        if (profilesRes.ok) setProfiles(profilesData);
-        if (sessionsRes.ok) setSessions(sessionsData);
-        if (usageRes.ok) setUsage(usageData);
-      } catch (e) {
-        console.error("Failed to load chat data", e);
-      }
-    };
-
-    loadData();
+  const loadData = useCallback(async (): Promise<boolean> => {
+    if (!user) return true;
+    try {
+      const [profilesRes, sessionsRes, usageRes] = await Promise.all([
+        apiFetch(`/profiles/${user.id}`),
+        apiFetch(`/chat-sessions/${user.id}`),
+        apiFetch(`/subscription/usage/${user.id}`),
+      ]);
+      const profilesData = await profilesRes.json();
+      const sessionsData = await sessionsRes.json();
+      const usageData = await usageRes.json();
+      if (profilesRes.ok) setProfiles(profilesData);
+      if (sessionsRes.ok) setSessions(sessionsData);
+      if (usageRes.ok) setUsage(usageData);
+      return sessionsRes.ok;
+    } catch (e) {
+      console.error("Failed to load chat data", e);
+      return false;
+    }
   }, [user]);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+
+    (async () => {
+      setLoadFailed(false);
+      if (await loadData()) return;
+
+      // One dropped request should never look like data loss. A redeploy or a
+      // cold start can kill a single call, so wait for the server to come back
+      // and try again before saying anything — and if it still fails, say so
+      // plainly rather than rendering an empty list.
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+      if (cancelled) return;
+      const ok = await loadData();
+      if (!ok && !cancelled) setLoadFailed(true);
+    })();
+
+    return () => { cancelled = true; };
+  }, [user, loadData]);
 
   // Pick the active model once usage (and its available models) loads.
   useEffect(() => {
@@ -758,6 +780,23 @@ export default function ChatPage() {
         </a>
 
         {/* Conversations */}
+        {loadFailed && (
+          <div className="mt-6">
+            <p className="micro-label">Conversations</p>
+            <p className="font-reading mt-2" style={{ fontSize: 13, lineHeight: 1.55, color: "var(--ink-3)" }}>
+              Couldn&rsquo;t reach the server just now. Your conversations are
+              safe &mdash; they&rsquo;re saved to your account, not this device.
+            </p>
+            <button
+              onClick={async () => { setLoadFailed(false); if (!(await loadData())) setLoadFailed(true); }}
+              className="micro-label mt-2"
+              style={{ letterSpacing: "0.14em", color: "var(--gold-deep)" }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
         {sessions.length > 0 && (
           <div className="mt-6">
             <p className="micro-label">Conversations</p>
