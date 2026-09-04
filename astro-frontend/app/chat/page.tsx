@@ -460,16 +460,13 @@ export default function ChatPage() {
         body: JSON.stringify(body),
       });
 
-      // Anything refusable — the tier gate, a spent token budget — is decided
-      // before the stream opens and arrives as an ordinary error.
-      if (!response.ok || !response.body) {
-        const data = await response.json().catch(() => ({}));
-        setMessages([
-          ...nextHistory,
-          { role: "assistant" as const, content: errorMessage(data, "The astrologer service returned an error.") },
-        ]);
-        return true;
-      }
+      // If the stream can't start for ANY reason, hand back to the endpoint
+      // that has worked for months rather than showing the raw failure. This
+      // matters on every deploy: the frontend ships in seconds and the API
+      // takes minutes, so there is always a window where this route 404s or
+      // the server is mid-restart and 502s. The blocking call reports real
+      // errors — a spent token budget included — perfectly well on its own.
+      if (!response.ok || !response.body) return false;
 
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
