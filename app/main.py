@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 from fastapi.middleware.cors import CORSMiddleware
@@ -420,6 +421,12 @@ def health_check():
         "database_path": db_path,
         "database_persistent": persistent,
         "registered_users": user_count,
+        # A fingerprint of the live astrologer prompt. The service answers
+        # /health from the old build until a deploy actually swaps over, so
+        # "the API is up" never meant "my prompt change is live". This does.
+        "prompt_fingerprint": hashlib.sha256(
+            build_ask_astrologer_system().encode("utf-8")
+        ).hexdigest()[:12],
         "configured": {
             "openai_key": is_set("OPENAI_API_KEY"),
             "anthropic_key": is_set("ANTHROPIC_API_KEY"),
