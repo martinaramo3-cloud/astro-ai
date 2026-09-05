@@ -593,3 +593,53 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
     transition-duration: 0.001ms !important;
   }
 }
+
+/* ── Glossary terms ────────────────────────────────────────────────────────
+   An astrology word you can tap. Marked with weight and a faint underline
+   rather than a colour, so a paragraph with six of them still reads as prose
+   and not as a page of links. */
+.zo-term {
+  font: inherit;
+  font-weight: 600;
+  color: inherit;
+  background: none;
+  border: 0;
+  padding: 0;
+  cursor: help;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-decoration-color: var(--gold);
+  text-underline-offset: 3px;
+  transition: color 0.15s ease;
+}
+.zo-term:hover { color: var(--gold-deep); }
+
+.zo-term-card {
+  position: fixed;
+  z-index: 60;
+  width: min(310px, calc(100vw - 24px));
+  padding: 14px 16px;
+  border-radius: 14px;
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  box-shadow: var(--shadow);
+  animation: zo-term-in 0.14s ease-out;
+}
+@keyframes zo-term-in {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.zo-term-title {
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--gold-deep);
+  margin-bottom: 6px;
+}
+.zo-term-body {
+  font-family: var(--font-eb-garamond), Georgia, serif;
+  font-size: 14.5px;
+  line-height: 1.6;
+  color: var(--ink-2);
+}

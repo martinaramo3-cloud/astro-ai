@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
+import GlossaryText from "../../components/GlossaryText";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
 import BirthDetailsEditor from "../../components/BirthDetailsEditor";
 import AttachedImages from "../../components/AttachedImages";
@@ -1297,7 +1298,7 @@ export default function ChatPage() {
                           className="font-reading body-pretty whitespace-pre-wrap"
                           style={{ fontSize: 18, lineHeight: 1.85, maxWidth: "62ch" }}
                         >
-                          {message.content}
+                          <GlossaryText text={message.content} />
                         </p>
                       </div>
                     )}
