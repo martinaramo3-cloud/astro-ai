@@ -599,6 +599,13 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
    rather than a colour, so a paragraph with six of them still reads as prose
    and not as a page of links. */
 .zo-term {
+  /* A button is inline-block by default, which makes every line containing one
+     taller than the lines around it — in a 1.85 line-height paragraph that
+     reads as broken spacing. Inline makes it flow as ordinary text. */
+  display: inline;
+  vertical-align: baseline;
+  white-space: inherit;
+  line-height: inherit;
   font: inherit;
   font-weight: 600;
   color: inherit;
