@@ -56,6 +56,7 @@ from app.session_service import (
 )
 from app.question_router import (
     classify_question,
+    classify_tier,
     predictive_topic_for,
     filter_chart_context_by_question_type,
     get_focus_planets,
@@ -84,6 +85,7 @@ from app.transit_service import (
 )
 from app.predictive_adapter_service import run_predictive_engine
 from app.ai_context_service import (
+    TIER_DIRECTIVE,
     build_ai_chart_context,
     build_summary_prompt,
     build_weekly_horoscope_prompt,
@@ -425,7 +427,7 @@ def health_check():
         # /health from the old build until a deploy actually swaps over, so
         # "the API is up" never meant "my prompt change is live". This does.
         "prompt_fingerprint": hashlib.sha256(
-            build_ask_astrologer_system().encode("utf-8")
+            (build_ask_astrologer_system() + repr(sorted(TIER_DIRECTIVE.items()))).encode("utf-8")
         ).hexdigest()[:12],
         "configured": {
             "openai_key": is_set("OPENAI_API_KEY"),
@@ -839,6 +841,11 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
     }
 
 
+# Generous enough that a correct answer is never cut off, tight enough that a
+# wandering one cannot become a paragraph.
+ANSWER_CEILING = {1: 90, 2: 130, 3: 110, 4: 550}
+
+
 def _prepare_astrologer_call(
     data: AstrologyQuestionRequest,
     current_user: dict,
@@ -956,8 +963,29 @@ def _prepare_astrologer_call(
     if image_context:
         chat_context["attached_image"] = image_context
 
+    # How much answer does this deserve? Decided from the question and the
+    # thread, before the prompt is assembled — because the honest way to get a
+    # one-line reply is to stop shipping three thousand tokens of chart with it.
+    tier = classify_tier(data.question, chat_context["history"])
+    if tier < 4 and not image_context:
+        sky = chat_context.get("sky_now") or {}
+        chat_context = {
+            "question": chat_context["question"],
+            "history": chat_context["history"],
+            "birth_time_known": chat_context["birth_time_known"],
+            # Enough sky to say something true in one clause, and no more.
+            "personal_planets": chat_context.get("personal_planets"),
+            "sky_now": {
+                "moon": sky.get("moon"),
+                "retrograde_now": sky.get("retrograde_now"),
+                "notable_event": sky.get("notable_event"),
+            },
+        }
+    chat_context["answer_tier"] = tier
+
     return {
         "user_id": user_id,
+        "tier": tier,
         "tier_config": tier_config,
         "model": model,
         "effort": effort,
@@ -982,6 +1010,7 @@ def ask_astrologer(
         effort=prep["effort"],
         images=prep["images"],
         user_id=prep["user_id"],
+        max_output_tokens=ANSWER_CEILING.get(prep["tier"]),
     )
     # The inspection pass is billed too — it is a real call on the user's behalf.
     record_usage(prep["user_id"], tokens + prep["image_tokens"])

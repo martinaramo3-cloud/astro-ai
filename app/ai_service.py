@@ -288,13 +288,15 @@ def generate_astrologer_answer(
     effort: str | None = None,
     images: list[dict] | None = None,
     user_id: int | None = None,
+    max_output_tokens: int | None = None,
 ) -> tuple[str, int]:
     # A little more room when there's a picture: reading a screenshot back and
-    # then answering takes more words than answering alone.
+    # then answering takes more words than answering alone. A caller may pass a
+    # tighter ceiling when the question only warrants a line.
     return _create_response(
         prompt,
         model=model,
-        max_output_tokens=750 if images else 550,
+        max_output_tokens=max_output_tokens or (750 if images else 550),
         system=system,
         effort=effort,
         images=images,

@@ -297,6 +297,32 @@ Prose always — no headers, no bold. A Tier 4 answer runs in short paragraphs; 
 """.strip()
 
 
+TIER_DIRECTIVE = {
+    1: (
+        "ANSWER AS TIER 1. One line. Warm, a little knowing. No planets unless "
+        "it fits in a single clause. Do not ask what they want to talk about at "
+        "length, do not list what you can do, do not read their chart."
+    ),
+    2: (
+        "ANSWER AS TIER 2. The verdict lands inside the first three words, then "
+        "one short reason. Two sentences at the absolute most, one is better. "
+        "No paragraph about self-expression, no mind-reading, no chart tour."
+    ),
+    3: (
+        "ANSWER AS TIER 3. They are mid-thread and already have your answer. "
+        "One line, matching the rhythm of the exchange. Do not reset to full "
+        "depth and do not re-explain what you already said."
+    ),
+    4: (
+        "ANSWER AS TIER 4. Three to four short paragraphs, never more: a verdict "
+        "on its own short line; then the thing they are actually feeling "
+        "underneath what they typed, stated as fact; then one transit that "
+        "explains the feeling rather than the future; then a direction, not a "
+        "summary."
+    ),
+}
+
+
 def build_ask_astrologer_user(chat_context: dict) -> str:
     """The per-request half: conversation history plus this person's chart data.
 
@@ -313,6 +339,8 @@ def build_ask_astrologer_user(chat_context: dict) -> str:
 
 Context:
 {context_json}
+
+{TIER_DIRECTIVE.get(chat_context.get("answer_tier", 4), TIER_DIRECTIVE[4])}
 """.strip()
 
 
