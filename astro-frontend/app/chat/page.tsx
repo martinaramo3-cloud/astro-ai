@@ -1407,6 +1407,9 @@ export default function ChatPage() {
             )}
 
             <div
+              // Tagged so a glossary card knows where the readable area ends —
+              // this bar sits over the bottom of the screen on a phone.
+              data-composer
               className="flex items-center gap-2"
               style={{
                 background: "var(--surface)",

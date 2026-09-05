@@ -55,7 +55,9 @@ function segment(text: string): Piece[] {
 }
 
 export default function GlossaryText({ text }: { text: string }) {
-  const [open, setOpen] = useState<{ entry: GlossaryEntry; x: number; y: number } | null>(null);
+  const [open, setOpen] = useState<
+    { entry: GlossaryEntry; x: number; y: number; height: number } | null
+  >(null);
   const cardRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
@@ -74,20 +76,41 @@ export default function GlossaryText({ text }: { text: string }) {
     };
   }, [open]);
 
-  // Keep the card on screen on a narrow phone.
+  // On a phone the card sits above the composer as a panel, rather than
+  // floating next to the word. Chasing a popover around a fixed bar at the
+  // bottom of a small screen produces exactly the clipped, half-visible box
+  // this is meant to avoid; a panel is always fully readable.
   useLayoutEffect(() => {
     const el = cardRef.current;
     if (!el || !open) return;
-    const r = el.getBoundingClientRect();
+    el.style.transform = "";
+
+    if (window.innerWidth < 640) {
+      const composer = document.querySelector("[data-composer]") as HTMLElement | null;
+      const floor = composer ? window.innerHeight - composer.getBoundingClientRect().top : 96;
+      el.style.left = "12px";
+      el.style.right = "12px";
+      el.style.width = "auto";
+      el.style.top = "auto";
+      el.style.bottom = `${floor + 12}px`;
+      return;
+    }
+
+    // Roomier screens keep the popover beside the word.
+    el.style.right = "auto";
+    el.style.bottom = "auto";
+    el.style.left = `${open.x}px`;
+    el.style.top = `${open.y + 10}px`;
+
     const margin = 12;
+    const r = el.getBoundingClientRect();
     let dx = 0;
     if (r.right > window.innerWidth - margin) dx = window.innerWidth - margin - r.right;
     if (r.left + dx < margin) dx = margin - r.left;
     if (dx) el.style.transform = `translateX(${dx}px)`;
-    // Flip above the word when there is no room below.
+
     if (r.bottom > window.innerHeight - margin) {
-      el.style.top = "auto";
-      el.style.bottom = `${window.innerHeight - open.y + 26}px`;
+      el.style.top = `${Math.max(margin, open.y - open.height - 10 - r.height)}px`;
     }
   }, [open]);
 
@@ -97,23 +120,34 @@ export default function GlossaryText({ text }: { text: string }) {
     <>
       {pieces.map((piece, i) =>
         piece.entry ? (
-          <button
+          // A span, not a button: Chrome forces a <button> to inline-block
+          // whatever the stylesheet says, and an inline-block inside running
+          // text can't share the line box of the words around it. A span flows
+          // as text, so the role and key handling are supplied by hand.
+          <span
             key={i}
-            type="button"
+            role="button"
+            tabIndex={0}
             className="zo-term"
             aria-label={`What ${piece.entry.title} means`}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                (e.currentTarget as HTMLElement).click();
+              }
+            }}
             onClick={(e) => {
               e.stopPropagation();
               const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
               setOpen(
                 open?.entry.title === piece.entry!.title
                   ? null
-                  : { entry: piece.entry!, x: r.left, y: r.bottom },
+                  : { entry: piece.entry!, x: r.left, y: r.bottom, height: r.height },
               );
             }}
           >
             {piece.text}
-          </button>
+          </span>
         ) : (
           <span key={i}>{piece.text}</span>
         ),
@@ -125,7 +159,6 @@ export default function GlossaryText({ text }: { text: string }) {
           className="zo-term-card"
           role="dialog"
           aria-label={open.entry.title}
-          style={{ left: open.x, top: open.y + 10 }}
           onClick={(e) => e.stopPropagation()}
         >
           <p className="zo-term-title">{open.entry.title}</p>
