@@ -354,7 +354,7 @@ export default function Home() {
                   name="name"
                   value={form.name}
                   onChange={handleChange}
-                  placeholder="Martina"
+                  placeholder="First name"
                   className="auth-field"
                 />
               </label>
