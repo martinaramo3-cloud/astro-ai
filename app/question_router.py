@@ -175,8 +175,8 @@ _HEAVY = (
 )
 
 
-def classify_tier(question: str, history: list | None = None) -> int:
-    """Pick the size of answer this question deserves.
+def classify_tier(question: str, history: list | None = None) -> int | None:
+    """The tier when it can be known for certain, else None.
 
     Stakes decide, never length: "should we go out tonight?" is a whole
     sentence and still small; "i think i met the love of my life last night"
@@ -211,6 +211,7 @@ def classify_tier(question: str, history: list | None = None) -> int:
     if any(term in q for term in _LOW_STAKES):
         return TIER_QUICK
 
-    # Ambiguous goes shorter: a brief answer invites another question, a long
-    # one ends the conversation.
-    return TIER_QUICK if len(words) <= 8 else TIER_REAL
+    # Everything else is genuinely ambiguous. Guessing it from length is what
+    # made real questions come back bland — "is he thinking about me" is five
+    # words and matters enormously. None means "ask something that can judge".
+    return None

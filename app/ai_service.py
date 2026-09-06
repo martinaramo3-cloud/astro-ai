@@ -441,3 +441,50 @@ def stream_astrologer_answer(
         # closes the tab mid-answer still cost real tokens.
         if usage:
             log_usage(user_id, model, usage.get("tokens_in", 0), usage.get("tokens_out", 0))
+
+
+# ── How much does this question weigh? ─────────────────────────────────────
+# Keyword matching gets the obvious cases right and the interesting ones wrong:
+# "is he thinking about me" contains nothing alarming and deserves a real
+# answer. So the genuinely ambiguous middle is put to a cheap model. It costs
+# about two hundredths of a cent and takes a few hundred milliseconds against a
+# call that takes seconds.
+
+TIER_CLASSIFIER_MODEL = "gpt-4.1-mini"
+
+_TIER_PROMPT = """Decide how much weight a question carries in an astrology chat.
+
+Answer with one digit and nothing else.
+
+2 = a small, practical decision, or light curiosity. An outfit, a purchase,
+whether to go out, what to eat, a passing "what's my sign like". It wants a
+quick verdict, not a paragraph.
+
+4 = something that actually matters to them. Love, an ex, whether someone
+means it, jealousy, work fear, feeling stuck or lost, their direction in life,
+"what's going on with me", anything they are clearly turning over. Also
+anything asking about another person's feelings or intentions.
+
+When it could plausibly be either, answer 4. A too-short answer to a real
+question is worse than a long answer to a small one.
+
+Recent conversation:
+{recent}
+
+The question: {question}"""
+
+
+def classify_answer_tier(question: str, recent: str = "") -> int | None:
+    """Return 2 or 4, or None if the call fails and the caller should decide."""
+    try:
+        text, _ = _openai_response(
+            _TIER_PROMPT.format(question=question.strip()[:400], recent=recent[:600] or "(none)"),
+            model=TIER_CLASSIFIER_MODEL,
+            max_output_tokens=4,
+            system=None,
+        )
+        digit = next((c for c in text if c in "1234"), None)
+        return int(digit) if digit else None
+    except Exception as exc:  # noqa: BLE001 — never block an answer over this
+        print("Tier classification failed:", repr(exc))
+        return None

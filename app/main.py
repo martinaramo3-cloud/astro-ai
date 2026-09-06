@@ -97,6 +97,7 @@ from app.ai_context_service import (
     build_ask_compatibility_prompt,
 )
 from app.ai_service import (
+    classify_answer_tier,
     stream_astrologer_answer,
     generate_chart_summary,
     generate_astrologer_answer,
@@ -429,6 +430,8 @@ def health_check():
         "prompt_fingerprint": hashlib.sha256(
             (build_ask_astrologer_system() + repr(sorted(TIER_DIRECTIVE.items()))).encode("utf-8")
         ).hexdigest()[:12],
+        # Says which build is answering, so "did my change ship" is one request.
+        "tier_routing": "model-assisted",
         "configured": {
             "openai_key": is_set("OPENAI_API_KEY"),
             "anthropic_key": is_set("ANTHROPIC_API_KEY"),
@@ -967,18 +970,30 @@ def _prepare_astrologer_call(
     # thread, before the prompt is assembled — because the honest way to get a
     # one-line reply is to stop shipping three thousand tokens of chart with it.
     tier = classify_tier(data.question, chat_context["history"])
+    if tier is None:
+        # Greetings and mid-thread follow-ups are certain from the text alone.
+        # Everything else is put to a cheap model, because guessing weight from
+        # length is what made real questions come back bland.
+        recent = "\n".join(
+            f"{m['role']}: {m['content'][:200]}" for m in chat_context["history"][-3:-1]
+        )
+        tier = classify_answer_tier(data.question, recent) or 4
     if tier < 4 and not image_context:
         sky = chat_context.get("sky_now") or {}
         chat_context = {
             "question": chat_context["question"],
             "history": chat_context["history"],
             "birth_time_known": chat_context["birth_time_known"],
-            # Enough sky to say something true in one clause, and no more.
             "personal_planets": chat_context.get("personal_planets"),
+            # A short answer still has to be about something. Without a live
+            # transit there is nothing true and particular to say, and "the Moon
+            # is in Gemini" on its own is what bland sounds like.
+            "active_transits": (chat_context.get("active_transits") or [])[:3],
             "sky_now": {
                 "moon": sky.get("moon"),
                 "retrograde_now": sky.get("retrograde_now"),
                 "notable_event": sky.get("notable_event"),
+                "transits_through_houses": (sky.get("transits_through_houses") or [])[:3],
             },
         }
     chat_context["answer_tier"] = tier
@@ -1019,6 +1034,7 @@ def ask_astrologer(
         "message": "Astrologer answer generated",
         "question": data.question,
         "question_type": prep["question_type"],
+        "answer_tier": prep["tier"],
         "context": prep["chat_context"],
         "answer": answer,
         "tier": prep["tier_config"]["label"],
