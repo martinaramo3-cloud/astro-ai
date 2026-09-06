@@ -12,6 +12,7 @@ import ZodiMark from "../../components/ZodiMark";
 import Wordmark from "../../components/Wordmark";
 import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
 import { useSpeechInput } from "../../components/useSpeechInput";
+import { useSpeechOutput } from "../../components/useSpeechOutput";
 
 const SIGN_GLYPH: Record<string, string> = {
   Aries: "♈︎", Taurus: "♉︎", Gemini: "♊︎", Cancer: "♋︎", Leo: "♌︎", Virgo: "♍︎",
@@ -186,6 +187,11 @@ export default function ChatPage() {
     error: micError,
     toggle: toggleMic,
   } = useSpeechInput((text) => setInput((prev) => (prev ? `${prev} ${text}` : text)));
+
+  // Read an answer aloud on request. Never automatically: iOS only lets audio
+  // begin from a real tap, and an answer that starts talking by itself in a
+  // quiet room is a way to lose someone.
+  const { supported: canSpeak, speakingId, speak: speakAnswer } = useSpeechOutput();
 
   useEffect(() => {
     if (user === null) {
@@ -1295,6 +1301,17 @@ export default function ChatPage() {
                           >
                             Zodi
                           </span>
+                          {canSpeak && (
+                            <button
+                              onClick={() => speakAnswer(index, message.content)}
+                              aria-label={speakingId === index ? "Stop reading" : "Read this aloud"}
+                              title={speakingId === index ? "Stop" : "Read aloud"}
+                              className="zo-speak"
+                              style={{ color: speakingId === index ? "var(--gold-deep)" : "var(--ink-3)" }}
+                            >
+                              {speakingId === index ? "◼" : "▷"}
+                            </button>
+                          )}
                         </div>
                         <p
                           className="font-reading body-pretty whitespace-pre-wrap"
