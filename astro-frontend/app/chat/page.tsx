@@ -181,9 +181,11 @@ export default function ChatPage() {
   const [uploadError, setUploadError] = useState("");
 
   // Dictation appends to whatever is already typed.
-  const { supported: micSupported, listening, toggle: toggleMic } = useSpeechInput(
-    (text) => setInput((prev) => (prev ? `${prev} ${text}` : text)),
-  );
+  const {
+    listening,
+    error: micError,
+    toggle: toggleMic,
+  } = useSpeechInput((text) => setInput((prev) => (prev ? `${prev} ${text}` : text)));
 
   useEffect(() => {
     if (user === null) {
@@ -1406,6 +1408,15 @@ export default function ChatPage() {
               </div>
             )}
 
+            {micError && (
+              <p
+                className="font-reading mb-2"
+                style={{ fontSize: 13, lineHeight: 1.5, color: "var(--gold-deep)" }}
+              >
+                {micError}
+              </p>
+            )}
+
             <div
               // Tagged so a glossary card knows where the readable area ends —
               // this bar sits over the bottom of the screen on a phone.
@@ -1469,7 +1480,7 @@ export default function ChatPage() {
               >
                 {"\uD83D\uDCCE\uFE0E"}
               </button>
-              {micSupported && (
+              {(
                 <button
                   onClick={toggleMic}
                   aria-label={listening ? "Stop dictating" : "Dictate your question"}
