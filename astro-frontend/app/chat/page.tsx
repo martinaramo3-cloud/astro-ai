@@ -779,22 +779,10 @@ export default function ChatPage() {
           ✦ View my chart
         </button>
 
-        <a
-          href="/sky"
-          className="mt-2 block w-full text-left"
-          style={{
-            background: "transparent",
-            border: "1px solid var(--line-2)",
-            borderRadius: 16,
-            padding: "12px 16px",
-            fontSize: 14,
-            fontWeight: 300,
-            color: "var(--ink-2)",
-            textDecoration: "none",
-          }}
-        >
-          ☾ The sky I was born under
-        </a>
+        {/* Parked, not deleted. The sky view lives on in app/_sky — a leading
+            underscore keeps Next from routing to it — along with SkyView.tsx
+            and the /sky-at-birth and /sky-now endpoints. To bring it back:
+            git mv app/_sky app/sky, and restore this link. */}
 
         {/* Conversations */}
         {loadFailed && (
