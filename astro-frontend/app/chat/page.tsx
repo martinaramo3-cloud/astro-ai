@@ -13,6 +13,7 @@ import Wordmark from "../../components/Wordmark";
 import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
 import { useSpeechInput } from "../../components/useSpeechInput";
 import { useSpeechOutput } from "../../components/useSpeechOutput";
+import { shareAnswer } from "../../lib/shareCard";
 
 const SIGN_GLYPH: Record<string, string> = {
   Aries: "♈︎", Taurus: "♉︎", Gemini: "♊︎", Cancer: "♋︎", Leo: "♌︎", Virgo: "♍︎",
@@ -192,6 +193,25 @@ export default function ChatPage() {
   // begin from a real tap, and an answer that starts talking by itself in a
   // quiet room is a way to lose someone.
   const { supported: canSpeak, speakingId, speak: speakAnswer } = useSpeechOutput();
+
+  // Sharing an answer as an image rather than as text: people put these on
+  // Stories, and a screenshot carries the app's chrome and none of the brand.
+  const [sharingId, setSharingId] = useState<number | null>(null);
+  const [shareNote, setShareNote] = useState("");
+
+  const shareThisAnswer = async (index: number, text: string) => {
+    // The question it answered, which is the message just above it.
+    const asked = [...conversation.slice(0, index)].reverse()
+      .find((m) => m.role === "user")?.content ?? "";
+    setSharingId(index);
+    setShareNote("");
+    try {
+      setShareNote(await shareAnswer(asked, text, night));
+    } catch {
+      setShareNote("Couldn't share that just now.");
+    }
+    setSharingId(null);
+  };
 
   useEffect(() => {
     if (user === null) {
@@ -1367,7 +1387,22 @@ export default function ChatPage() {
                               {speakingId === index ? "◼" : "▷"}
                             </button>
                           )}
+                          <button
+                            onClick={() => shareThisAnswer(index, message.content)}
+                            disabled={sharingId === index}
+                            aria-label="Share this answer as an image"
+                            title="Share"
+                            className="zo-speak"
+                            style={{ color: "var(--ink-3)", opacity: sharingId === index ? 0.5 : 1 }}
+                          >
+                            {sharingId === index ? "…" : "↗"}
+                          </button>
                         </div>
+                        {shareNote && sharingId === null && (
+                          <p className="font-reading mb-1" style={{ fontSize: 12.5, color: "var(--ink-3)" }}>
+                            {shareNote}
+                          </p>
+                        )}
                         <p
                           className="font-reading body-pretty whitespace-pre-wrap"
                           style={{ fontSize: 18, lineHeight: 1.85, maxWidth: "62ch" }}
