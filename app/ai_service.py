@@ -480,7 +480,7 @@ def classify_answer_tier(question: str, recent: str = "") -> int | None:
         text, _ = _openai_response(
             _TIER_PROMPT.format(question=question.strip()[:400], recent=recent[:600] or "(none)"),
             model=TIER_CLASSIFIER_MODEL,
-            max_output_tokens=4,
+            max_output_tokens=16,
             system=None,
         )
         digit = next((c for c in text if c in "1234"), None)
@@ -488,3 +488,51 @@ def classify_answer_tier(question: str, recent: str = "") -> int | None:
     except Exception as exc:  # noqa: BLE001 — never block an answer over this
         print("Tier classification failed:", repr(exc))
         return None
+
+
+_DATE_PROMPT = """Today is {today}.
+
+If the question asks about a specific day, month or period, answer with the
+single date that best represents it, as YYYY-MM-DD. For a month or a season,
+answer with a day in the middle of it. For "next week", answer with a day about
+a week from today.
+
+If the question is about how things are right now, or names no time at all,
+answer NONE.
+
+Answer with the date or with NONE, and nothing else.
+
+Question: {question}"""
+
+
+def extract_asked_date(question: str) -> str | None:
+    """The date a question is about, or None for "right now".
+
+    Everything was anchored to today with eight weeks of look-ahead, so a
+    question about October could only be answered by inference. If the question
+    names a time, the sky for it can simply be calculated.
+    """
+    from datetime import date
+
+    try:
+        text, _ = _openai_response(
+            _DATE_PROMPT.format(today=date.today().isoformat(), question=question.strip()[:400]),
+            model=TIER_CLASSIFIER_MODEL,
+            max_output_tokens=16,
+            system=None,
+        )
+    except Exception as exc:  # noqa: BLE001 — never block an answer over this
+        print("Date extraction failed:", repr(exc))
+        return None
+
+    import re
+    match = re.search(r"\d{4}-\d{2}-\d{2}", text or "")
+    if not match:
+        return None
+
+    # Guard against a hallucinated century: this is for reading a chart, not
+    # for archaeology.
+    year = int(match.group(0)[:4])
+    if not (date.today().year - 5 <= year <= date.today().year + 5):
+        return None
+    return match.group(0)

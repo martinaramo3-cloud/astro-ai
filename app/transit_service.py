@@ -19,8 +19,14 @@ def angle_difference(deg1: float, deg2: float) -> float:
     return min(diff, 360 - diff)
 
 
-def get_current_transit_positions():
-    now_utc = datetime.now(pytz.utc)
+def get_current_transit_positions(when=None):
+    """Where the planets are — today by default, or on any date asked for.
+
+    Anchoring everything to `now` meant "what about the 30th of October" could
+    only ever be answered by inference. The sky for that day is a calculation,
+    not a guess, so it should be one.
+    """
+    now_utc = when or datetime.now(pytz.utc)
     return get_planet_positions_from_utc(now_utc)
 
 
@@ -295,3 +301,32 @@ def build_relationship_timing(
             )
         ],
     }
+
+
+def annotate_house_rulership(transits: list, natal_houses: list, natal_planets: list) -> list:
+    """Say which houses the natal planet being hit actually rules.
+
+    An aspect says what is being touched and the house says where the transit
+    is happening, but neither says what the touched planet is *responsible*
+    for. "Saturn is squaring your Venus" is vague; "squaring your Venus, which
+    rules your 10th" is a statement about your career. The predictive engine
+    already worked this out internally and the chat's transit list never
+    carried it.
+    """
+    if not natal_houses:
+        return transits
+
+    from app.content_repository import get_sign_rulers
+
+    sign_rulers = get_sign_rulers()
+    rules: dict[str, list[int]] = {}
+    for cusp in natal_houses:
+        owners = sign_rulers.get(cusp["sign"], [])
+        if owners:
+            rules.setdefault(owners[0], []).append(cusp["house"])
+
+    for transit in transits:
+        houses = rules.get(transit["natal_planet"])
+        if houses:
+            transit["natal_rules_houses"] = sorted(houses)
+    return transits

@@ -24,6 +24,7 @@ export type NatalChart = {
 const PLANET_GLYPH: Record<string, string> = {
   Sun: "☉︎", Moon: "☽︎", Mercury: "☿︎", Venus: "♀︎", Mars: "♂︎",
   Jupiter: "♃︎", Saturn: "♄︎", Uranus: "♅︎", Neptune: "♆︎", Pluto: "♇︎",
+  "North Node": "☊", "South Node": "☋", Chiron: "⚷",
 };
 const SIGN_GLYPH: Record<string, string> = {
   Aries: "♈︎", Taurus: "♉︎", Gemini: "♊︎", Cancer: "♋︎", Leo: "♌︎", Virgo: "♍︎",

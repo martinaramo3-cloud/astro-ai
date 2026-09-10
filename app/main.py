@@ -81,6 +81,7 @@ from app.location_service import get_location_data, describe_coordinates
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.transit_service import (
+    annotate_house_rulership,
     get_current_transit_positions,
     get_transit_aspects,
     get_transit_houses,
@@ -102,6 +103,7 @@ from app.ai_context_service import (
 )
 from app.ai_service import (
     classify_answer_tier,
+    extract_asked_date,
     stream_astrologer_answer,
     generate_chart_summary,
     generate_astrologer_answer,
@@ -511,12 +513,17 @@ def build_natal_chart_data(data: BirthData):
             location_data["longitude"]
         )
         ascendant = house_data["ascendant"]
+        midheaven = house_data["midheaven"]
+        angles = house_data["angles"]
         houses = house_data["houses"]
         planets = add_house_to_planets(planets, houses)
     else:
         # Houses and the Ascendant rotate a full circle each day, so without a
         # time they are not approximate — they are unknowable.
-        ascendant, houses = None, []
+        # The angles rotate a full circle each day, so without a birth time
+        # they are not approximate — they are unknowable, and a transit to one
+        # would be pure invention.
+        ascendant, midheaven, angles, houses = None, None, [], []
         for planet in planets:
             planet["house"] = None
 
@@ -528,6 +535,11 @@ def build_natal_chart_data(data: BirthData):
         "utc_birth_time": utc_dt.isoformat(),
         "birth_time_known": time_known,
         "ascendant": ascendant,
+        "midheaven": midheaven,
+        # Aspect targets in their own right: Saturn crossing the Midheaven is
+        # among the most strongly felt transits anyone has, and until now
+        # nothing could see it.
+        "angles": angles,
         "houses": houses,
         "planet_positions": planets,
         "aspects": aspects,
@@ -557,7 +569,7 @@ def get_transits(data: BirthData):
     transit_planets = get_current_transit_positions()
 
     active_transits = get_transit_aspects(
-        natal_planets=natal_data["planet_positions"],
+        natal_planets=natal_data["planet_positions"] + natal_data.get("angles", []),
         transit_planets=transit_planets
     )
 
@@ -602,7 +614,7 @@ def get_transit_ai_context(data: BirthData):
     transit_planets = get_current_transit_positions()
 
     active_transits = get_transit_aspects(
-        natal_planets=natal_data["planet_positions"],
+        natal_planets=natal_data["planet_positions"] + natal_data.get("angles", []),
         transit_planets=transit_planets
     )
 
@@ -635,7 +647,7 @@ def predictive_reading(data: PredictiveRequest):
 
     transit_planets = get_current_transit_positions()
     active_transits = get_transit_aspects(
-        natal_planets=natal_data["planet_positions"],
+        natal_planets=natal_data["planet_positions"] + natal_data.get("angles", []),
         transit_planets=transit_planets
     )
 
@@ -840,7 +852,13 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
     try:
         result = run_predictive_engine(
             natal_chart=natal_data,
-            transit_aspects=active_transits,
+            # The engine looks every natal point up among the planets, so a
+            # transit to the Ascendant or Midheaven is not something it can
+            # place. Those are read directly in the prompt instead.
+            transit_aspects=[
+                t for t in active_transits
+                if t["natal_planet"] not in ("Ascendant", "Midheaven")
+            ],
             requested_topic=predictive_topic_for(question_type),
         )
     except Exception as exc:  # noqa: BLE001 - a reading is better than an error
@@ -915,9 +933,13 @@ def _prepare_astrologer_call(
 
     transit_planets = get_current_transit_positions()
 
-    active_transits = get_transit_aspects(
-        natal_planets=natal_data["planet_positions"],
-        transit_planets=transit_planets
+    active_transits = annotate_house_rulership(
+        get_transit_aspects(
+            natal_planets=natal_data["planet_positions"] + natal_data.get("angles", []),
+            transit_planets=transit_planets,
+        ),
+        natal_data.get("houses", []),
+        natal_data["planet_positions"],
     )
 
     question_type = classify_question(data.question)
@@ -956,6 +978,10 @@ def _prepare_astrologer_call(
         # birth time would have given is null below, and the difference between
         # "unknown" and "absent" is the difference between honest and invented.
         "birth_time_known": natal_data["birth_time_known"],
+        # The top of the chart. Present whether or not anything is transiting
+        # it: for any question about work or reputation the Midheaven's sign is
+        # the starting point, not a detail that only matters when hit.
+        "midheaven": natal_data.get("midheaven"),
         **filtered_context,
         "upcoming_transits": build_upcoming_transit_timeline(
             natal_data["planet_positions"],
@@ -994,6 +1020,33 @@ def _prepare_astrologer_call(
 
     if image_context:
         chat_context["attached_image"] = image_context
+
+    # A question that names a time gets that time's sky rather than an
+    # extrapolation from this week's.
+    asked_date = extract_asked_date(data.question)
+    if asked_date:
+        try:
+            moment = datetime.fromisoformat(asked_date).replace(tzinfo=timezone.utc)
+            on_the_day = annotate_house_rulership(
+                get_transit_aspects(
+                    natal_planets=natal_data["planet_positions"] + natal_data.get("angles", []),
+                    transit_planets=get_current_transit_positions(moment),
+                    when=moment,
+                ),
+                natal_data.get("houses", []),
+                natal_data["planet_positions"],
+            )
+            chat_context["transits_on_asked_date"] = {
+                "date": asked_date,
+                "note": (
+                    "The sky calculated for the date this question asks about. "
+                    "These are real positions for that day — cite them as confidently "
+                    "as today's, and do not hedge about being unable to see that far."
+                ),
+                "transits": on_the_day[:8],
+            }
+        except Exception as exc:  # noqa: BLE001
+            print("Could not build transits for", asked_date, repr(exc))
 
     # How much answer does this deserve? Decided from the question and the
     # thread, before the prompt is assembled — because the honest way to get a

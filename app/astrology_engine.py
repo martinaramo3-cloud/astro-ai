@@ -17,7 +17,18 @@ PLANETS = {
     "Uranus": swe.URANUS,
     "Neptune": swe.NEPTUNE,
     "Pluto": swe.PLUTO,
+    # The lunar nodes: where the Moon's path crosses the ecliptic. The North
+    # Node is the growth direction, the South the over-familiar comfort — and
+    # since they are always exactly opposite, only the North is tracked. Any
+    # aspect to one is the mirrored aspect to the other, so carrying both would
+    # double every transit for no extra information.
+    "North Node": swe.TRUE_NODE,
 }
+
+# The nodes travel backwards almost all the time; saying so on every reading is
+# noise, not insight. Chiron would live here too — it needs an ephemeris data
+# file (seas_18.se1) that the Python package does not ship.
+RETROGRADE_NOT_REPORTED = {"North Node"}
 
 
 def get_julian_day_from_utc(utc_dt) -> float:
@@ -95,7 +106,7 @@ def get_planet_positions_from_utc(utc_dt):
             "degree": round(planet_degree, 2),
             "sign": get_zodiac_sign(planet_degree),
             "degree_in_sign": round(degree_in_sign, 2),
-            "retrograde": is_retrograde
+            "retrograde": is_retrograde and planet_name not in RETROGRADE_NOT_REPORTED,
         })
 
     return results
@@ -116,13 +127,30 @@ def get_houses_and_ascendant(utc_dt, latitude: float, longitude: float):
         })
 
     asc_degree = ascmc[0] % 360
+    mc_degree = ascmc[1] % 360
 
     ascendant = {
         "degree": round(asc_degree, 2),
         "sign": get_zodiac_sign(asc_degree)
     }
 
+    # The Midheaven was being calculated on the line above and discarded. It is
+    # the top of the chart — career, reputation, what you become known for —
+    # and a planet crossing it is one of the most strongly felt transits there
+    # is, so it has to be something a transit can actually land on.
+    midheaven = {
+        "degree": round(mc_degree, 2),
+        "sign": get_zodiac_sign(mc_degree)
+    }
+
     return {
         "ascendant": ascendant,
-        "houses": house_cusps
+        "midheaven": midheaven,
+        "houses": house_cusps,
+        # Shaped like planets, so the angles can be passed straight into the
+        # transit search as targets rather than needing a parallel code path.
+        "angles": [
+            {"planet": "Ascendant", "degree": ascendant["degree"], "sign": ascendant["sign"]},
+            {"planet": "Midheaven", "degree": midheaven["degree"], "sign": midheaven["sign"]},
+        ],
     }
