@@ -46,9 +46,30 @@ const MODEL_LABEL: Record<string, string> = {
   other: "Other",
 };
 
+type ErrorEvent = {
+  id: number; path: string; method: string; kind: string;
+  message: string; created_at: string; status_code: number | null;
+};
+type ErrorReport = {
+  summary: { total: number; last_24h: number; last_hour: number;
+             most_common_today: { kind: string; path: string; hits: number }[] };
+  errors: ErrorEvent[];
+};
+
+const ago = (iso: string) => {
+  const mins = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000));
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hours = Math.round(mins / 60);
+  return hours < 24 ? `${hours}h ago` : `${Math.round(hours / 24)}d ago`;
+};
+
 export default function AdminPage() {
   const [secret, setSecret] = useState("");
   const [data, setData] = useState<Summary | null>(null);
+  // What has been failing. The whole point of recording it was so nobody has
+  // to hear about a bug from the person it happened to.
+  const [faults, setFaults] = useState<ErrorReport | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -68,6 +89,13 @@ export default function AdminPage() {
         setError(typeof body.detail === "string" ? body.detail : "Could not load spending.");
       } else {
         setData(await res.json());
+        // Same secret, same trip — no reason to make this a separate action.
+        fetch(`${getBrowserApiBase()}/admin/errors?limit=25`, {
+          headers: { "x-admin-secret": withSecret },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then(setFaults)
+          .catch(() => setFaults(null));
         try {
           sessionStorage.setItem("zodi-admin-secret", withSecret);
         } catch {
@@ -190,6 +218,60 @@ export default function AdminPage() {
                   </span>
                 </div>
               ))}
+            </div>
+
+            <h2 className="micro-label" style={{ letterSpacing: "0.22em", marginTop: 30, marginBottom: 10 }}>
+              Something broken?
+            </h2>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
+              {!faults && (
+                <p className="font-reading" style={{ fontSize: 14, color: "var(--ink-3)", padding: "14px 16px" }}>
+                  Checking…
+                </p>
+              )}
+              {faults && faults.summary.total === 0 && (
+                <p className="font-reading" style={{ fontSize: 14, color: "var(--ink-3)", padding: "14px 16px" }}>
+                  Nothing has failed. That is the answer you want here.
+                </p>
+              )}
+              {faults && faults.summary.total > 0 && (
+                <>
+                  <div
+                    className="flex flex-wrap items-baseline gap-x-6 gap-y-1"
+                    style={{ padding: "13px 16px", fontSize: 14 }}
+                  >
+                    <span style={{ color: faults.summary.last_hour ? "var(--gold-deep)" : "var(--ink-3)" }}>
+                      <strong>{num(faults.summary.last_hour)}</strong> in the last hour
+                    </span>
+                    <span style={{ color: "var(--ink-2)" }}>
+                      <strong>{num(faults.summary.last_24h)}</strong> today
+                    </span>
+                    <span style={{ color: "var(--ink-3)" }}>{num(faults.summary.total)} kept in all</span>
+                  </div>
+                  {faults.errors.slice(0, 8).map((e) => (
+                    <div
+                      key={e.id}
+                      style={{ padding: "12px 16px", borderTop: "1px solid var(--line)", fontSize: 13.5 }}
+                    >
+                      <div className="flex items-baseline justify-between gap-3">
+                        <span className="min-w-0 truncate" style={{ color: "var(--ink)" }}>
+                          <strong>{e.kind}</strong>{" "}
+                          <span style={{ color: "var(--ink-3)" }}>{e.method} {e.path}</span>
+                        </span>
+                        <span style={{ color: "var(--ink-3)", whiteSpace: "nowrap" }}>{ago(e.created_at)}</span>
+                      </div>
+                      {e.message && (
+                        <p
+                          className="font-reading"
+                          style={{ fontSize: 13, color: "var(--ink-2)", marginTop: 3, overflowWrap: "anywhere" }}
+                        >
+                          {e.message}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </>
+              )}
             </div>
 
             <h2 className="micro-label" style={{ letterSpacing: "0.22em", marginTop: 30, marginBottom: 10 }}>
