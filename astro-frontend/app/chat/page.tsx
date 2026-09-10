@@ -603,6 +603,48 @@ export default function ChatPage() {
     }
   };
 
+  // Asking someone for their own birth details, rather than guessing them.
+  // Nobody knows a friend's birth time; this is how you find out, and it is
+  // the one thing in the product that has a reason to leave it.
+  const [inviteBusy, setInviteBusy] = useState(false);
+  const [inviteNote, setInviteNote] = useState("");
+
+  const inviteSomeone = async () => {
+    const label = window.prompt("What should I call them? (e.g. \u201cHim\u201d, \u201cMy sister\u201d)");
+    if (!label?.trim()) return;
+
+    setInviteBusy(true);
+    setInviteNote("");
+    try {
+      const res = await apiFetch("/invites", {
+        method: "POST",
+        body: JSON.stringify({ label: label.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setInviteNote(errorMessage(data, "Couldn't make a link just now."));
+        setInviteBusy(false);
+        return;
+      }
+
+      const text = `I'm reading our charts together on Zodi — it needs your birth details. Takes a minute: ${data.url}`;
+      if (navigator.share) {
+        try {
+          await navigator.share({ title: "Zodi", text });
+          setInviteNote("Sent. Their details appear here once they fill it in.");
+        } catch {
+          setInviteNote("");   // they closed the share sheet; not an error
+        }
+      } else {
+        await navigator.clipboard.writeText(text);
+        setInviteNote("Link copied — paste it to them.");
+      }
+    } catch {
+      setInviteNote("Couldn't reach the server. Try again in a moment.");
+    }
+    setInviteBusy(false);
+  };
+
   const deleteProfile = (profile: SavedProfile) =>
     setConfirmAction({
       title: `Remove ${profile.label}?`,
@@ -859,6 +901,31 @@ export default function ChatPage() {
               + Add
             </button>
           </div>
+
+          <button
+            onClick={inviteSomeone}
+            disabled={inviteBusy}
+            className="mt-2 w-full text-left"
+            style={{
+              borderRadius: 14,
+              border: "1px dashed var(--line-2)",
+              padding: "10px 14px",
+              fontSize: 13.5,
+              fontWeight: 300,
+              color: "var(--ink-2)",
+              opacity: inviteBusy ? 0.6 : 1,
+            }}
+          >
+            {inviteBusy ? "Making a link\u2026" : "\u2709 Ask someone for their details"}
+          </button>
+          {inviteNote && (
+            <p
+              className="font-reading mt-1"
+              style={{ fontSize: 12.5, lineHeight: 1.45, color: "var(--ink-3)" }}
+            >
+              {inviteNote}
+            </p>
+          )}
 
           <div className="mt-2 flex flex-col gap-1">
             <button

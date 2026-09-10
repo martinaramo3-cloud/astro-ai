@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import json
 import os
@@ -32,6 +33,9 @@ from app.attachment_service import (
 )
 from app.image_reading_service import read_images
 from app.usage_log_service import usage_summary
+from app.backup_service import create_backup, list_backups, backup_dir, run_backup_loop
+from app.error_log_service import record_error, recent_errors, error_summary, prune_errors
+from app.invite_service import create_invite, peek_invite, consume_invite, pending_invites
 from app.email_service import (
     send_password_reset,
     send_verification,
@@ -64,7 +68,7 @@ from app.question_router import (
 from dotenv import load_dotenv
 load_dotenv()
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
-from fastapi.responses import Response, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel
 
 from app.astrology_engine import (
@@ -150,6 +154,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def catch_and_record_errors(request, call_next):
+    """Record what broke instead of letting it vanish into the logs.
+
+    An unhandled exception used to surface as a 500 and a line in Render's log
+    that nobody was reading. It is now written down with the request that
+    caused it, and the caller still gets a civil answer rather than a stack
+    trace.
+    """
+    try:
+        return await call_next(request)
+    except Exception as exc:  # noqa: BLE001
+        record_error(str(request.url.path), request.method, exc, status_code=500)
+        print("Unhandled error on", request.url.path, repr(exc))
+        return JSONResponse(
+            status_code=500,
+            content={"detail": "Something went wrong on our end. Please try again."},
+        )
+
 
 class BirthData(BaseModel):
     birth_date: str
@@ -388,9 +412,14 @@ def require_self(current_user: dict, target_user_id: int) -> None:
 
 
 @app.on_event("startup")
-def startup():
+async def startup():
     init_db()
     purge_expired_sessions()
+    # One clean copy on boot, then daily. Boot matters: a deploy restarts the
+    # service, so every deploy is now preceded by a backup — which is precisely
+    # when a migration is most likely to go wrong.
+    asyncio.create_task(run_backup_loop())
+    prune_errors()
 
 @app.get("/")
 def home():
@@ -1009,6 +1038,86 @@ def _prepare_astrologer_call(
         "question_type": question_type,
         "chat_context": chat_context,
     }
+
+
+class InviteRequest(BaseModel):
+    label: str
+    person_name: str = ""
+
+
+class InviteFillRequest(BaseModel):
+    person_name: str
+    birth_date: str
+    birth_time: str
+    birth_place: str
+    birth_time_known: bool = True
+    relationship_type: str | None = None
+
+
+@app.post("/invites")
+def make_invite(data: InviteRequest, current_user: dict = Depends(get_current_user)):
+    """Create a link to send someone, asking for their birth details."""
+    # Refuse now rather than after they have filled the form in — being told
+    # your details were rejected because someone else is out of slots is a
+    # miserable way to meet the product.
+    check_people_limit(
+        get_user_tier(current_user["id"]),
+        len(list_profiles_by_owner(current_user["id"])),
+    )
+    token = create_invite(current_user["id"], data.label, data.person_name)
+    return {
+        "token": token,
+        "url": f"{frontend_base()}/invite/{token}",
+        "expires_in_days": 14,
+    }
+
+
+@app.get("/invites")
+def list_pending_invites(current_user: dict = Depends(get_current_user)):
+    return {"invites": pending_invites(current_user["id"])}
+
+
+@app.get("/invite/{token}")
+def read_invite(token: str):
+    """What the person opening the link sees. No account needed."""
+    invite = peek_invite(token)
+    if not invite:
+        raise HTTPException(status_code=404, detail="This link has expired or has already been used.")
+    return invite
+
+
+@app.post("/invite/{token}")
+def fill_invite(token: str, data: InviteFillRequest):
+    """Someone filling in their own birth details from a link."""
+    invite = consume_invite(token)
+    if not invite:
+        raise HTTPException(status_code=404, detail="This link has expired or has already been used.")
+
+    # Slots can fill between sending a link and someone opening it.
+    check_people_limit(
+        get_user_tier(invite["owner_user_id"]),
+        len(list_profiles_by_owner(invite["owner_user_id"])),
+    )
+
+    # The place is geocoded before saving, so a typo can't produce a chart cast
+    # for nowhere.
+    location = get_location_data(data.birth_place)
+    if not location:
+        raise HTTPException(status_code=400, detail="Couldn't find that birth place. Try the nearest city.")
+
+    profile = create_profile(
+        owner_user_id=invite["owner_user_id"],
+        label=invite["label"] or data.person_name,
+        person_name=data.person_name,
+        relationship_type=data.relationship_type,
+        birth_date=data.birth_date,
+        birth_time=data.birth_time if data.birth_time_known else UNKNOWN_BIRTH_TIME,
+        birth_place=data.birth_place,
+        birth_time_known=data.birth_time_known,
+    )
+    if not profile:
+        raise HTTPException(status_code=400, detail="Couldn't save those details. Please try again.")
+    return {"message": "Thank you — your details are saved."}
 
 
 @app.post("/ask-astrologer")
@@ -1864,6 +1973,46 @@ def _require_admin(x_admin_secret: str | None) -> None:
         )
     if x_admin_secret != expected:
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
+
+
+@app.get("/admin/errors")
+def admin_errors(
+    limit: int = 50,
+    x_admin_secret: str | None = Header(default=None),
+):
+    """What has been failing, newest first, with a summary to glance at."""
+    _require_admin(x_admin_secret)
+    return {"summary": error_summary(), "errors": recent_errors(min(limit, 200))}
+
+
+@app.get("/admin/backups")
+def admin_list_backups(x_admin_secret: str | None = Header(default=None)):
+    """The copies on disk, newest first."""
+    _require_admin(x_admin_secret)
+    return {"backups": list_backups(), "directory": str(backup_dir())}
+
+
+@app.post("/admin/backups")
+def admin_make_backup(x_admin_secret: str | None = Header(default=None)):
+    """Take one now, rather than waiting for tonight."""
+    _require_admin(x_admin_secret)
+    return create_backup()
+
+
+@app.get("/admin/backups/{name}")
+def admin_download_backup(name: str, x_admin_secret: str | None = Header(default=None)):
+    """Download a copy, so a backup can live somewhere that isn't Render."""
+    _require_admin(x_admin_secret)
+    # Only ever a file this service wrote: the name is matched against the
+    # listing rather than joined onto a path, so nothing can be traversed out
+    # of the backup directory.
+    if name not in {entry["name"] for entry in list_backups()}:
+        raise HTTPException(status_code=404, detail="No such backup.")
+    return FileResponse(
+        backup_dir() / name,
+        media_type="application/octet-stream",
+        filename=name,
+    )
 
 
 @app.get("/admin/usage")

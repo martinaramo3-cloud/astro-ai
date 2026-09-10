@@ -117,6 +117,44 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_auth_tokens_hash ON auth_tokens(token_hash)"
     )
 
+    # A link asking someone for their birth details. Only the hash is kept, so
+    # the database is not a list of working invitations.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS invites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        token_hash TEXT NOT NULL,
+        owner_user_id INTEGER NOT NULL,
+        label TEXT NOT NULL,
+        person_name TEXT,
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        used_at TEXT,
+        FOREIGN KEY (owner_user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_invites_hash ON invites(token_hash)"
+    )
+
+    # One row per unhandled failure, so "is it working" has an answer that
+    # doesn't depend on someone complaining.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS error_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL,
+        method TEXT,
+        kind TEXT,
+        message TEXT,
+        traceback TEXT,
+        user_id INTEGER,
+        status_code INTEGER,
+        created_at TEXT NOT NULL
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_error_events_created ON error_events(created_at)"
+    )
+
     # One row per AI call. This is how spend is tracked per user and per model
     # — the provider dashboards only ever show the whole bill blended together.
     cursor.execute("""
