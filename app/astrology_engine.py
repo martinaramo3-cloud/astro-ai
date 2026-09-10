@@ -17,6 +17,20 @@ if os.path.isdir(_EPHE_DIR):
     swe.set_ephe_path(_EPHE_DIR)
 
 
+# Chiron is the only body here that needs a data file. Everything else is
+# computed from the ephemeris compiled into the library, and must keep being —
+# pointing Swiss Ephemeris at a directory makes it look for planetary files
+# too, and there are none, which took the whole chart engine down in
+# production. The flag is therefore chosen per body rather than globally.
+FILE_BACKED = {"Chiron"}
+
+
+def _flags_for(planet_name: str) -> int:
+    if planet_name in FILE_BACKED:
+        return swe.FLG_SWIEPH | swe.FLG_SPEED
+    return swe.FLG_MOSEPH | swe.FLG_SPEED
+
+
 PLANETS = {
     "Sun": swe.SUN,
     "Moon": swe.MOON,
@@ -109,7 +123,15 @@ def get_planet_positions_from_utc(utc_dt):
     results = []
 
     for planet_name, planet_id in PLANETS.items():
-        calc_result = swe.calc_ut(julian_day, planet_id)
+        try:
+            calc_result = swe.calc_ut(julian_day, planet_id, _flags_for(planet_name))
+        except Exception as exc:  # noqa: BLE001
+            # Only ever the asteroid, and only if its data file is missing. A
+            # chart without Chiron is a chart; a chart that raises is nothing.
+            if planet_name in FILE_BACKED:
+                print(f"[ephemeris] {planet_name} unavailable, skipping:", repr(exc))
+                continue
+            raise
 
         planet_degree = calc_result[0][0] % 360
         planet_speed = calc_result[0][3]
