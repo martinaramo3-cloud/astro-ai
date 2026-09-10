@@ -2032,6 +2032,8 @@ def _ephemeris_status() -> dict:
     chiron = "ok"
     try:
         import swisseph as swe
+        from app.astrology_engine import use_bundled_ephemeris
+        use_bundled_ephemeris()
         swe.calc_ut(swe.julday(1999, 3, 2, 5.25), swe.CHIRON, swe.FLG_SWIEPH | swe.FLG_SPEED)
     except Exception as exc:  # noqa: BLE001
         chiron = f"{type(exc).__name__}: {exc}"[:300]

@@ -13,8 +13,22 @@ ZODIAC_SIGNS = [
 # code, so it is present wherever this runs rather than depending on something
 # being installed on the machine.
 _EPHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ephe")
-if os.path.isdir(_EPHE_DIR):
-    swe.set_ephe_path(_EPHE_DIR)
+
+
+def use_bundled_ephemeris() -> None:
+    """Point Swiss Ephemeris at the data shipped beside this file.
+
+    Called before each calculation rather than once at import. Setting it at
+    import worked locally and did not hold on the server — the library kept
+    reporting its compiled-in default search path — and rather than keep
+    guessing at why, this simply sets it every time. It is a string copy into
+    the C library and costs nothing measurable.
+    """
+    if os.path.isdir(_EPHE_DIR):
+        swe.set_ephe_path(_EPHE_DIR)
+
+
+use_bundled_ephemeris()
 
 
 # Chiron is the only body here that needs a data file. Everything else is
@@ -119,6 +133,7 @@ def add_house_to_planets(planets: list, houses: list) -> list:
 
 
 def get_planet_positions_from_utc(utc_dt):
+    use_bundled_ephemeris()
     julian_day = get_julian_day_from_utc(utc_dt)
     results = []
 
