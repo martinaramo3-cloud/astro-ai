@@ -2026,10 +2026,21 @@ def _ephemeris_status() -> dict:
         files = sorted(os.listdir(_EPHE_DIR)) if os.path.isdir(_EPHE_DIR) else []
     except OSError:
         files = []
+    # Actually try the calculation rather than reporting on the files and
+    # inferring. Two deploys have now been spent guessing why Chiron is
+    # missing; the exception itself is the only thing that settles it.
+    chiron = "ok"
+    try:
+        import swisseph as swe
+        swe.calc_ut(swe.julday(1999, 3, 2, 5.25), swe.CHIRON, swe.FLG_SWIEPH | swe.FLG_SPEED)
+    except Exception as exc:  # noqa: BLE001
+        chiron = f"{type(exc).__name__}: {exc}"[:300]
+
     return {
         "dir": _EPHE_DIR,
         "exists": os.path.isdir(_EPHE_DIR),
         "files": files,
+        "chiron": chiron,
     }
 
 
