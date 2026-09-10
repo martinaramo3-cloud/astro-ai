@@ -1,3 +1,5 @@
+import os
+
 import swisseph as swe
 
 ZODIAC_SIGNS = [
@@ -5,6 +7,15 @@ ZODIAC_SIGNS = [
     "Leo", "Virgo", "Libra", "Scorpio",
     "Sagittarius", "Capricorn", "Aquarius", "Pisces"
 ]
+
+# Chiron is not in the ephemeris compiled into the library — it needs a data
+# file. seas_18.se1 covers the asteroids from 1800 to 2400 and ships beside the
+# code, so it is present wherever this runs rather than depending on something
+# being installed on the machine.
+_EPHE_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "ephe")
+if os.path.isdir(_EPHE_DIR):
+    swe.set_ephe_path(_EPHE_DIR)
+
 
 PLANETS = {
     "Sun": swe.SUN,
@@ -23,6 +34,10 @@ PLANETS = {
     # aspect to one is the mirrored aspect to the other, so carrying both would
     # double every transit for no extra information.
     "North Node": swe.TRUE_NODE,
+    # The old wound that becomes the thing you understand best. Needs the
+    # asteroid data file above; without it this raises rather than returning
+    # something wrong, which is the right failure.
+    "Chiron": swe.CHIRON,
 }
 
 # The nodes travel backwards almost all the time; saying so on every reading is
