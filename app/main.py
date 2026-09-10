@@ -463,6 +463,10 @@ def health_check():
         ).hexdigest()[:12],
         # Says which build is answering, so "did my change ship" is one request.
         "tier_routing": "model-assisted",
+        # Chiron needs a data file shipped beside the code. If it is missing the
+        # chart still builds without it, so the absence is silent — this is how
+        # to see it without guessing from a reading.
+        "ephemeris": _ephemeris_status(),
         "configured": {
             "openai_key": is_set("OPENAI_API_KEY"),
             "anthropic_key": is_set("ANTHROPIC_API_KEY"),
@@ -2014,6 +2018,19 @@ def list_tiers():
 def usage_for_user(user_id: int, current_user: dict = Depends(get_current_user)):
     require_self(current_user, user_id)
     return get_usage_status(user_id)
+
+
+def _ephemeris_status() -> dict:
+    from app.astrology_engine import _EPHE_DIR
+    try:
+        files = sorted(os.listdir(_EPHE_DIR)) if os.path.isdir(_EPHE_DIR) else []
+    except OSError:
+        files = []
+    return {
+        "dir": _EPHE_DIR,
+        "exists": os.path.isdir(_EPHE_DIR),
+        "files": files,
+    }
 
 
 def _require_admin(x_admin_secret: str | None) -> None:
