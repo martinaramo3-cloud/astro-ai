@@ -77,7 +77,7 @@ from app.astrology_engine import (
     add_house_to_planets,
 )
 from app.aspect_services import get_aspects
-from app.location_service import get_location_data, describe_coordinates
+from app.location_service import get_location_data, describe_coordinates, suggest_places
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.transit_service import (
@@ -549,6 +549,16 @@ def build_natal_chart_data(data: BirthData):
         "aspects": aspects,
         "interpretation": interpretation
     }
+
+
+@app.get("/places/suggest")
+def places_suggest(q: str = ""):
+    """Birthplace suggestions, from the same geocoder that resolves the chart.
+
+    Public: it is needed on the signup screen and on an invite page, before
+    anyone has an account.
+    """
+    return {"places": suggest_places(q)}
 
 
 @app.post("/natal-chart")

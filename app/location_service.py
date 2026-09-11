@@ -156,3 +156,70 @@ def get_location_data(place_name: str) -> Optional[dict]:
         return photon_data
 
     return geoapify_data or nominatim_data or photon_data
+
+
+def suggest_places(query: str, limit: int = 6) -> list[dict]:
+    """Cities to choose from, named the way a person would name them.
+
+    The dropdown used to call a different geocoder than the one that actually
+    resolves the chart, and showed whatever raw string came back — "Tirana,
+    Bashkia Tiranë, Qarku i Tiranës, 1001, Albania". Nobody recognises their
+    birthplace in that. Worse, the two services could disagree, so the place
+    picked was not necessarily the place used.
+
+    This asks the same geocoder the chart uses, restricted to populated places,
+    and builds the label from the city and country alone.
+    """
+    query = (query or "").strip()
+    if len(query) < 2 or not GEOAPIFY_API_KEY:
+        return []
+
+    try:
+        response = requests.get(
+            "https://api.geoapify.com/v1/geocode/autocomplete",
+            params={
+                "text": query,
+                # Towns and cities only: nobody is born in a restaurant, and
+                # street-level results are what produced the postcodes.
+                "type": "city",
+                "limit": limit,
+                "format": "json",
+                "apiKey": GEOAPIFY_API_KEY,
+            },
+            headers={"User-Agent": USER_AGENT},
+            timeout=8,
+        )
+        response.raise_for_status()
+        results = response.json().get("results", [])
+    except Exception as exc:  # noqa: BLE001 — a failed lookup is an empty list
+        print("[places] suggest failed:", repr(exc))
+        return []
+
+    seen: set[str] = set()
+    places: list[dict] = []
+    for place in results:
+        city = place.get("city") or place.get("town") or place.get("village") or place.get("name")
+        country = place.get("country")
+        if not city or not country:
+            continue
+
+        # A county or region is worth showing only when it tells two
+        # same-named towns apart — "Springfield, Illinois" earns its keep,
+        # "Tirana, Tirana County" does not.
+        label = f"{city}, {country}"
+        if label in seen:
+            region = place.get("state") or place.get("county")
+            if not region or region == city:
+                continue
+            label = f"{city}, {region}, {country}"
+            if label in seen:
+                continue
+        seen.add(label)
+
+        places.append({
+            "label": label,
+            "latitude": place.get("lat"),
+            "longitude": place.get("lon"),
+        })
+
+    return places

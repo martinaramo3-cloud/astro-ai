@@ -1,10 +1,20 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { getBrowserApiBase } from "../lib/api";
 
+/**
+ * A birthplace, named the way a person would name it.
+ *
+ * This used to query a different geocoder than the one that resolves the
+ * chart, and show whatever raw string came back — "Tirana, Bashkia Tiranë,
+ * Qarku i Tiranës, 1001, Albania". Nobody recognises their birthplace in that,
+ * and the two services could disagree, so the place picked was not necessarily
+ * the place used. It now asks our own server, which asks the geocoder the
+ * chart uses, and gets back "Tirana, Albania".
+ */
 interface Suggestion {
-  display_name: string;
-  place_id: string;
+  label: string;
 }
 
 interface Props {
@@ -48,12 +58,12 @@ export default function PlaceAutocomplete({ value, onChange, placeholder = "Birt
       setLoading(true);
       try {
         const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(val)}&format=json&limit=5&addressdetails=0`,
-          { headers: { "User-Agent": "Zodi/1.0" } }
+          `${getBrowserApiBase()}/places/suggest?q=${encodeURIComponent(val)}`,
         );
-        const data: Suggestion[] = await res.json();
-        setSuggestions(data);
-        setOpen(data.length > 0);
+        const data = await res.json();
+        const places: Suggestion[] = data.places ?? [];
+        setSuggestions(places);
+        setOpen(places.length > 0);
       } catch {
         setSuggestions([]);
       } finally {
@@ -63,9 +73,9 @@ export default function PlaceAutocomplete({ value, onChange, placeholder = "Birt
   };
 
   const handleSelect = (suggestion: Suggestion) => {
-    const parts = suggestion.display_name.split(",");
-    const short = parts.slice(0, 2).join(",").trim();
-    onChange(short);
+    // The label is already what should be stored — no trimming to the first
+    // two commas, which is what turned Tirana into "Tirana, Bashkia Tiranë".
+    onChange(suggestion.label);
     setSuggestions([]);
     setOpen(false);
   };
@@ -101,14 +111,14 @@ export default function PlaceAutocomplete({ value, onChange, placeholder = "Birt
           }}
         >
           {suggestions.map((s) => (
-            <li key={s.place_id}>
+            <li key={s.label}>
               <button
                 type="button"
                 onMouseDown={() => handleSelect(s)}
                 className="w-full px-4 py-3 text-left text-sm"
                 style={{ color: "var(--ink-2)" }}
               >
-                {s.display_name}
+                {s.label}
               </button>
             </li>
           ))}
