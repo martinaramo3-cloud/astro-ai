@@ -157,3 +157,99 @@ def solar_return_for_places(
         ),
         "places": charts,
     }
+
+
+def rank_places_for(
+    natal_sun_longitude: float,
+    year: int,
+    birth_month: int,
+    birth_day: int,
+    purpose: str = "money",
+    places: list[dict] | None = None,
+    top: int = 7,
+) -> dict:
+    """Where to be for the solar return, ranked, with the reasoning shown.
+
+    The return moment is the same everywhere — the Sun comes back when it comes
+    back — so every chart here has identical planets and identical aspects
+    between them. Only the houses and the angles differ, and that is the whole
+    of what choosing a city can change.
+    """
+    from app.european_cities import as_places
+    from app.relocation_scoring import PURPOSES, score_chart, _ordinal
+
+    candidates = places or as_places()
+    moment = find_solar_return(natal_sun_longitude, year, birth_month, birth_day)
+
+    scored = []
+    for place in candidates:
+        chart = chart_for(moment, place["latitude"], place["longitude"])
+        result = score_chart(chart, purpose)
+        local = None
+        if place.get("timezone"):
+            local = moment.astimezone(pytz.timezone(place["timezone"])).strftime("%d %B %Y, %H:%M")
+        scored.append({
+            "place": place["label"],
+            "score": result["score"],
+            "be_there_at": local,
+            "ascendant": f"{chart['ascendant']['sign']} {chart['ascendant']['degree'] % 30:.0f}",
+            "midheaven": f"{chart['midheaven']['sign']} {chart['midheaven']['degree'] % 30:.0f}",
+            "from_houses": result["from_houses"],
+            "from_angles": result["from_angles"],
+            "from_rulers": result["from_rulers"],
+            "why": result["why"][:6],
+        })
+
+    scored.sort(key=lambda p: -p["score"])
+    table = PURPOSES.get(purpose)
+
+    # How much the choice is worth at all. In some years the planets fall such
+    # that most of a continent gives the same chart, and in others where you
+    # stand changes it completely. Ranking eighty cities implies the first
+    # meaningfully beats the seventh, which in a flat year is untrue — and
+    # saying so is more useful than a confident list.
+    spread = (scored[0]["score"] - scored[-1]["score"]) if len(scored) > 1 else 0.0
+    distinct = len({p["score"] for p in scored})
+    on_angles = sum(1 for p in scored if p["from_angles"])
+    if spread < 3 or distinct <= 5:
+        verdict = "barely — most of Europe gives nearly the same chart this year"
+    elif spread < 8:
+        verdict = "somewhat — there is a real but modest difference between the best and worst"
+    else:
+        verdict = "a great deal — the best and worst places are meaningfully different charts"
+
+    # Cities on nearly the same longitude get the same chart, so presenting
+    # them as first, second and third is a ranking of nothing.
+    grouped: list[dict] = []
+    for place in scored:
+        if grouped and abs(grouped[-1]["score"] - place["score"]) < 0.01:
+            grouped[-1]["also"].append(place["place"])
+        else:
+            grouped.append({**place, "also": []})
+
+    return {
+        "purpose": purpose,
+        "returns_at_utc": moment.isoformat(),
+        "searched": len(candidates),
+        "note": (
+            "One moment seen from many places. The planets and the aspects between "
+            "them are identical everywhere — only the houses and the angles change, "
+            "which is the whole of what relocating does. Scores come from an "
+            "astrologer's table, and 'why' shows the working: give the reasoning, "
+            "not the number, and say plainly that they have to physically be there "
+            "at the local time given. Read "
+            "'does_location_matter_this_year' first and say so honestly — in a flat "
+            "year, telling someone to fly somewhere is selling them a difference "
+            "that isn't there. Cities listed under 'also' share the same chart and "
+            "are equal, not ranked."
+        ),
+        "houses_that_count": (
+            {_ordinal(h): meta["means"] for h, meta in table["houses"].items()} if table else {}
+        ),
+        "does_location_matter_this_year": verdict,
+        "score_spread": round(spread, 2),
+        "cities_with_a_planet_on_an_angle": on_angles,
+        # Grouped, so equally-placed cities read as equal rather than ranked.
+        "best": grouped[:top],
+        "worst": scored[-3:][::-1],
+    }
