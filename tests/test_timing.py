@@ -1,0 +1,180 @@
+"""Predictive timing, against Martina's specification.
+
+The rules here are astrological judgements, not implementation details — she
+set them and these pin them down, so a later change to the engine cannot
+quietly drift away from what an astrologer actually asked for.
+"""
+from datetime import datetime
+
+import pytest
+import pytz
+
+from app.astrology_engine import get_houses_and_ascendant, get_planet_positions_from_utc
+from app.transit_timing_service import (
+    allowed_orb,
+    find_transit_cycles,
+    strength_band,
+    _group_into_cycles,
+)
+
+BIRTH = datetime(1999, 3, 2, 5, 15, tzinfo=pytz.utc)
+
+
+@pytest.fixture(scope="module")
+def points():
+    houses = get_houses_and_ascendant(BIRTH, 42.6977, 23.3219)
+    return get_planet_positions_from_utc(BIRTH) + houses["angles"]
+
+
+@pytest.fixture(scope="module")
+def cycles(points):
+    # A fixed "now", so these never change meaning as time passes.
+    return find_transit_cycles(points, months_ahead=30, now=datetime(2026, 9, 14, tzinfo=pytz.utc))
+
+
+# ── Orbs ───────────────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("planet, aspect, orb", [
+    ("Moon", "conjunction", 1.5),
+    ("Mercury", "square", 1.75),
+    ("Venus", "trine", 2.25),
+    ("Mars", "sextile", 2.0),
+    ("Saturn", "conjunction", 3.5),
+    ("Pluto", "square", 2.75),
+    ("Chiron", "trine", 2.0),
+])
+def test_the_orb_depends_on_planet_and_aspect(planet, aspect, orb):
+    """The universal 3 degrees is gone: it buried fast transits and smeared slow ones."""
+    assert allowed_orb(planet, aspect, "Venus") == orb
+
+
+def test_the_important_points_get_a_wider_orb():
+    """Saturn conjunct the Sun is 3.5 plus a half for the Sun being the Sun."""
+    assert allowed_orb("Saturn", "conjunction", "Sun") == 4.0
+    assert allowed_orb("Saturn", "conjunction", "Midheaven") == 4.0
+    assert allowed_orb("Saturn", "conjunction", "Ascendant") == 4.0
+
+
+def test_the_generational_planets_get_a_tighter_one():
+    """Otherwise every reading drowns in contacts to Neptune and Pluto."""
+    assert allowed_orb("Mercury", "trine", "Pluto") == 1.25
+    assert allowed_orb("Mercury", "trine", "Mercury") == 1.75
+
+
+@pytest.mark.parametrize("orb, band", [
+    (0.0, "exact"), (0.2, "exact"),
+    (0.5, "very strong"), (1.0, "very strong"),
+    (1.5, "strong"), (2.0, "strong"),
+    (2.5, "background"), (3.4, "background"),
+])
+def test_exactness_bands(orb, band):
+    """"Saturn is technically active" and "Saturn is exact this week" are
+    different sentences and must be distinguishable."""
+    assert strength_band(orb) == band
+
+
+# ── Passes ─────────────────────────────────────────────────────────────────
+
+def test_a_retrograde_loop_is_one_cycle_of_several_passes(cycles):
+    multi = [c for c in cycles if len(c["passes"]) >= 3]
+    assert multi, "no three-pass cycles found in thirty months"
+
+    for cycle in multi:
+        # Numbered in order, each knowing how many there are in total.
+        assert [w["pass"] for w in cycle["passes"]] == list(range(1, len(cycle["passes"]) + 1))
+        assert all(w["of"] == len(cycle["passes"]) for w in cycle["passes"])
+        # Passes are only grouped because the planet turned back.
+        assert cycle["retrograde_involved"] is True
+        # And the model is told they belong together.
+        assert "retrograde loop" in (cycle["note"] or "")
+
+
+def test_every_pass_is_exact_inside_its_own_window_and_in_order(cycles):
+    """Passes can share a window: a slow planet may be exact, station, and be
+    exact again without the orb ever widening enough to close it."""
+    for cycle in cycles:
+        previous_exact = None
+        for window in cycle["passes"]:
+            assert window["starts"] <= window["exact"] <= window["ends"], (
+                f"{cycle['transit_planet']} {cycle['aspect']} {cycle['natal_point']}: "
+                "a window cannot end before it is exact"
+            )
+            if previous_exact:
+                assert window["exact"] > previous_exact, "passes must run forwards"
+            previous_exact = window["exact"]
+
+
+def test_an_annual_return_is_not_called_a_retrograde_pass(cycles):
+    """The Sun crossing a point in two consecutive Decembers is the Sun coming
+    round again, not pass one and pass two of one cycle.
+
+    The test is on retrograde *motion*, not on a retrograde pass: a planet
+    usually turns back between two exact hits rather than at one of them, which
+    is precisely why the transit repeats.
+    """
+    for cycle in cycles:
+        if len(cycle["passes"]) > 1:
+            assert cycle["retrograde_involved"], (
+                f"{cycle['transit_planet']} {cycle['aspect']} {cycle['natal_point']} "
+                "grouped crossings with no retrograde motion to explain them"
+            )
+
+    # The Sun never turns back, so it can never produce a multi-pass cycle.
+    for cycle in cycles:
+        if cycle["transit_planet"] == "Sun":
+            assert len(cycle["passes"]) == 1
+
+
+def test_crossings_a_year_apart_are_separate_cycles():
+    def window(year, month, retro=False):
+        middle = datetime(year, month, 10, tzinfo=pytz.utc)
+        return {"from": datetime(year, month, 1, tzinfo=pytz.utc),
+                "to": datetime(year, month, 20, tzinfo=pytz.utc),
+                "series": [(middle, 0.1, retro)]}
+
+    far_apart = [window(2026, 1), window(2027, 1)]
+    assert len(_group_into_cycles(far_apart)) == 2
+
+    one_loop = [window(2026, 1), window(2026, 5, retro=True), window(2026, 9)]
+    assert len(_group_into_cycles(one_loop)) == 1
+
+
+# ── Importance is not exactness ────────────────────────────────────────────
+
+def test_a_wide_saturn_outranks_an_exact_mercury(cycles):
+    """Sorting by orb would put these the wrong way round."""
+    saturn = next(c for c in cycles
+                  if c["transit_planet"] == "Saturn" and c["natal_point"] in ("Sun", "Midheaven", "Ascendant"))
+    mercury = next(c for c in cycles
+                   if c["transit_planet"] == "Mercury" and c["aspect"] == "sextile")
+    assert saturn["importance"] > mercury["importance"]
+    assert cycles.index(saturn) < cycles.index(mercury)
+
+
+def test_the_list_leads_with_importance(cycles):
+    weights = [c["importance"] for c in cycles]
+    assert weights == sorted(weights, reverse=True)
+
+
+# ── The Moon ───────────────────────────────────────────────────────────────
+
+def test_the_moon_opens_no_windows_of_its_own(points):
+    """It is a trigger inside an existing window, never a forecast."""
+    cycles = find_transit_cycles(points, months_ahead=6,
+                                 now=datetime(2026, 9, 14, tzinfo=pytz.utc))
+    assert not any(c["transit_planet"] == "Moon" for c in cycles)
+
+
+def test_the_angles_are_transited(cycles):
+    """A Saturn conjunction to the Midheaven is exactly the dated event people want."""
+    hit = {c["natal_point"] for c in cycles}
+    assert "Midheaven" in hit and "Ascendant" in hit
+
+
+def test_two_years_is_searched_quickly_enough_to_sit_in_a_request(points):
+    import time
+    started = time.time()
+    found = find_transit_cycles(points, months_ahead=24,
+                                now=datetime(2026, 9, 14, tzinfo=pytz.utc))
+    assert found
+    assert time.time() - started < 5.0

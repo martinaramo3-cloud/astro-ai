@@ -80,6 +80,7 @@ from app.aspect_services import get_aspects
 from app.location_service import get_location_data, describe_coordinates, suggest_places
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
+from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
     annotate_house_rulership,
     get_current_transit_positions,
@@ -997,10 +998,12 @@ def _prepare_astrologer_call(
         # the starting point, not a detail that only matters when hit.
         "midheaven": natal_data.get("midheaven"),
         **filtered_context,
-        "upcoming_transits": build_upcoming_transit_timeline(
-            natal_data["planet_positions"],
-            max_events=8,
-            focus_planets=focus_planets,
+        # Real windows, one per exact hit, searched as far ahead as the
+        # question warrants. Replaces an eight-week scan that used one orb for
+        # everything and merged a retrograde's passes into a single smear.
+        "predictive_timeline": build_predictive_timeline(
+            natal_data["planet_positions"] + natal_data.get("angles", []),
+            question_type=question_type,
         ),
         "sky_now": {
             "moon": sky["moon"],
