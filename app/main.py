@@ -61,6 +61,7 @@ from app.session_service import (
 from app.question_router import (
     classify_question,
     classify_tier,
+    detect_relocation_request,
     predictive_topic_for,
     filter_chart_context_by_question_type,
     get_focus_planets,
@@ -81,6 +82,7 @@ from app.location_service import get_location_data, describe_coordinates, sugges
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.month_outlook_service import build_month_outlook
+from app.relocation_service import rank_places_for
 from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -1077,6 +1079,28 @@ def _prepare_astrologer_call(
             }
         except Exception as exc:  # noqa: BLE001
             print("Could not build transits for", asked_date, repr(exc))
+
+    # "Where should I be for my birthday" is a search over a hundred and fifty
+    # charts, so it has to happen before the prompt is built rather than being
+    # something the model is asked to imagine.
+    wants_relocation = detect_relocation_request(data.question)
+    if wants_relocation and natal_data.get("houses"):
+        try:
+            natal_sun = next(
+                p["degree"] for p in natal_data["planet_positions"] if p["planet"] == "Sun"
+            )
+            born = datetime.fromisoformat(data.birth_date)
+            today = datetime.now(timezone.utc)
+            # The next return, not the last one: this year if the birthday is
+            # still ahead, otherwise next.
+            year = today.year if (born.month, born.day) >= (today.month, today.day) else today.year + 1
+            chat_context["where_to_be"] = rank_places_for(
+                natal_sun, year, born.month, born.day,
+                purpose=wants_relocation["purpose"],
+                region=wants_relocation["region"],
+            )
+        except Exception as exc:  # noqa: BLE001
+            print("Relocation search failed:", repr(exc))
 
     # Asked about a month, answer about the whole month and the whole life.
     # Picking the loudest transit and going deep on one area left work, money,

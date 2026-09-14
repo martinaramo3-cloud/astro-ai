@@ -243,3 +243,52 @@ def test_the_search_is_worldwide_unless_asked_otherwise(natal_sun):
     europe = rank_places_for(natal_sun, 2029, 3, 2, top=1, region="europe")
     assert everywhere["searched"] > europe["searched"] > 60
     assert everywhere["region"] == "world"
+
+
+# ── Reaching the reading ───────────────────────────────────────────────────
+
+from app.question_router import detect_relocation_request
+
+
+@pytest.mark.parametrize("question, purpose, region", [
+    ("where should i be for my solar return to make money", "money", "world"),
+    ("which european city is best for my birthday for my career", "career", "europe"),
+    ("where should i go to meet someone", "love", "world"),
+    ("rank the best cities for me to study", "study", "world"),
+    ("where should i live with my family", "home and family", "world"),
+])
+def test_a_where_question_is_recognised_with_what_it_is_for(question, purpose, region):
+    found = detect_relocation_request(question)
+    assert found == {"purpose": purpose, "region": region}
+
+
+@pytest.mark.parametrize("question", [
+    "why do i pull away in relationships",
+    "should i text my ex back",
+    "what should i focus on this month",
+    "hi",
+])
+def test_ordinary_questions_do_not_trigger_a_city_search(question):
+    """The search is a hundred and fifty charts; it should not run for "hi"."""
+    assert detect_relocation_request(question) is None
+
+
+def test_the_search_reaches_the_reading(client, account, monkeypatch):
+    import app.main as main
+
+    seen = {}
+    monkeypatch.setattr(main, "generate_astrologer_answer",
+                        lambda prompt, **kw: (seen.update(prompt=prompt), ("ok", 60))[1])
+
+    user, headers = account()
+    response = client.post("/ask-astrologer", json={
+        "birth_date": "1999-03-02", "birth_time": "07:15",
+        "birth_place": "Sofia, Bulgaria", "birth_time_known": True,
+        "question": "where should i be for my solar return to make money",
+        "history": [], "user_id": user["id"],
+    }, headers=headers)
+
+    assert response.status_code == 200
+    assert "where_to_be" in seen["prompt"]
+    assert "be_there_at" in seen["prompt"], "the local time is the whole point"
+    assert "does_location_matter_this_year" in seen["prompt"]

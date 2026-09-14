@@ -1,3 +1,4 @@
+import re
 def classify_question(question: str) -> str:
     q = question.lower()
 
@@ -215,3 +216,61 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
     # made real questions come back bland — "is he thinking about me" is five
     # words and matters enormously. None means "ask something that can judge".
     return None
+
+
+# ── "Where should I be?" ───────────────────────────────────────────────────
+# A solar return relocation question, and what it is being asked for. Detected
+# in code rather than left to the model, because the answer requires a search
+# over a hundred and fifty charts that has to happen before the prompt is built.
+
+_RELOCATION_PHRASES = (
+    "where should i be", "where should i go", "where to be", "where to go",
+    "where should i live", "where to live", "where should i move",
+    "relocat", "solar return", "best place", "best city", "best country",
+    "which city", "which country", "spend my birthday", "travel for my birthday",
+    "move to", "where would be best", "rank cities", "rank the cities",
+)
+
+# The purposes there are scoring tables for, and the words that ask for each.
+_PURPOSE_WORDS = {
+    "money": ("money", "financial", "finance", "income", "rich", "wealth",
+              "earn", "cash", "profit", "salary"),
+    "career": ("career", "job", "work", "professional", "promotion", "business"),
+    "love": ("love", "romance", "relationship", "partner", "dating", "marry",
+             "marriage", "meet someone"),
+    "visibility": ("visibility", "famous", "fame", "seen", "recognition",
+                   "audience", "public", "launch"),
+    "social life": ("friends", "social", "people", "community", "network"),
+    "study": ("study", "studying", "university", "degree", "course", "learn",
+              "research", "phd", "masters"),
+    "home and family": ("home", "family", "settle", "roots", "house", "live"),
+}
+
+
+def detect_relocation_request(question: str) -> dict | None:
+    """What a "where should I be" question is asking for, or None.
+
+    Returns the purpose and whether the search should stay in Europe. The year
+    is decided by the caller, which knows the birthday.
+    """
+    lowered = (question or "").lower()
+    # A word can sit between the question and the noun — "which european city"
+    # is the same question as "which city" — so these two are matched loosely.
+    loose = re.search(
+        r"\b(which|what|best|top|rank)\b[\w\s]{0,24}?\b(city|cities|country|countries|place|places|location)\b",
+        lowered,
+    )
+    if not loose and not any(phrase in lowered for phrase in _RELOCATION_PHRASES):
+        return None
+
+    # Most specific wins: "where should I be for my career" is career even
+    # though it also mentions money, if it does.
+    purpose = "money"
+    best = 0
+    for name, words in _PURPOSE_WORDS.items():
+        hits = sum(1 for word in words if word in lowered)
+        if hits > best:
+            purpose, best = name, hits
+
+    europe = any(word in lowered for word in ("europe", "european", "eu "))
+    return {"purpose": purpose, "region": "europe" if europe else "world"}
