@@ -167,6 +167,7 @@ def rank_places_for(
     purpose: str = "money",
     places: list[dict] | None = None,
     top: int = 7,
+    region: str = "world",
 ) -> dict:
     """Where to be for the solar return, ranked, with the reasoning shown.
 
@@ -176,9 +177,9 @@ def rank_places_for(
     of what choosing a city can change.
     """
     from app.european_cities import as_places
-    from app.relocation_scoring import PURPOSES, score_chart, _ordinal
+    from app.relocation_scoring import BY_AN_ASTROLOGER, PURPOSES, score_chart, _ordinal
 
-    candidates = places or as_places()
+    candidates = places or as_places(region)
     moment = find_solar_return(natal_sun_longitude, year, birth_month, birth_day)
 
     scored = []
@@ -229,8 +230,13 @@ def rank_places_for(
 
     return {
         "purpose": purpose,
+        # Whose astrology this is. The money table came from an astrologer; the
+        # others were written by analogy and are marked so a reading can be
+        # appropriately confident and no more.
+        "scoring_reviewed_by_astrologer": purpose in BY_AN_ASTROLOGER,
         "returns_at_utc": moment.isoformat(),
         "searched": len(candidates),
+        "region": region,
         "note": (
             "One moment seen from many places. The planets and the aspects between "
             "them are identical everywhere — only the houses and the angles change, "

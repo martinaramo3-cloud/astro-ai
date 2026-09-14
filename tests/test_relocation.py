@@ -179,3 +179,66 @@ def test_cities_with_the_same_chart_are_shown_as_equal(natal_sun):
     for place in result["best"]:
         for twin in place["also"]:
             assert twin != place["place"]
+
+
+# ── The framework ──────────────────────────────────────────────────────────
+
+from app.relocation_scoring import BY_AN_ASTROLOGER, PURPOSES
+
+
+@pytest.mark.parametrize("purpose", sorted(PURPOSES))
+def test_every_purpose_is_a_complete_table(purpose):
+    table = PURPOSES[purpose]
+    assert len(table["houses"]) == 4
+    weights = sum(h["weight"] for h in table["houses"].values())
+    assert abs(weights - 1.0) < 1e-9, f"{purpose} weights sum to {weights}"
+    assert table["planet_in_house"] and table["planet_on_angle"] and table["ruler_lands_in"]
+
+
+@pytest.mark.parametrize("purpose", sorted(PURPOSES))
+def test_every_purpose_actually_scores(purpose):
+    result = score_chart(chart_for(BIRTH, *SOFIA), purpose)
+    assert result["purpose"] == purpose
+    assert result["why"], f"{purpose} produced no reasoning"
+
+
+def test_the_money_table_is_the_astrologers_and_says_so():
+    """The rest were written by analogy and are drafts; a reading should know
+    which it is standing on."""
+    assert BY_AN_ASTROLOGER == {"money"}
+
+
+def test_saturn_is_not_punished_where_discipline_is_the_point():
+    """Her principle, carried into the tables built from hers."""
+    assert PURPOSES["career"]["planet_in_house"]["Saturn"][10] >= 0
+    assert PURPOSES["study"]["planet_in_house"]["Saturn"][9] >= 0
+    # But it still costs where it genuinely flattens things.
+    assert PURPOSES["love"]["planet_in_house"]["Saturn"][5] < 0
+    assert PURPOSES["social life"]["planet_in_house"]["Saturn"][11] < 0
+
+
+def test_love_scores_the_relationship_angle():
+    """The Descendant is where a partner arrives; scoring only the Midheaven
+    and Ascendant would miss the angle the question is about."""
+    assert PURPOSES["love"]["planet_on_angle"]["Venus"]["Descendant"] > 0
+    assert PURPOSES["home and family"]["planet_on_angle"]["Moon"]["IC"] > 0
+
+
+def test_different_purposes_recommend_different_places(natal_sun):
+    """If they didn't, the framework would be one table wearing seven hats."""
+    from app.relocation_service import rank_places_for
+    winners = {
+        purpose: rank_places_for(natal_sun, 2029, 3, 2, purpose=purpose, top=1)["best"][0]["place"]
+        for purpose in ("money", "love", "career", "home and family")
+    }
+    assert len(set(winners.values())) > 1, winners
+
+
+def test_the_search_is_worldwide_unless_asked_otherwise(natal_sun):
+    """The best place for a return is frequently not on the asker's continent,
+    and a search that cannot leave one will never say so."""
+    from app.relocation_service import rank_places_for
+    everywhere = rank_places_for(natal_sun, 2029, 3, 2, top=1)
+    europe = rank_places_for(natal_sun, 2029, 3, 2, top=1, region="europe")
+    assert everywhere["searched"] > europe["searched"] > 60
+    assert everywhere["region"] == "world"
