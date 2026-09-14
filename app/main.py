@@ -50,7 +50,7 @@ from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 
 from app.celestial_events_service import build_cosmic_events, describe_moon_phase
-from app.chart_analysis_service import build_chart_analysis
+from app.chart_analysis_service import build_chart_analysis, get_house_rulers
 from app.session_service import (
     create_session,
     delete_session,
@@ -80,6 +80,7 @@ from app.aspect_services import get_aspects
 from app.location_service import get_location_data, describe_coordinates, suggest_places
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
+from app.month_outlook_service import build_month_outlook
 from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -911,6 +912,18 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
 ANSWER_CEILING = {1: 90, 2: 130, 3: 110, 4: 550}
 
 
+_MONTH_WORDS = (
+    "month", "january", "february", "march", "april", "may", "june", "july",
+    "august", "september", "october", "november", "december",
+)
+
+
+def _asks_about_a_month(question: str) -> bool:
+    """Whether this is a question about a stretch of time rather than a moment."""
+    lowered = (question or "").lower()
+    return any(word in lowered for word in _MONTH_WORDS)
+
+
 def _prepare_astrologer_call(
     data: AstrologyQuestionRequest,
     current_user: dict,
@@ -1064,6 +1077,22 @@ def _prepare_astrologer_call(
             }
         except Exception as exc:  # noqa: BLE001
             print("Could not build transits for", asked_date, repr(exc))
+
+    # Asked about a month, answer about the whole month and the whole life.
+    # Picking the loudest transit and going deep on one area left work, money,
+    # health and everyone's friends unmentioned.
+    if _asks_about_a_month(data.question) and natal_data.get("houses"):
+        try:
+            when = datetime.fromisoformat(asked_date) if asked_date else datetime.now(timezone.utc)
+            rules: dict[str, list[int]] = {}
+            for entry in get_house_rulers(natal_data["houses"], natal_data["planet_positions"]):
+                rules.setdefault(entry["ruler"], []).append(entry["house"])
+            chat_context["month_outlook"] = build_month_outlook(
+                natal_data["planet_positions"] + natal_data.get("angles", []),
+                when.year, when.month, rules_by_point=rules,
+            )
+        except Exception as exc:  # noqa: BLE001
+            print("Month outlook failed:", repr(exc))
 
     # How much answer does this deserve? Decided from the question and the
     # thread, before the prompt is assembled — because the honest way to get a

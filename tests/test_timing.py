@@ -22,8 +22,12 @@ BIRTH = datetime(1999, 3, 2, 5, 15, tzinfo=pytz.utc)
 
 @pytest.fixture(scope="module")
 def points():
+    from app.astrology_engine import add_house_to_planets
     houses = get_houses_and_ascendant(BIRTH, 42.6977, 23.3219)
-    return get_planet_positions_from_utc(BIRTH) + houses["angles"]
+    # Placed in houses: without this a transit has no area of life to land in,
+    # and a month reads as if only the angles existed.
+    placed = add_house_to_planets(get_planet_positions_from_utc(BIRTH), houses["houses"])
+    return placed + houses["angles"]
 
 
 @pytest.fixture(scope="module")
@@ -178,3 +182,68 @@ def test_two_years_is_searched_quickly_enough_to_sit_in_a_request(points):
                                 now=datetime(2026, 9, 14, tzinfo=pytz.utc))
     assert found
     assert time.time() - started < 5.0
+
+
+# ── The month, whole ───────────────────────────────────────────────────────
+
+def _month(points):
+    from app.month_outlook_service import build_month_outlook
+    return build_month_outlook(points, 2026, 10, now=datetime(2026, 9, 14, tzinfo=pytz.utc))
+
+
+def test_a_month_is_read_across_a_whole_life(points):
+    """Asked what a month holds, it used to answer about one area and leave
+    work, money, health and everyone's friends unmentioned."""
+    outlook = _month(points)
+    named = {a["area"] for a in outlook["areas"]}
+    assert len(named) >= 4, f"only {named} covered"
+    assert any(a["verdict"] == "supported" for a in outlook["areas"]), (
+        "a month with nothing good in it is a reading that only names risks"
+    )
+
+
+def test_the_verdict_is_supported_by_what_is_shown(points):
+    """An area marked "under pressure" listing only helpful transits reads as
+    a contradiction; the transits shown are the ones that drove it."""
+    for area in _month(points)["areas"]:
+        if area["verdict"] == "under pressure":
+            assert any(not t["helps"] for t in area["transits"])
+        if area["verdict"] == "supported":
+            assert any(t["helps"] for t in area["transits"])
+
+
+def test_the_periods_actually_differ(points):
+    """Listing everything still in orb made every stretch identical, which is
+    the opposite of splitting a month up."""
+    periods = _month(points)["periods"]
+    assert len(periods) >= 2
+    signatures = [tuple(t["transit"] for t in p["peaking_now"]) for p in periods]
+    assert len(set(signatures)) == len(signatures), "two periods reported the same thing"
+
+
+def test_no_transit_is_counted_in_two_periods(points):
+    seen = set()
+    for period in _month(points)["periods"]:
+        for hit in period["peaking_now"]:
+            key = (hit["transit"], hit["exact"])
+            assert key not in seen, f"{key} appears in more than one period"
+            seen.add(key)
+
+
+def test_periods_run_in_order_and_stay_inside_the_month(points):
+    periods = _month(points)["periods"]
+    for period in periods:
+        assert period["from"].startswith("2026-10")
+        assert period["to"].startswith("2026-10")
+        for hit in period["peaking_now"]:
+            assert period["from"] <= hit["exact"] <= period["to"]
+    assert [p["from"] for p in periods] == sorted(p["from"] for p in periods)
+
+
+def test_a_transit_exact_outside_the_month_is_flagged_as_ongoing(points):
+    flags = [t["ongoing"] for a in _month(points)["areas"] for t in a["transits"]]
+    assert any(flags), "a long transit exact either side of the month should be marked"
+    for area in _month(points)["areas"]:
+        for hit in area["transits"]:
+            if not hit["ongoing"]:
+                assert hit["exact"].startswith("2026-10")

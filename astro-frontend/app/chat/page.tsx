@@ -1037,7 +1037,7 @@ export default function ChatPage() {
                 style={fieldStyle}
               />
               <input
-                placeholder="Relationship (optional)"
+                placeholder="What they are to you — or “my business”"
                 value={newProfile.relationship_type}
                 onChange={(e) =>
                   setNewProfile({ ...newProfile, relationship_type: e.target.value })
