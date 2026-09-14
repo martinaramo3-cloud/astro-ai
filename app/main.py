@@ -1384,6 +1384,15 @@ def ask_compatibility(
         synastry_aspects
     )
 
+    # What this person is to them, in their own words. A chart cannot tell a
+    # friendship from a romance, so without this a reading full of fifth-house
+    # contacts gets called a crush — which is what happened.
+    described_as = None
+    if profile_id is not None:
+        saved = get_profile_by_id(profile_id)
+        if saved and saved.get("owner_user_id") == current_user["id"]:
+            described_as = saved.get("relationship_type") or saved.get("label")
+
     # Synastry alone cannot answer "why now" — it describes a permanent
     # dynamic. The transits are what make a timing question answerable.
     timing = build_relationship_timing(
@@ -1401,6 +1410,7 @@ def ask_compatibility(
         [msg.model_dump() for msg in (data.history or [])],
         person_1_name=data.person_1_name or current_user.get("name") or "the person asking",
         person_2_name=data.person_2_name or "the other person",
+        relationship_type=described_as,
     )
     context["timing"] = timing
     # Earlier chats about this same person, and nothing else. Continuity where

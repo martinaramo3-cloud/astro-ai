@@ -103,3 +103,40 @@ def test_one_account_cannot_read_another_persons_people(client, account):
     them, them_headers = account(email="them@example.com")
     seen = client.get(f"/profiles/{her['id']}", headers=them_headers)
     assert seen.status_code in (401, 403) or seen.json() == []
+
+
+# ── What a chart is allowed to decide ──────────────────────────────────────
+
+def test_the_reading_is_told_what_this_person_is(client, account, monkeypatch):
+    """A synastry chart cannot tell a friendship from a romance. The app has
+    always stored the answer and never passed it on, which is how a chart full
+    of fifth-house contacts got announced as a crush between two friends."""
+    import app.main as main
+
+    seen = {}
+    monkeypatch.setattr(main, "generate_compatibility_answer",
+                        lambda prompt, **kw: (seen.update(prompt=prompt), ("ok", 50))[1])
+
+    user, headers = account()
+    profile = client.post("/profiles", json={
+        "owner_user_id": user["id"], "label": "Elira", "person_name": "Elira",
+        "relationship_type": "my best friend", **MILAN,
+    }, headers=headers).json()
+
+    response = client.post("/ask-saved-compatibility", json={
+        "owner_user_id": user["id"], "profile_id": profile["id"],
+        "question": "why do my jokes hurt her", "history": [],
+    }, headers=headers)
+
+    assert response.status_code == 200
+    assert '"relationship_type": "my best friend"' in seen["prompt"]
+
+
+def test_the_prompt_separates_intensity_from_relationship_type():
+    """Synastry measures charge. It does not get to reclassify someone's life."""
+    from app.ai_context_service import build_ask_compatibility_prompt
+    prompt = build_ask_compatibility_prompt({"history": []})
+    assert "cannot tell you what kind of relationship it is" in prompt
+    assert "isn't a friendship chart" in prompt          # named as the thing not to say
+    assert "play, delight, creativity" in prompt         # the 5th is not only romance
+    assert "the 3rd house and the 11th" in prompt        # friendships get read as friendships

@@ -472,6 +472,7 @@ def build_ask_compatibility_context(
     history: list | None = None,
     person_1_name: str = "the person asking",
     person_2_name: str = "the other person",
+    relationship_type: str | None = None,
 ):
     important_aspects = sorted(synastry_aspects, key=lambda x: (not x["is_priority"], x["orb"]))[:6]
     return {
@@ -486,6 +487,11 @@ def build_ask_compatibility_context(
             "person_1": f"{person_1_name} — the person asking (\"you\")",
             "person_2": f"{person_2_name} — the other person (\"them\")",
         },
+        # What this person actually is to them, in their own words. Stored on
+        # every saved person and, until now, never passed to the reading — so a
+        # chart full of fifth-house contacts got read as romance because
+        # nothing said otherwise.
+        "relationship_type": relationship_type,
         "key_synastry_aspects": important_aspects,
         "synastry_engine": synastry_engine,
     }
@@ -516,6 +522,18 @@ Timing — why now:
 - "to_your_chart" and "to_their_chart" are what each of them is going through separately. Someone reappearing is very often their transit, not yours.
 - "motion" says applying or separating: building toward exact, or already fading. That is the difference between "this is about to peak" and "you are past the worst of it". "upcoming_for_you" carries real dates.
 - Never invent a date. If the timing data does not support a specific window, say what is active and say plainly that you would rather not guess at a date.
+
+Intensity is yours to read. The kind of relationship is not:
+- Synastry measures how charged a connection is — how activating, how significant, how much someone moves the other person. It cannot tell you what kind of relationship it is. Friendship, romance, family, colleagues: that is context, and it comes from them, not from the chart.
+- "relationship_type" is what they have called this person. Believe it. If it says a friend, this is a friendship and every contact gets read as one. Never announce that a chart "isn't a friendship chart" or reclassify someone's relationship from a signature — a synastry chart does not know anyone's orientation, history or intentions, and telling two friends their chart is really a crush is both bad astrology and a genuinely unpleasant thing to do to someone.
+- Houses are not single-purpose. The 5th is romance AND play, delight, creativity, attention, fascination, being someone's favourite person in the room. The 7th is any significant one-to-one bond, not a slot for a partner. Venus is affection and appreciation, not automatically desire. Mars is energy, drive and irritation, not automatically sex. Pluto is depth and intensity, not automatically obsession.
+- So read the charge honestly and let the category stand: "this is a much more charged friendship than a casual one — your charts are concentrated in the houses of play and attention, so she does not register to you as just another person in the room" says everything true without inventing a romance. In a romantic context these same contacts make attraction; in a friendship they make fascination, admiration, competitiveness, wanting someone's attention, feeling chosen.
+- What someone does with a strong connection is theirs to decide. A chart says someone moves them; it does not say what they want, and it does not get to decide who either of them is.
+
+When the relationship is a friendship, read the friendship:
+- Lead with what actually governs it: the 3rd house and the 11th, Mercury to Mercury for how they think and talk, Mercury to Moon for whether feelings survive being said out loud, Moon to Moon for whether they settle each other, Saturn contacts for durability and for where things go unsaid, Venus for appreciation, Mars for friction, Jupiter for generosity and fun, and the Ascendant overlays for whether they simply click.
+- Read the house overlays in both directions. Whose planets land in whose houses is a different sentence each way, and only doing one side answers half the question.
+- When the question is specific — why a joke landed badly, why she did not say so at the time — go to the contacts that explain those two mechanisms rather than giving a general compatibility tour.
 
 Who is who — get this right before anything else:
 - "you" is the person you are talking to. Their name is in "you.name". When they say "I", "me" or "my chart", they mean this one.
