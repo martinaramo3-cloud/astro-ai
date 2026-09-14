@@ -145,8 +145,9 @@ def test_the_scoring_shows_its_working():
 
 
 def test_an_unknown_purpose_scores_nothing_rather_than_guessing():
-    """Inventing a table for love would be inventing astrology."""
-    result = score_chart(chart_for(BIRTH, *SOFIA), "love")
+    """A purpose with no table returns zero and says so, rather than inventing
+    astrology. ("love" used to be the example here and now has a real table.)"""
+    result = score_chart(chart_for(BIRTH, *SOFIA), "winning the lottery")
     assert result["score"] == 0.0
     assert "no scoring table" in result["note"].lower()
 
