@@ -396,6 +396,7 @@ def build_predictive_timeline(
     question_type: str | None = None,
     now: datetime | None = None,
     limit: int = 10,
+    rules_by_point: dict[str, list[int]] | None = None,
 ) -> dict:
     """The handful of windows worth putting in a prompt.
 
@@ -410,6 +411,27 @@ def build_predictive_timeline(
     cycles = find_transit_cycles(natal_points, months_ahead=months, now=start)
     if not cycles:
         return {}
+
+    # Choose windows for the question before trimming the scan. Otherwise a
+    # major unrelated transit can crowd out every hit to the 5th/7th ruler.
+    topic_houses = {
+        "relationship": {5, 7}, "compatibility": {3, 5, 7, 8},
+        "career": {2, 6, 8, 10, 11}, "emotional": {4, 8, 12},
+    }.get(question_type, set())
+    topic_points = {
+        "relationship": {"Venus", "Mars", "Moon", "Jupiter", "Saturn", "Ascendant", "Descendant"},
+        "compatibility": {"Mercury", "Venus", "Mars", "Moon", "Ascendant", "Descendant"},
+        "career": {"Sun", "Jupiter", "Saturn", "Midheaven"},
+        "emotional": {"Moon", "Neptune", "Saturn"},
+    }.get(question_type, set())
+    cycles = [{**c, "natal_rules_houses": (rules_by_point or {}).get(c["natal_point"], [])}
+              for c in cycles]
+    def relevant(cycle):
+        return (cycle["natal_point"] in topic_points
+                or cycle.get("natal_house") in topic_houses
+                or bool(set(cycle["natal_rules_houses"]) & topic_houses))
+    if topic_houses:
+        cycles.sort(key=lambda c: (not relevant(c), -c["importance"]))
 
     today = start.date().isoformat()
     soon = (start + timedelta(days=NEAR_TERM_MONTHS * 30)).date().isoformat()
@@ -449,6 +471,7 @@ def _for_prompt(cycle: dict) -> dict:
     return {
         "transit": f"{cycle['transit_planet']} {cycle['aspect']} your {cycle['natal_point']}",
         "in_house": cycle.get("natal_house"),
+        "natal_rules_houses": cycle.get("natal_rules_houses", []),
         "importance": cycle["importance"],
         "passes": [
             {

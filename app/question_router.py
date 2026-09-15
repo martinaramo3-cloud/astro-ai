@@ -1,4 +1,39 @@
 import re
+
+
+def _contains(text: str, terms) -> bool:
+    return any(re.search(r"\b" + re.escape(term) + r"\b", text) for term in terms)
+
+
+def conversational_cue(question: str) -> str | None:
+    """Recognize a few standalone chat signals, not the tone of a whole message.
+
+    Punctuation such as '?' or '...' and crying emojis can carry real meaning.
+    Only isolated slash keystrokes get the tentative mistype cue.
+    """
+    q = (question or "").strip().lower()
+    if re.fullmatch(r"[\\/]{1,3}", q):
+        return "possible_mistype"
+    if re.fullmatch(r"(?:(?:ha|he){2,}a*|lol+|lmao+|lmfao+|[😂🤣]+)[! .]*", q):
+        return "shared_laughter"
+    return None
+
+
+def requested_detail(question: str) -> str | None:
+    q = (question or "").lower().replace("’", "'")
+    if _contains(q, ("more detail", "more detailed", "be detailed", "in detail",
+                     "elaborate", "vague", "vaguely", "specific", "specifics",
+                     "how who what", "how, who, what", "how, who and what", "rank", "compare",
+                     "who will i date", "who is the person", "tell me how")):
+        return "detailed"
+    if _contains(q, ("wdym", "explain", "clarify", "simpler", "simple language",
+                     "plain english", "don't understand", "dont understand",
+                     "do not understand", "confused", "what do you mean",
+                     "what does that mean", "what does this mean", "look like")) or q.strip(" ?!.,") in {"why", "how", "who", "when", "what happened"}:
+        return "explanation"
+    return None
+
+
 def classify_question(question: str) -> str:
     q = question.lower()
 
@@ -14,7 +49,8 @@ def classify_question(question: str) -> str:
 
     career_keywords = [
         "career", "job", "work", "success", "future", "purpose", "study",
-        "school", "university", "ambition", "money", "profession"
+        "school", "university", "ambition", "money", "profession",
+        "business", "revenue", "profit", "profitable", "financial", "studio"
     ]
 
     compatibility_keywords = [
@@ -22,16 +58,16 @@ def classify_question(question: str) -> str:
         "relationship with", "long term", "chemistry"
     ]
 
-    if any(word in q for word in compatibility_keywords):
+    if _contains(q, compatibility_keywords):
         return "compatibility"
 
-    if any(word in q for word in relationship_keywords):
+    if _contains(q, relationship_keywords):
         return "relationship"
 
-    if any(word in q for word in emotional_keywords):
+    if _contains(q, emotional_keywords):
         return "emotional"
 
-    if any(word in q for word in career_keywords):
+    if _contains(q, career_keywords):
         return "career"
 
     return "general"
@@ -187,6 +223,14 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
     words = q.split()
     heavy = any(term in q for term in _HEAVY)
 
+    if conversational_cue(question):
+        return TIER_GREETING
+
+    # A request to understand more is not a one-line confirmation, even "why?".
+    # Calculation requests must also keep their context, regardless of wording.
+    if requested_detail(question) or detect_relocation_request(question):
+        return TIER_REAL
+
     # A greeting is a greeting even mid-conversation.
     if q in _GREETINGS or (len(words) <= 2 and not heavy and any(
         q.startswith(g) for g in ("hi", "hey", "hello", "thank", "morning", "night")
@@ -201,9 +245,7 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
         (m.get("role") if isinstance(m, dict) else getattr(m, "role", None)) == "assistant"
         for m in (history or [])
     )
-    if answered_before and len(words) <= 5 and (
-        q.startswith(_FOLLOWUP_STARTS) or len(words) <= 3
-    ):
+    if answered_before and len(words) <= 5 and q.startswith(_FOLLOWUP_STARTS):
         return TIER_FOLLOWUP
 
     if heavy:
@@ -211,6 +253,9 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
 
     if any(term in q for term in _LOW_STAKES):
         return TIER_QUICK
+
+    if answered_before and len(words) <= 3:
+        return TIER_FOLLOWUP
 
     # Everything else is genuinely ambiguous. Guessing it from length is what
     # made real questions come back bland — "is he thinking about me" is five

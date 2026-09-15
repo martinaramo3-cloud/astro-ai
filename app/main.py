@@ -59,6 +59,8 @@ from app.session_service import (
     purge_expired_sessions,
 )
 from app.question_router import (
+    conversational_cue,
+    requested_detail,
     classify_question,
     classify_tier,
     detect_relocation_request,
@@ -912,6 +914,14 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
 # Generous enough that a correct answer is never cut off, tight enough that a
 # wandering one cannot become a paragraph.
 ANSWER_CEILING = {1: 90, 2: 130, 3: 110, 4: 550}
+# Extra room is opt-in through the request, not a longer default for every chat.
+DETAIL_CEILING = {"explanation": 900, "detailed": 1400}
+
+
+def answer_ceiling(question: str, tier: int) -> int:
+    if detect_relocation_request(question):
+        return 1600  # a ranked city comparison and practical arrival details
+    return DETAIL_CEILING.get(requested_detail(question), ANSWER_CEILING[tier])
 
 
 _MONTH_WORDS = (
@@ -973,6 +983,15 @@ def _prepare_astrologer_call(
     )
 
     question_type = classify_question(data.question)
+    # A short clarification continues the topic of this conversation.
+    if question_type == "general" and requested_detail(data.question):
+        for message in reversed(data.history or []):
+            if message.role == "user" and message.content != data.question:
+                previous_type = classify_question(message.content)
+                if requested_detail(message.content) and previous_type == "general":
+                    continue
+                question_type = previous_type
+                break
     focus_planets = get_focus_planets(question_type)
 
     filtered_context = filter_chart_context_by_question_type(
@@ -997,6 +1016,10 @@ def _prepare_astrologer_call(
         question_type=question_type,
     )
 
+    rules_by_point: dict[str, list[int]] = {}
+    for entry in get_house_rulers(natal_data["houses"], natal_data["planet_positions"]):
+        rules_by_point.setdefault(entry["ruler"], []).append(entry["house"])
+
     chat_context = {
         "question": data.question,
         # Attachment ids are dropped: the model can't fetch a file, and a
@@ -1012,6 +1035,9 @@ def _prepare_astrologer_call(
         # it: for any question about work or reputation the Midheaven's sign is
         # the starting point, not a detail that only matters when hit.
         "midheaven": natal_data.get("midheaven"),
+        "personal_planets": natal_data["planet_positions"],
+        "active_transits": active_transits,
+        "requested_detail": requested_detail(data.question),
         **filtered_context,
         # Real windows, one per exact hit, searched as far ahead as the
         # question warrants. Replaces an eight-week scan that used one orb for
@@ -1019,6 +1045,8 @@ def _prepare_astrologer_call(
         "predictive_timeline": build_predictive_timeline(
             natal_data["planet_positions"] + natal_data.get("angles", []),
             question_type=question_type,
+            rules_by_point=rules_by_point,
+            limit=18 if requested_detail(data.question) else 12,
         ),
         "sky_now": {
             "moon": sky["moon"],
@@ -1130,13 +1158,23 @@ def _prepare_astrologer_call(
             f"{m['role']}: {m['content'][:200]}" for m in chat_context["history"][-3:-1]
         )
         tier = classify_answer_tier(data.question, recent) or 4
-    if tier < 4 and not image_context:
+    if tier == 1 and not image_context:
+        # A social turn needs the exchange, not astrological evidence to fill
+        # the silence. Keep history so laughter or a symbol is read in context.
+        chat_context = {
+            "question": chat_context["question"],
+            "history": chat_context["history"],
+        }
+    elif tier < 4 and not image_context:
         sky = chat_context.get("sky_now") or {}
         chat_context = {
             "question": chat_context["question"],
             "history": chat_context["history"],
             "birth_time_known": chat_context["birth_time_known"],
-            "personal_planets": chat_context.get("personal_planets"),
+            "personal_planets": [
+                p for p in chat_context.get("personal_planets", [])
+                if p["planet"] in {"Sun", "Moon", "Mercury", "Venus", "Mars"}
+            ],
             # A short answer still has to be about something. Without a live
             # transit there is nothing true and particular to say, and "the Moon
             # is in Gemini" on its own is what bland sounds like.
@@ -1149,11 +1187,13 @@ def _prepare_astrologer_call(
             },
         }
     chat_context["answer_tier"] = tier
+    chat_context["conversation_cue"] = conversational_cue(data.question)
 
     return {
         "user_id": user_id,
         "tier": tier,
         "tier_config": tier_config,
+        "max_output_tokens": answer_ceiling(data.question, tier),
         "model": model,
         "effort": effort,
         "images": images_for_model or None,
@@ -1257,7 +1297,7 @@ def ask_astrologer(
         effort=prep["effort"],
         images=prep["images"],
         user_id=prep["user_id"],
-        max_output_tokens=ANSWER_CEILING.get(prep["tier"]),
+        max_output_tokens=prep["max_output_tokens"],
     )
     # The inspection pass is billed too — it is a real call on the user's behalf.
     record_usage(prep["user_id"], tokens + prep["image_tokens"])
@@ -1303,6 +1343,7 @@ def ask_astrologer_stream(
                     effort=prep["effort"],
                     images=prep["images"],
                     user_id=prep["user_id"],
+                    max_output_tokens=prep["max_output_tokens"],
                 )
                 record_usage(prep["user_id"], tokens + prep["image_tokens"])
                 yield event("delta", {"text": answer})
@@ -1313,6 +1354,7 @@ def ask_astrologer_stream(
                     system=build_ask_astrologer_system(),
                     effort=prep["effort"],
                     user_id=prep["user_id"],
+                    max_output_tokens=prep["max_output_tokens"],
                     usage_out=usage,
                 ):
                     yield event("delta", {"text": piece})
@@ -1449,8 +1491,8 @@ def ask_compatibility(
     # Synastry alone cannot answer "why now" — it describes a permanent
     # dynamic. The transits are what make a timing question answerable.
     timing = build_relationship_timing(
-        person_1_chart["planet_positions"],
-        person_2_chart["planet_positions"],
+        person_1_chart["planet_positions"] + person_1_chart.get("angles", []),
+        person_2_chart["planet_positions"] + person_2_chart.get("angles", []),
         synastry_aspects,
     )
 
@@ -1466,6 +1508,7 @@ def ask_compatibility(
         relationship_type=described_as,
     )
     context["timing"] = timing
+    context["requested_detail"] = requested_detail(data.question)
     # Earlier chats about this same person, and nothing else. Continuity where
     # it belongs, without one relationship's conversation reaching into another.
     if profile_id is not None:
@@ -1474,7 +1517,10 @@ def ask_compatibility(
         )
 
     prompt = build_ask_compatibility_prompt(context)
-    answer, tokens = generate_compatibility_answer(prompt, model=model, user_id=user_id)
+    answer, tokens = generate_compatibility_answer(
+        prompt, model=model, user_id=user_id,
+        max_output_tokens=answer_ceiling(data.question, 4),
+    )
     record_usage(user_id, tokens)
 
     return {
@@ -2297,4 +2343,3 @@ def admin_update_tier_by_email(
     if not updated:
         raise HTTPException(status_code=404, detail="User not found")
     return {"message": "Tier updated", "user": updated}
-

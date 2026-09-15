@@ -17,6 +17,10 @@ const MIN_GAP = 12;     // characters of plain text between two marked words
 type Piece = { text: string; entry?: GlossaryEntry };
 type Hit = { at: number; text: string; entry: GlossaryEntry };
 
+export function hasGlossaryTerms(text: string): boolean {
+  return new RegExp(TERM_PATTERN.source, "i").test(text);
+}
+
 function segment(text: string): Piece[] {
   // Every first mention, in reading order.
   const hits: Hit[] = [];
@@ -54,7 +58,7 @@ function segment(text: string): Piece[] {
   return pieces;
 }
 
-export default function GlossaryText({ text }: { text: string }) {
+export default function GlossaryText({ text, showHint = false }: { text: string; showHint?: boolean }) {
   const [open, setOpen] = useState<
     { entry: GlossaryEntry; x: number; y: number; height: number } | null
   >(null);
@@ -129,7 +133,9 @@ export default function GlossaryText({ text }: { text: string }) {
             role="button"
             tabIndex={0}
             className="zo-term"
-            aria-label={`What ${piece.entry.title} means`}
+            aria-label={`Explain ${piece.entry.title}`}
+            aria-haspopup="dialog"
+            aria-expanded={open?.entry.title === piece.entry.title}
             onKeyDown={(e) => {
               if (e.key === "Enter" || e.key === " ") {
                 e.preventDefault();
@@ -153,6 +159,12 @@ export default function GlossaryText({ text }: { text: string }) {
         ),
       )}
 
+      {showHint && pieces.some((piece) => piece.entry) && (
+        <span className="zo-glossary-hint">
+          Tap an underlined astrology term for a plain-language explanation.
+        </span>
+      )}
+
       {open && (
         <div
           ref={cardRef}
@@ -161,6 +173,7 @@ export default function GlossaryText({ text }: { text: string }) {
           aria-label={open.entry.title}
           onClick={(e) => e.stopPropagation()}
         >
+          <button type="button" className="zo-term-close" aria-label="Close explanation" onClick={() => setOpen(null)}>×</button>
           <p className="zo-term-title">{open.entry.title}</p>
           <p className="zo-term-body">{open.entry.body}</p>
         </div>
