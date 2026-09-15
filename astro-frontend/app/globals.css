@@ -711,3 +711,28 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   padding: 11px 13px;
 }
 .zo-bug-input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+
+.zo-term:focus-visible {
+  outline: 2px solid var(--gold-deep);
+  outline-offset: 3px;
+  border-radius: 2px;
+}
+.zo-glossary-hint {
+  display: block;
+  margin-top: 12px;
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: normal;
+  color: var(--ink-2);
+}
+.zo-term-close {
+  float: right;
+  min-width: 28px;
+  min-height: 28px;
+  margin: -4px -4px 0 8px;
+  font-size: 22px;
+  line-height: 1;
+  cursor: pointer;
+  color: var(--ink-2);
+}

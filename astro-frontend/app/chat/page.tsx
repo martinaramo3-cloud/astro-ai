@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
-import GlossaryText from "../../components/GlossaryText";
+import GlossaryText, { hasGlossaryTerms } from "../../components/GlossaryText";
 import ReportBug from "../../components/ReportBug";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
 import BirthDetailsEditor from "../../components/BirthDetailsEditor";
@@ -1420,12 +1420,15 @@ export default function ChatPage() {
                             {shareNote}
                           </p>
                         )}
-                        <p
+                        <div
                           className="font-reading body-pretty whitespace-pre-wrap"
                           style={{ fontSize: 18, lineHeight: 1.85, maxWidth: "62ch" }}
                         >
-                          <GlossaryText text={message.content} />
-                        </p>
+                          <GlossaryText
+                            text={message.content}
+                            showHint={index === conversation.findIndex((turn) => turn.role === "assistant" && hasGlossaryTerms(turn.content))}
+                          />
+                        </div>
                       </div>
                     )}
                   </div>

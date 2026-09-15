@@ -213,7 +213,7 @@ def build_upcoming_transit_timeline(
 # What a relationship question turns on. Uranus and Neptune are left out: they
 # are too slow to explain "why this week", and they tempt an answer toward the
 # cosmic when the question is about a person.
-RELATIONSHIP_PLANETS = {"Sun", "Moon", "Venus", "Mars", "Jupiter", "Saturn", "Pluto"}
+RELATIONSHIP_PLANETS = {"Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn", "Pluto", "Ascendant", "Descendant"}
 
 
 def build_relationship_timing(
@@ -254,6 +254,16 @@ def build_relationship_timing(
     yours = hits(person_1_planets)
     theirs = hits(person_2_planets)
 
+    def upcoming(points, owner):
+        return [
+            {"when": f"{e['starts']} to {e['fades']}, peaks {e['peaks']}",
+             "what": f"{e['transit_planet']} {e['aspect']} {owner} {e['natal_planet']}",
+             "peak_orb": e["peak_orb"]}
+            for e in build_upcoming_transit_timeline(
+                points, max_events=8, focus_planets=RELATIONSHIP_PLANETS
+            )
+        ]
+
     # A synastry contact is "live" when a transiting planet is within orb of
     # either end of it. Both ends being lit is rarer and stronger, so it sorts
     # first.
@@ -290,16 +300,8 @@ def build_relationship_timing(
         "to_your_chart": yours,
         "to_their_chart": theirs,
         "activated_contacts": activated[:3],
-        "upcoming_for_you": [
-            {
-                "when": f"{e['starts']} to {e['fades']}, peaks {e['peaks']}",
-                "what": f"{e['transit_planet']} {e['aspect']} your {e['natal_planet']}",
-                "peak_orb": e["peak_orb"],
-            }
-            for e in build_upcoming_transit_timeline(
-                person_1_planets, max_events=4, focus_planets=RELATIONSHIP_PLANETS
-            )
-        ],
+        "upcoming_for_you": upcoming(person_1_planets, "your"),
+        "upcoming_for_them": upcoming(person_2_planets, "their"),
     }
 
 
