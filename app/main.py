@@ -2134,6 +2134,79 @@ def _require_admin(x_admin_secret: str | None) -> None:
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
 
 
+class BugReportRequest(BaseModel):
+    message: str
+    page: str | None = None
+
+
+@app.post("/bug-reports")
+def report_a_bug(
+    data: BugReportRequest,
+    user_agent: str | None = Header(default=None),
+    authorization: str | None = Header(default=None),
+):
+    """Someone telling us something is wrong, in their own words.
+
+    Deliberately open to anyone signed in or not: a bug that stops you logging
+    in is exactly the one you most need to hear about, and a report form that
+    requires an account cannot receive it.
+    """
+    message = (data.message or "").strip()
+    if len(message) < 3:
+        raise HTTPException(status_code=400, detail="Tell us a little about what happened.")
+
+    user_id, email = None, None
+    if authorization and authorization.lower().startswith("bearer "):
+        user_id = get_user_id_for_token(authorization.split(" ", 1)[1])
+        if user_id:
+            email = (get_user_by_id(user_id) or {}).get("email")
+
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO bug_reports (user_id, email, message, page, user_agent, created_at)"
+        " VALUES (?, ?, ?, ?, ?, ?)",
+        (user_id, email, message[:4000], (data.page or "")[:300],
+         (user_agent or "")[:300], datetime.now(timezone.utc).isoformat()),
+    )
+    conn.commit()
+    conn.close()
+    return {"message": "Thank you — that's been logged."}
+
+
+@app.get("/admin/bug-reports")
+def admin_bug_reports(
+    limit: int = 50,
+    x_admin_secret: str | None = Header(default=None),
+):
+    """What people have said is broken, newest first."""
+    _require_admin(x_admin_secret)
+    conn = get_db_connection()
+    rows = conn.execute(
+        "SELECT id, user_id, email, message, page, user_agent, resolved, created_at "
+        "FROM bug_reports ORDER BY id DESC LIMIT ?",
+        (min(limit, 200),),
+    ).fetchall()
+    unresolved = conn.execute(
+        "SELECT COUNT(*) FROM bug_reports WHERE resolved = 0"
+    ).fetchone()[0]
+    conn.close()
+    return {"open": unresolved, "reports": [dict(r) for r in rows]}
+
+
+@app.patch("/admin/bug-reports/{report_id}")
+def admin_resolve_bug(
+    report_id: int,
+    x_admin_secret: str | None = Header(default=None),
+):
+    """Mark one as dealt with, so the list stays a list of things to do."""
+    _require_admin(x_admin_secret)
+    conn = get_db_connection()
+    conn.execute("UPDATE bug_reports SET resolved = 1 WHERE id = ?", (report_id,))
+    conn.commit()
+    conn.close()
+    return {"message": "Marked as done."}
+
+
 @app.get("/admin/errors")
 def admin_errors(
     limit: int = 50,

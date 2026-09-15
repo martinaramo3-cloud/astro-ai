@@ -136,6 +136,27 @@ def init_db():
         "CREATE INDEX IF NOT EXISTS idx_invites_hash ON invites(token_hash)"
     )
 
+    # What someone tells us is wrong, in their words. The error log catches
+    # what crashes; this catches what is merely broken — an answer that made no
+    # sense, a button that did nothing, a chart that looks wrong. Neither one
+    # finds the other's bugs.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS bug_reports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER,
+        email TEXT,
+        message TEXT NOT NULL,
+        page TEXT,
+        user_agent TEXT,
+        resolved INTEGER NOT NULL DEFAULT 0,
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_bug_reports_created ON bug_reports(created_at)"
+    )
+
     # One row per unhandled failure, so "is it working" has an answer that
     # doesn't depend on someone complaining.
     cursor.execute("""

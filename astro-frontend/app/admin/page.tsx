@@ -50,6 +50,10 @@ type ErrorEvent = {
   id: number; path: string; method: string; kind: string;
   message: string; created_at: string; status_code: number | null;
 };
+type BugReport = {
+  id: number; email: string | null; message: string;
+  page: string | null; resolved: number; created_at: string;
+};
 type ErrorReport = {
   summary: { total: number; last_24h: number; last_hour: number;
              most_common_today: { kind: string; path: string; hits: number }[] };
@@ -70,6 +74,39 @@ export default function AdminPage() {
   // What has been failing. The whole point of recording it was so nobody has
   // to hear about a bug from the person it happened to.
   const [faults, setFaults] = useState<ErrorReport | null>(null);
+  // What people said was broken, in their words. Separate from the error log:
+  // a crash and "this answer made no sense" are different problems.
+  const [bugs, setBugs] = useState<{ open: number; reports: BugReport[] } | null>(null);
+  // Changing someone's tier used to mean a terminal and a remembered curl.
+  // It is needed for test accounts now and for comped friends and early
+  // customers until payments exist, so it belongs where the secret already is.
+  const [tierEmail, setTierEmail] = useState("");
+  const [tierChoice, setTierChoice] = useState("premium");
+  const [tierNote, setTierNote] = useState("");
+  const [tierBusy, setTierBusy] = useState(false);
+
+  const applyTier = async () => {
+    if (!tierEmail.trim()) return setTierNote("Which account?");
+    setTierBusy(true);
+    setTierNote("");
+    try {
+      const res = await fetch(`${getBrowserApiBase()}/admin/tier-by-email`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json", "x-admin-secret": secret },
+        body: JSON.stringify({ email: tierEmail.trim(), tier: tierChoice }),
+      });
+      const body = await res.json().catch(() => ({}));
+      setTierNote(
+        res.ok
+          ? `${tierEmail.trim()} is now ${tierChoice}.`
+          : typeof body.detail === "string" ? body.detail : "That didn't work.",
+      );
+      if (res.ok) load(secret);
+    } catch {
+      setTierNote("Could not reach the server.");
+    }
+    setTierBusy(false);
+  };
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -96,6 +133,12 @@ export default function AdminPage() {
           .then((r) => (r.ok ? r.json() : null))
           .then(setFaults)
           .catch(() => setFaults(null));
+        fetch(`${getBrowserApiBase()}/admin/bug-reports?limit=30`, {
+          headers: { "x-admin-secret": withSecret },
+        })
+          .then((r) => (r.ok ? r.json() : null))
+          .then(setBugs)
+          .catch(() => setBugs(null));
         try {
           sessionStorage.setItem("zodi-admin-secret", withSecret);
         } catch {
@@ -216,6 +259,102 @@ export default function AdminPage() {
                   <span className="font-reading" style={{ color: "var(--ink)", minWidth: 70, textAlign: "right" }}>
                     {money(m.cost_usd)}
                   </span>
+                </div>
+              ))}
+            </div>
+
+            <h2 className="micro-label" style={{ letterSpacing: "0.22em", marginTop: 30, marginBottom: 10 }}>
+              Change someone&rsquo;s plan
+            </h2>
+            <div
+              style={{ border: "1px solid var(--line)", borderRadius: 14, padding: "14px 16px" }}
+            >
+              <div className="flex flex-wrap items-center gap-2">
+                <input
+                  value={tierEmail}
+                  onChange={(e) => setTierEmail(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") applyTier(); }}
+                  placeholder="their email"
+                  className="min-w-0 flex-1"
+                  style={{
+                    background: "var(--sunk)", border: "1px solid var(--line-2)",
+                    borderRadius: 10, padding: "9px 12px", fontSize: 14, color: "var(--ink)",
+                  }}
+                />
+                <select
+                  value={tierChoice}
+                  onChange={(e) => setTierChoice(e.target.value)}
+                  style={{
+                    background: "var(--sunk)", border: "1px solid var(--line-2)",
+                    borderRadius: 10, padding: "9px 12px", fontSize: 14, color: "var(--ink)",
+                  }}
+                >
+                  <option value="free">Free</option>
+                  <option value="standard">Standard</option>
+                  <option value="premium">Premium &mdash; unlimited</option>
+                </select>
+                <button
+                  onClick={applyTier}
+                  disabled={tierBusy}
+                  className="micro-label"
+                  style={{
+                    letterSpacing: "0.14em", color: "var(--on-gold)",
+                    background: "linear-gradient(135deg, var(--gold), var(--gold-deep))",
+                    borderRadius: 999, padding: "10px 18px", opacity: tierBusy ? 0.6 : 1,
+                  }}
+                >
+                  {tierBusy ? "Saving…" : "Apply"}
+                </button>
+              </div>
+              {tierNote && (
+                <p className="font-reading" style={{ fontSize: 13.5, color: "var(--ink-2)", marginTop: 10 }}>
+                  {tierNote}
+                </p>
+              )}
+              <p style={{ fontSize: 12, color: "var(--ink-3)", marginTop: 8 }}>
+                Premium is unlimited tokens on all three models, and unlimited
+                saved people. The account has to exist already.
+              </p>
+            </div>
+
+            <h2 className="micro-label" style={{ letterSpacing: "0.22em", marginTop: 30, marginBottom: 10 }}>
+              Reported by people {bugs && bugs.open > 0 && (
+                <span style={{ color: "var(--gold-deep)" }}>· {bugs.open} open</span>
+              )}
+            </h2>
+            <div style={{ border: "1px solid var(--line)", borderRadius: 14, overflow: "hidden" }}>
+              {(!bugs || bugs.reports.length === 0) && (
+                <p className="font-reading" style={{ fontSize: 14, color: "var(--ink-3)", padding: "14px 16px" }}>
+                  {bugs ? "Nobody has reported anything." : "Checking…"}
+                </p>
+              )}
+              {bugs?.reports.map((b) => (
+                <div key={b.id} style={{ padding: "13px 16px", borderTop: "1px solid var(--line)", opacity: b.resolved ? 0.45 : 1 }}>
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="min-w-0 truncate" style={{ fontSize: 13, color: "var(--ink-3)" }}>
+                      {b.email ?? "not signed in"} {b.page && <span>· {b.page}</span>}
+                    </span>
+                    <span className="flex shrink-0 items-baseline gap-3">
+                      <span style={{ fontSize: 12.5, color: "var(--ink-3)" }}>{ago(b.created_at)}</span>
+                      {!b.resolved && (
+                        <button
+                          onClick={async () => {
+                            await fetch(`${getBrowserApiBase()}/admin/bug-reports/${b.id}`, {
+                              method: "PATCH", headers: { "x-admin-secret": secret },
+                            });
+                            load(secret);
+                          }}
+                          className="micro-label"
+                          style={{ letterSpacing: "0.12em", color: "var(--gold-deep)" }}
+                        >
+                          Done
+                        </button>
+                      )}
+                    </span>
+                  </div>
+                  <p className="font-reading" style={{ fontSize: 15, color: "var(--ink)", marginTop: 4, overflowWrap: "anywhere" }}>
+                    {b.message}
+                  </p>
                 </div>
               ))}
             </div>

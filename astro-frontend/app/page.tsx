@@ -5,6 +5,7 @@ import { apiFetch, saveAuth } from "../lib/api";
 import PlaceAutocomplete from "../components/PlaceAutocomplete";
 import ZodiMark from "../components/ZodiMark";
 import Wordmark from "../components/Wordmark";
+import ReportBug from "../components/ReportBug";
 import { ThemeToggle, useTheme } from "../components/ThemeProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -594,6 +595,14 @@ export default function Home() {
             </>
           )}
         </p>
+
+        {/* Signed out is exactly where a bug most needs reporting: if what's
+            broken is getting in, there is no other way to tell us. In flow
+            rather than pinned to the corner, where it would sit on the legal
+            line on a phone. */}
+        <div className="mb-6 mt-4 flex justify-center">
+          <ReportBug />
+        </div>
       </div>
     </main>
   );

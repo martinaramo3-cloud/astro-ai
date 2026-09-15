@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import GlossaryText from "../../components/GlossaryText";
+import ReportBug from "../../components/ReportBug";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
 import BirthDetailsEditor from "../../components/BirthDetailsEditor";
 import AttachedImages from "../../components/AttachedImages";
@@ -1196,6 +1197,22 @@ export default function ChatPage() {
             </p>
           </div>
 
+          {/* Comparing charts with someone is the most distinctive thing
+              here and, on a phone, it lived entirely behind the hamburger.
+              Nobody opens a menu to find a feature they don't know about. */}
+          <button
+            onClick={() => setSidebarOpen(true)}
+            aria-label="People — compare charts"
+            title="Compare charts with someone"
+            className="grid shrink-0 place-items-center lg:hidden"
+            style={{
+              width: 44, height: 44, fontSize: 17,
+              color: selectedProfile ? "var(--gold-deep)" : "var(--ink-3)",
+            }}
+          >
+            ☍
+          </button>
+
           <ThemeToggle />
         </header>
 
@@ -1453,6 +1470,25 @@ export default function ChatPage() {
           style={{ borderTop: "1px solid var(--line)", background: "var(--ground-2)" }}
         >
           <div className="mx-auto w-full max-w-[800px] px-[18px] py-4 lg:px-[30px]">
+            {isFresh && !loading && profiles.length === 0 && (
+              <button
+                onClick={() => { setSidebarOpen(true); setShowAddProfile(true); }}
+                className="font-reading mb-3 w-full text-left"
+                style={{
+                  borderRadius: 16,
+                  border: "1px dashed var(--line-2)",
+                  padding: "12px 16px",
+                  fontSize: 15,
+                  color: "var(--ink-2)",
+                  background: "var(--sunk)",
+                }}
+              >
+                <span style={{ color: "var(--gold-deep)" }}>☍</span>{" "}
+                Add someone and read your charts together — a friend, a crush,
+                your mother.
+              </button>
+            )}
+
             {isFresh && !loading && (
               <div className="mb-3 flex flex-wrap gap-2">
                 {STARTERS.map((starter) => (
@@ -1655,37 +1691,40 @@ export default function ChatPage() {
                 </div>
               )}
 
-              {usage && (() => {
-                const lim = selectedModel ? usage.model_limits?.[selectedModel] : undefined;
-                const label =
-                  usage.available_models?.find((m) => m.key === selectedModel)?.label ??
-                  selectedModel ?? "";
-                if (!lim) {
-                  // Unmetered for this tier + model (Fast, or a paid plan).
+              <div className="ml-auto flex items-center gap-4">
+                {usage && (() => {
+                  const lim = selectedModel ? usage.model_limits?.[selectedModel] : undefined;
+                  const label =
+                    usage.available_models?.find((m) => m.key === selectedModel)?.label ??
+                    selectedModel ?? "";
+                  if (!lim) {
+                    // Unmetered for this tier + model (Fast, or a paid plan).
+                    return (
+                      <p className="micro-label" style={{ letterSpacing: "0.16em", color: "var(--ink-3)" }}>
+                        {label} · unlimited
+                      </p>
+                    );
+                  }
+                  const spent = lim.remaining_tokens <= 0;
+                  const left = lim.remaining_tokens.toLocaleString();
+                  const line = spent
+                    ? lim.window === "lifetime"
+                      ? `${label} welcome used`
+                      : `${label} used up this month`
+                    : lim.window === "lifetime"
+                    ? `${left} ${label} welcome tokens left`
+                    : `${left} ${label} tokens left this month`;
                   return (
-                    <p className="micro-label" style={{ letterSpacing: "0.16em", color: "var(--ink-3)" }}>
-                      {label} · unlimited
+                    <p
+                      className="micro-label"
+                      style={{ letterSpacing: "0.16em", color: spent ? "var(--gold-deep)" : "var(--ink-3)" }}
+                    >
+                      {line}
                     </p>
                   );
-                }
-                const spent = lim.remaining_tokens <= 0;
-                const left = lim.remaining_tokens.toLocaleString();
-                const line = spent
-                  ? lim.window === "lifetime"
-                    ? `${label} welcome used`
-                    : `${label} used up this month`
-                  : lim.window === "lifetime"
-                  ? `${left} ${label} welcome tokens left`
-                  : `${left} ${label} tokens left this month`;
-                return (
-                  <p
-                    className="micro-label"
-                    style={{ letterSpacing: "0.16em", color: spent ? "var(--gold-deep)" : "var(--ink-3)" }}
-                  >
-                    {line}
-                  </p>
-                );
-              })()}
+                })()}
+                <ReportBug />
+              </div>
             </div>
           </div>
         </div>

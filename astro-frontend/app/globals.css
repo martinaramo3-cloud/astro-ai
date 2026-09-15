@@ -662,3 +662,52 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   transition: color 0.15s ease, border-color 0.15s ease;
 }
 .zo-speak:hover { color: var(--gold-deep); border-color: var(--gold); }
+
+/* ── Report a bug ──────────────────────────────────────────────────────────
+   Small and quiet, and part of the layout rather than floating over it: on a
+   phone every corner already belongs to something. */
+.zo-bug-open {
+  font-family: var(--font-jost), system-ui, sans-serif;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+  background: none;
+  border: 0;
+  padding: 0;
+  white-space: nowrap;
+  transition: color 0.15s ease;
+}
+.zo-bug-open:hover { color: var(--gold-deep); }
+
+.zo-bug-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  background: rgba(20, 16, 10, 0.4);
+  backdrop-filter: blur(2px);
+}
+.zo-bug-panel {
+  width: min(430px, 100%);
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-radius: 18px;
+  box-shadow: var(--shadow);
+  padding: 22px;
+  animation: zo-term-in 0.16s ease-out;
+}
+.zo-bug-input {
+  width: 100%;
+  resize: vertical;
+  font-size: 15.5px;
+  line-height: 1.5;
+  color: var(--ink);
+  background: var(--sunk);
+  border: 1px solid var(--line-2);
+  border-radius: 12px;
+  padding: 11px 13px;
+}
+.zo-bug-input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
