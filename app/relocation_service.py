@@ -20,6 +20,10 @@ purpose is an astrological judgement, and lives outside this module.
 from __future__ import annotations
 
 from datetime import datetime, timedelta
+import calendar
+
+from app.aspect_services import get_aspects
+from app.chart_analysis_service import get_house_rulers, get_dignity
 
 import pytz
 import swisseph as swe
@@ -56,7 +60,7 @@ def find_solar_return(natal_sun_longitude: float, year: int,
     """
     # Start a week either side of the anniversary: enough to contain the
     # return whatever the leap-year drift.
-    start = datetime(year, birth_month, birth_day, tzinfo=pytz.utc) - timedelta(days=7)
+    start = datetime(year, birth_month, min(birth_day, calendar.monthrange(year, birth_month)[1]), tzinfo=pytz.utc) - timedelta(days=7)
     end = start + timedelta(days=14)
 
     low, high = start, end
@@ -69,9 +73,9 @@ def find_solar_return(natal_sun_longitude: float, year: int,
     return low + (high - low) / 2
 
 
-def chart_for(moment: datetime, latitude: float, longitude: float) -> dict:
+def chart_for(moment: datetime, latitude: float, longitude: float, *, planets: list[dict] | None = None) -> dict:
     """A full chart for one moment seen from one place."""
-    planets = get_planet_positions_from_utc(moment)
+    planets = [dict(p) for p in planets] if planets is not None else get_planet_positions_from_utc(moment)
     houses = get_houses_and_ascendant(moment, latitude, longitude)
     placed = add_house_to_planets(planets, houses["houses"])
 
@@ -92,6 +96,10 @@ def chart_for(moment: datetime, latitude: float, longitude: float) -> dict:
         "planets": placed,
         "angles": angles,
         "angular_planets": _angular(placed, angles),
+        "aspects": get_aspects(placed),
+        "house_system": "Placidus",
+        "rulership_system": "traditional",
+        "house_rulers": get_house_rulers(houses["houses"], placed),
     }
 
 
@@ -159,103 +167,115 @@ def solar_return_for_places(
     }
 
 
-def rank_places_for(
-    natal_sun_longitude: float,
-    year: int,
-    birth_month: int,
-    birth_day: int,
-    purpose: str = "money",
-    places: list[dict] | None = None,
-    top: int = 7,
-    region: str = "world",
-) -> dict:
-    """Where to be for the solar return, ranked, with the reasoning shown.
+def choose_return_year(natal_sun: float, month: int, day: int, requested_year: int | None = None,
+                       now: datetime | None = None) -> int:
+    if requested_year is not None:
+        if not 1900 <= requested_year <= 2100:
+            raise ValueError("Requested return year is outside the supported range")
+        return requested_year
+    now = now or datetime.now(pytz.utc)
+    moment = find_solar_return(natal_sun, now.year, month, day)
+    return now.year if moment >= now else now.year + 1
 
-    The return moment is the same everywhere — the Sun comes back when it comes
-    back — so every chart here has identical planets and identical aspects
-    between them. Only the houses and the angles differ, and that is the whole
-    of what choosing a city can change.
+
+def _point(point: dict) -> dict:
+    return {"sign": point["sign"], "longitude": point["degree"],
+            "degree_in_sign": round(point["degree"] % 30, 2)}
+
+
+def rank_places_for(
+    natal_sun_longitude: float, year: int, birth_month: int, birth_day: int,
+    purpose: str = "money", places: list[dict] | None = None, top: int = 7,
+    region: str = "world", natal_planets: list[dict] | None = None,
+) -> dict:
+    """Compare distinct locations at a single return instant; never merge charts
+    because they tie under a finite scoring model. Failed candidates are reported.
     """
     from app.european_cities import as_places
-    from app.relocation_scoring import BY_AN_ASTROLOGER, PURPOSES, score_chart, _ordinal
-
-    candidates = places or as_places(region)
+    from app.relocation_scoring import PURPOSES, score_chart
+    if purpose not in PURPOSES:
+        raise ValueError("No scoring method for the requested purpose")
+    if not 1 <= top <= 10:
+        raise ValueError("Request between one and ten ranked cities")
+    candidates = places if places is not None else as_places(region)
     moment = find_solar_return(natal_sun_longitude, year, birth_month, birth_day)
-
-    scored = []
+    # Calculate these once. Every candidate receives copies of the same positions.
+    planets = get_planet_positions_from_utc(moment)
+    fixed_aspects = get_aspects(planets)
+    scored, failed = [], []
     for place in candidates:
-        chart = chart_for(moment, place["latitude"], place["longitude"])
-        result = score_chart(chart, purpose)
-        local = None
-        if place.get("timezone"):
-            local = moment.astimezone(pytz.timezone(place["timezone"])).strftime("%d %B %Y, %H:%M")
-        scored.append({
-            "place": place["label"],
-            "score": result["score"],
-            "be_there_at": local,
-            "ascendant": f"{chart['ascendant']['sign']} {chart['ascendant']['degree'] % 30:.0f}",
-            "midheaven": f"{chart['midheaven']['sign']} {chart['midheaven']['degree'] % 30:.0f}",
-            "from_houses": result["from_houses"],
-            "from_angles": result["from_angles"],
-            "from_rulers": result["from_rulers"],
-            "why": result["why"][:6],
-        })
-
-    scored.sort(key=lambda p: -p["score"])
-    table = PURPOSES.get(purpose)
-
-    # How much the choice is worth at all. In some years the planets fall such
-    # that most of a continent gives the same chart, and in others where you
-    # stand changes it completely. Ranking eighty cities implies the first
-    # meaningfully beats the seventh, which in a flat year is untrue — and
-    # saying so is more useful than a confident list.
-    spread = (scored[0]["score"] - scored[-1]["score"]) if len(scored) > 1 else 0.0
-    distinct = len({p["score"] for p in scored})
-    on_angles = sum(1 for p in scored if p["from_angles"])
-    if spread < 3 or distinct <= 5:
-        verdict = "barely — most of Europe gives nearly the same chart this year"
-    elif spread < 8:
-        verdict = "somewhat — there is a real but modest difference between the best and worst"
-    else:
-        verdict = "a great deal — the best and worst places are meaningfully different charts"
-
-    # Cities on nearly the same longitude get the same chart, so presenting
-    # them as first, second and third is a ranking of nothing.
-    grouped: list[dict] = []
-    for place in scored:
-        if grouped and abs(grouped[-1]["score"] - place["score"]) < 0.01:
-            grouped[-1]["also"].append(place["place"])
-        else:
-            grouped.append({**place, "also": []})
-
+        try:
+            chart = chart_for(moment, place["latitude"], place["longitude"], planets=planets)
+            zone = pytz.timezone(place["timezone"])
+            local = moment.astimezone(zone)
+            chart["natal_planets"] = natal_planets or []
+            result = score_chart(chart, purpose)
+            rulers = chart["house_rulers"]
+            conditions = []
+            for name in ("Jupiter", "Venus", "Saturn"):
+                planet = next(p for p in chart["planets"] if p["planet"] == name)
+                conditions.append({**planet, "dignity": get_dignity(name, planet["sign"]),
+                    "rules_houses": [r["house"] for r in rulers if r["ruler"] == name],
+                    "angularity": [a for a in chart["angular_planets"] if a["planet"] == name],
+                    "aspects": [a for a in fixed_aspects if name in (a["planet_1"], a["planet_2"])]})
+            mc_ruler = next(r for r in rulers if r["house"] == 10)
+            angle_points = [{"planet": name, "degree": degree} for name, degree in chart["angles"].items()]
+            angle_aspects = [a for a in get_aspects(chart["planets"] + angle_points)
+                             if a["planet_2"] in chart["angles"] and a["planet_1"] not in chart["angles"]]
+            natal_contacts = []
+            if natal_planets:
+                for angle in angle_points:
+                    for natal in natal_planets:
+                        for aspect in get_aspects([angle, {**natal, "planet": "natal " + natal["planet"]}]):
+                            natal_contacts.append({**aspect, "source": "relocated_solar_return_to_natal"})
+            scored.append({
+                "source": "relocated_solar_return", "place": place["label"],
+                "latitude": place["latitude"], "longitude": place["longitude"],
+                "house_system": "Placidus", "rulership_system": "traditional",
+                "score": result["score"], "score_unit": "heuristic points, not a percentage or probability",
+                "be_there_at": local.isoformat(timespec="seconds"), "timezone": place["timezone"],
+                "arrival_buffer_minutes": 60,
+                "arrive_by": (moment - timedelta(minutes=60)).astimezone(zone).isoformat(timespec="seconds"),
+                "ascendant": _point(chart["ascendant"]), "midheaven": _point(chart["midheaven"]),
+                "houses": chart["houses"], "house_rulers": rulers, "mc_ruler": mc_ruler,
+                "planet_conditions": conditions, "houses_of": {p["planet"]: p["house"] for p in chart["planets"]},
+                "angular_planets": chart["angular_planets"], "angle_aspects": angle_aspects,
+                "natal_contacts": natal_contacts,
+                **{key: result[key] for key in ("from_houses", "from_angles", "from_rulers", "from_mc_contacts", "why", "advantages", "tradeoffs", "pathway_scores")},
+            })
+        except (ValueError, KeyError, StopIteration, swe.Error, pytz.UnknownTimeZoneError) as exc:
+            failed.append({"place": place.get("label", "Unknown candidate"), "reason": type(exc).__name__})
+    if not scored:
+        return {"source": "relocated_solar_return", "status": "failed", "searched": len(candidates),
+                "calculated": 0, "failed_candidates": failed, "best": [],
+                "message": "The city calculation failed. I cannot rank locations from natal transits instead."}
+    scored.sort(key=lambda p: (-p["score"], p["place"]))
+    # Ties get the same rank but retain independent coordinates, houses and times.
+    rank = 0
+    for index, candidate in enumerate(scored):
+        if index == 0 or candidate["score"] != scored[index - 1]["score"]:
+            rank = index + 1
+        candidate["rank"] = rank
+    spread = round(scored[0]["score"] - scored[-1]["score"], 2)
+    winners = {}
+    for pathway in scored[0]["pathway_scores"]:
+        best_score = max(p["pathway_scores"][pathway] for p in scored)
+        winners[pathway] = {"score": best_score, "places": [p["place"] for p in scored if p["pathway_scores"][pathway] == best_score]}
     return {
-        "purpose": purpose,
-        # Whose astrology this is. The money table came from an astrologer; the
-        # others were written by analogy and are marked so a reading can be
-        # appropriately confident and no more.
-        "scoring_reviewed_by_astrologer": purpose in BY_AN_ASTROLOGER,
+        "source": "relocated_solar_return", "status": "partial" if failed else "ok",
+        "purpose": purpose, "year": year, "region": region,
+        "searched": len(candidates), "calculated": len(scored), "failed_candidates": failed,
         "returns_at_utc": moment.isoformat(),
-        "searched": len(candidates),
-        "region": region,
-        "note": (
-            "One moment seen from many places. The planets and the aspects between "
-            "them are identical everywhere — only the houses and the angles change, "
-            "which is the whole of what relocating does. Scores come from an "
-            "astrologer's table, and 'why' shows the working: give the reasoning, "
-            "not the number, and say plainly that they have to physically be there "
-            "at the local time given. Read "
-            "'does_location_matter_this_year' first and say so honestly — in a flat "
-            "year, telling someone to fly somewhere is selling them a difference "
-            "that isn't there. Cities listed under 'also' share the same chart and "
-            "are equal, not ranked."
-        ),
-        "houses_that_count": (
-            {_ordinal(h): meta["means"] for h, meta in table["houses"].items()} if table else {}
-        ),
-        "does_location_matter_this_year": verdict,
-        "score_spread": round(spread, 2),
-        "cities_with_a_planet_on_an_angle": on_angles,
-        # Grouped, so equally-placed cities read as equal rather than ranked.
-        "best": grouped[:top],
+        "base_solar_return": {"source": "solar_return", "scope": "location-independent planetary positions and mutual aspects only",
+                              "moment_utc": moment.isoformat(), "planets": planets, "aspects": fixed_aspects},
+        "scoring_version": "relocation-v2",
+        "scoring_reviewed_by_astrologer": False,
+        "score_unit": "heuristic points, not /100, financial returns or success probabilities",
+        "scoring_note": "Existing house/angle weights with corrected occupancy and draft ruler-condition/aspect modifiers. MC sign has no direct score. Close MC aspects add/subtract 0.5 points; MC or its ruler contacts to natal personal/social planets add/subtract 0.25. Conjunctions receive no extra aspect bonus; current planet-angle conjunctions use the angular table. Subgoal scores compare occupants and rulers of each financial house, with MC contacts included for career; they are not separate validated forecasts.",
+        "note": "One global instant, expressed in each city's local timezone including daylight saving. Both latitude and longitude determine houses and angles. Planetary zodiacal positions and mutual aspects are identical everywhere. Tied scores do not mean identical charts. Arrival buffer is practical scheduling advice, not an astronomical calculation.",
+        "does_location_matter_this_year": "No score difference under this model" if spread == 0 else "Scores differ under this model; the spread is not a prediction of financial outcomes",
+        "score_spread": spread,
+        "cities_with_a_planet_on_an_angle": sum(bool(p["angular_planets"]) for p in scored),
+        "best": scored[:top], "best_by_financial_pathway": winners if purpose == "money" else {},
         "worst": scored[-3:][::-1],
     }

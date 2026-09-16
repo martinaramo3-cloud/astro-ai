@@ -171,15 +171,15 @@ def test_the_ranking_says_whether_the_choice_matters(natal_sun):
     assert len(result["best"]) <= 5
 
 
-def test_cities_with_the_same_chart_are_shown_as_equal(natal_sun):
-    """Krakow, Tirana and Podgorica sit on nearly one longitude, so ranking
-    them first, second and third is a ranking of nothing."""
+def test_equal_scores_do_not_merge_distinct_city_charts(natal_sun):
     from app.relocation_service import rank_places_for
     result = rank_places_for(natal_sun, 2027, 3, 2, purpose="money", top=10)
-    assert any(place["also"] for place in result["best"])
-    for place in result["best"]:
-        for twin in place["also"]:
-            assert twin != place["place"]
+    assert len(result["best"]) == 10
+    for city in result["best"]:
+        assert "also" not in city
+        assert city["latitude"] and city["longitude"]
+        assert len(city["house_rulers"]) == 12
+        assert city["be_there_at"] and city["timezone"]
 
 
 # ── The framework ──────────────────────────────────────────────────────────
@@ -275,20 +275,23 @@ def test_ordinary_questions_do_not_trigger_a_city_search(question):
 
 def test_the_search_reaches_the_reading(client, account, monkeypatch):
     import app.main as main
-
-    seen = {}
     monkeypatch.setattr(main, "generate_astrologer_answer",
-                        lambda prompt, **kw: (seen.update(prompt=prompt), ("ok", 60))[1])
-
+                        lambda *args, **kw: pytest.fail("A city ranking must not depend on model generation"))
     user, headers = account()
     response = client.post("/ask-astrologer", json={
         "birth_date": "1999-03-02", "birth_time": "07:15",
         "birth_place": "Sofia, Bulgaria", "birth_time_known": True,
-        "question": "where should i be for my solar return to make money",
+        "question": "rank top 7 European cities for my 2027 solar return for money",
         "history": [], "user_id": user["id"],
     }, headers=headers)
-
     assert response.status_code == 200
-    assert "where_to_be" in seen["prompt"]
-    assert "be_there_at" in seen["prompt"], "the local time is the whole point"
-    assert "does_location_matter_this_year" in seen["prompt"]
+    data = response.json()
+    result = data["context"]["where_to_be"]
+    assert result["status"] == "ok"
+    assert result["year"] == 2027
+    assert result["region"] == "europe"
+    assert len(result["best"]) == 7
+    for city in result["best"]:
+        assert city["place"] in data["answer"]
+        assert city["be_there_at"] in data["answer"]
+    assert data["context"]["natal_transits"]["included"] is False
