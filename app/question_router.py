@@ -271,7 +271,7 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
 _RELOCATION_PHRASES = (
     "where should i be", "where should i go", "where to be", "where to go",
     "where should i live", "where to live", "where should i move",
-    "relocat", "solar return", "best place", "best city", "best country",
+    "relocat", "solar return", "solar-return", "best place", "best city", "best country",
     "which city", "which country", "spend my birthday", "travel for my birthday",
     "move to", "where would be best", "rank cities", "rank the cities",
 )

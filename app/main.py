@@ -84,7 +84,7 @@ from app.location_service import get_location_data, describe_coordinates, sugges
 from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.month_outlook_service import build_month_outlook
-from app.relocation_service import rank_places_for
+from app.relocation_reading_service import prepare_relocation
 from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -971,6 +971,17 @@ def _prepare_astrologer_call(
 
     natal_data = build_natal_chart_data(data)
 
+    relocation = detect_relocation_request(data.question)
+    if relocation:
+        context, answer = prepare_relocation(data.question, data.birth_date, natal_data, relocation)
+        context.update(question=data.question, answer_tier=4)
+        return {
+            "user_id": user_id, "tier": 4, "tier_config": tier_config,
+            "max_output_tokens": 1600, "model": model, "effort": effort,
+            "images": None, "image_tokens": image_tokens, "question_type": "relocation",
+            "chat_context": context, "calculated_answer": answer,
+        }
+
     transit_planets = get_current_transit_positions()
 
     active_transits = annotate_house_rulership(
@@ -1070,7 +1081,9 @@ def _prepare_astrologer_call(
                 transit_planets, natal_data["houses"], focus_planets=focus_planets
             ),
         },
-        "chart_structure": chart_structure,
+        "chart_structure": {**chart_structure, "source": "natal",
+                            "all_house_rulers": get_house_rulers(natal_data["houses"], natal_data["planet_positions"]),
+                            "house_system": "Placidus", "rulership_system": "traditional"},
         "prediction": build_prediction(natal_data, active_transits, question_type),
         # Titles only, so a question can be picked back up across sessions.
         "past_conversations": summarize_recent_sessions(
@@ -1107,28 +1120,6 @@ def _prepare_astrologer_call(
             }
         except Exception as exc:  # noqa: BLE001
             print("Could not build transits for", asked_date, repr(exc))
-
-    # "Where should I be for my birthday" is a search over a hundred and fifty
-    # charts, so it has to happen before the prompt is built rather than being
-    # something the model is asked to imagine.
-    wants_relocation = detect_relocation_request(data.question)
-    if wants_relocation and natal_data.get("houses"):
-        try:
-            natal_sun = next(
-                p["degree"] for p in natal_data["planet_positions"] if p["planet"] == "Sun"
-            )
-            born = datetime.fromisoformat(data.birth_date)
-            today = datetime.now(timezone.utc)
-            # The next return, not the last one: this year if the birthday is
-            # still ahead, otherwise next.
-            year = today.year if (born.month, born.day) >= (today.month, today.day) else today.year + 1
-            chat_context["where_to_be"] = rank_places_for(
-                natal_sun, year, born.month, born.day,
-                purpose=wants_relocation["purpose"],
-                region=wants_relocation["region"],
-            )
-        except Exception as exc:  # noqa: BLE001
-            print("Relocation search failed:", repr(exc))
 
     # Asked about a month, answer about the whole month and the whole life.
     # Picking the loudest transit and going deep on one area left work, money,
@@ -1186,6 +1177,16 @@ def _prepare_astrologer_call(
                 "transits_through_houses": (sky.get("transits_through_houses") or [])[:3],
             },
         }
+    chat_context["sources"] = {
+        key: source for key, source in {
+            "ascendant": "natal", "midheaven": "natal", "personal_planets": "natal",
+            "relevant_planets": "natal", "relevant_aspects": "natal", "chart_structure": "natal",
+            "active_transits": "transit_to_natal", "relevant_transits": "transit_to_natal",
+            "predictive_timeline": "transit_to_natal", "transits_on_asked_date": "transit_to_natal",
+            "month_outlook": "transit_to_natal", "prediction": "transit_to_natal_interpretation",
+            "sky_now": "current_sky_and_transits_through_natal_houses",
+        }.items() if key in chat_context
+    }
     chat_context["answer_tier"] = tier
     chat_context["conversation_cue"] = conversational_cue(data.question)
 
@@ -1290,15 +1291,18 @@ def ask_astrologer(
 ):
     prep = _prepare_astrologer_call(data, current_user)
 
-    answer, tokens = generate_astrologer_answer(
-        build_ask_astrologer_user(prep["chat_context"]),
-        model=prep["model"],
-        system=build_ask_astrologer_system(),
-        effort=prep["effort"],
-        images=prep["images"],
-        user_id=prep["user_id"],
-        max_output_tokens=prep["max_output_tokens"],
-    )
+    if "calculated_answer" in prep:
+        answer, tokens = prep["calculated_answer"], 0
+    else:
+        answer, tokens = generate_astrologer_answer(
+            build_ask_astrologer_user(prep["chat_context"]),
+            model=prep["model"],
+            system=build_ask_astrologer_system(),
+            effort=prep["effort"],
+            images=prep["images"],
+            user_id=prep["user_id"],
+            max_output_tokens=prep["max_output_tokens"],
+        )
     # The inspection pass is billed too — it is a real call on the user's behalf.
     record_usage(prep["user_id"], tokens + prep["image_tokens"])
 
@@ -1332,7 +1336,11 @@ def ask_astrologer_stream(
     def events():
         usage: dict = {}
         try:
-            if prep["images"]:
+            if "calculated_answer" in prep:
+                yield event("delta", {"text": prep["calculated_answer"]})
+                if prep["image_tokens"]:
+                    record_usage(prep["user_id"], prep["image_tokens"])
+            elif prep["images"]:
                 # A picture is read and answered in one go: the interesting part
                 # is the reading, and it doesn't stream usefully. Sent down the
                 # same channel so the client keeps one code path.

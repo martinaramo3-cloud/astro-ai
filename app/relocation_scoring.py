@@ -1,9 +1,9 @@
 """Scoring a relocated chart for a purpose.
 
-Martina's tables, not mine. The astronomy — where the angles fall for a given
-place at a given moment — has a right answer and lives in relocation_service.
-What makes one chart *better than another for money* is astrology, and every
-number below came from an astrologer.
+The original money house/angle weights came from Martina's table. The v2
+ruler-condition and close-aspect modifiers are draft heuristics, explicitly
+marked as unreviewed in the returned report. Scores are comparative astrology
+points, not calibrated financial probabilities. Astronomy lives in relocation_service.
 
 Built as a framework because the same machinery answers "where should I be for
 my career" or "for love" with nothing changed but a table. Money is complete;
@@ -21,6 +21,8 @@ How the pieces combine:
 from __future__ import annotations
 
 from app.content_repository import get_sign_rulers
+from app.chart_analysis_service import get_dignity
+from app.aspect_services import get_aspects
 
 
 def _ordinal(house: int) -> str:
@@ -328,6 +330,8 @@ def score_chart(chart: dict, purpose: str = "money") -> dict:
     for house, meta in table["houses"].items():
         raw = 0.0
         for planet in planets:
+            if planet.get("house") != house:
+                continue
             points = table["planet_in_house"].get(planet["planet"], {}).get(house)
             if points:
                 raw += points
@@ -352,6 +356,8 @@ def score_chart(chart: dict, purpose: str = "money") -> dict:
 
     # 3. Where the rulers of those houses landed.
     ruler_total = 0.0
+    path_scores = {h: per_house[h] for h in table["houses"]}
+    aspects = chart.get("aspects", get_aspects(planets))
     rulers = _rulers_of(chart["houses"], planets, set(table["houses"]))
     angles = {a["planet"] for a in chart["angular_planets"] if angle_strength(a["orb"])}
     benefics = {p["planet"]: p["house"] for p in planets if p["planet"] in ("Jupiter", "Venus")}
@@ -361,20 +367,65 @@ def score_chart(chart: dict, purpose: str = "money") -> dict:
         points = table["ruler_lands_in"].get(house, {}).get(landed)
         if points:
             ruler_total += points
+            path_scores[house] += points
             reasons.append(f"ruler of the {_ordinal(house)} ({ruler['planet']}) in the {_ordinal(landed)} {points:+g}")
-        if ruler["planet"] in angles:
+        if ruler["planet"] in angles and ruler["planet"] != "Saturn":
             ruler_total += table["ruler_angular"]
+            path_scores[house] += table["ruler_angular"]
             reasons.append(f"ruler of the {_ordinal(house)} ({ruler['planet']}) on an angle +{table['ruler_angular']}")
+        # Saturn gets no automatic angular bonus. Any contribution below is
+        # based on the house it rules, its actual condition and actual aspects.
+        related = [a for a in aspects if ruler["planet"] in (a["planet_1"], a["planet_2"]) and a["orb"] <= 3]
+        condition = {"domicile": 1, "exaltation": 1, "detriment": -1, "fall": -1}.get(
+            get_dignity(ruler["planet"], ruler["sign"]), 0)
+        support = sum(0.5 for a in related if a["aspect"] in ("trine", "sextile")
+                      and {a["planet_1"], a["planet_2"]} & {"Venus", "Jupiter"})
+        pressure = sum(0.5 for a in related if a["aspect"] in ("square", "opposition")
+                       and {a["planet_1"], a["planet_2"]} & {"Mars", "Saturn", "Pluto"})
+        adjustment = condition + min(support, 1) - min(pressure, 1)
+        if adjustment:
+            ruler_total += adjustment
+            path_scores[house] += adjustment
+            reasons.append(f"ruler of the {_ordinal(house)} ({ruler['planet']}) condition and close aspects {adjustment:+g}")
         if landed and landed in benefics.values() and ruler["planet"] not in ("Jupiter", "Venus"):
             ruler_total += table["ruler_with_benefic"]
+            path_scores[house] += table["ruler_with_benefic"]
             reasons.append(f"ruler of the {_ordinal(house)} with Jupiter or Venus +{table['ruler_with_benefic']}")
+
+    # MC sign itself earns no points. Score its actual aspect geometry and
+    # cross-chart contacts separately from the ruler's condition above. These
+    # deliberately small modifiers are draft weights, exposed in the result.
+    mc_total = 0.0
+    mc = chart.get("midheaven")
+    if mc and 10 in table["houses"]:
+        targets = [{"planet": "Midheaven", "degree": mc["degree"]}]
+        if 10 in rulers:
+            targets.append({**rulers[10], "planet": "MC ruler " + rulers[10]["planet"]})
+        comparisons = [(targets[0], p, "solar_return") for p in planets]
+        comparisons += [(target, {**p, "planet": "natal " + p["planet"]}, "relocated_solar_return_to_natal")
+                        for target in targets for p in chart.get("natal_planets", [])
+                        if p["planet"] in {"Sun", "Moon", "Mercury", "Venus", "Mars", "Jupiter", "Saturn"}]
+        for target, other, source in comparisons:
+            for aspect in get_aspects([target, other]):
+                if aspect["orb"] > 3 or aspect["aspect"] == "conjunction":
+                    continue  # angular conjunctions already have their own table
+                points = (0.5 if aspect["aspect"] in ("trine", "sextile") else -0.5)
+                if source == "relocated_solar_return_to_natal":
+                    points *= 0.5
+                mc_total += points
+                reasons.append(f"{target['planet']} {aspect['aspect']} {other['planet']} ({source}) {points:+g}")
+        path_scores[10] += mc_total
 
     return {
         "purpose": purpose,
-        "score": round(house_total + angle_total + ruler_total, 2),
+        "score": round(house_total + angle_total + ruler_total + mc_total, 2),
+        "from_mc_contacts": round(mc_total, 2),
         "from_houses": round(house_total, 2),
         "from_angles": round(angle_total, 2),
         "from_rulers": round(ruler_total, 2),
         "house_detail": {_ordinal(h): round(v, 1) for h, v in per_house.items()},
+        "pathway_scores": {table["houses"][h]["means"]: round(v, 2) for h, v in path_scores.items()},
+        "advantages": [r for r in reasons if " +" in r],
+        "tradeoffs": [r for r in reasons if " -" in r],
         "why": reasons,
     }
