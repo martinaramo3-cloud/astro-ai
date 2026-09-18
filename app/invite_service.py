@@ -101,12 +101,14 @@ def consume_invite(token: str | None) -> dict | None:
         conn.close()
         return None
 
-    conn.execute(
-        "UPDATE invites SET used_at = ? WHERE id = ?",
+    consumed = conn.execute(
+        "UPDATE invites SET used_at = ? WHERE id = ? AND used_at IS NULL",
         (datetime.now(timezone.utc).isoformat(), row["id"]),
     )
     conn.commit()
     conn.close()
+    if consumed.rowcount != 1:
+        return None
     return {
         "owner_user_id": row["owner_user_id"],
         "label": row["label"],
@@ -125,3 +127,36 @@ def pending_invites(owner_user_id: int) -> list[dict]:
     ).fetchall()
     conn.close()
     return [dict(row) for row in rows]
+
+
+def accept_invite(token: str, data: dict) -> None:
+    """Reserve a slot, save the person and spend the link in one transaction."""
+    from fastapi import HTTPException
+    from app.subscription_service import check_people_limit
+    conn = get_db_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        now = datetime.now(timezone.utc).isoformat()
+        row = conn.execute("""SELECT i.*, u.subscription_tier FROM invites i
+            JOIN users u ON u.id = i.owner_user_id
+            WHERE i.token_hash = ? AND i.used_at IS NULL AND i.expires_at > ?""",
+            (_hash(token), now)).fetchone()
+        if not row:
+            raise HTTPException(404, "This link has expired or has already been used.")
+        count = conn.execute("SELECT COUNT(*) FROM profiles WHERE owner_user_id = ?",
+                             (row["owner_user_id"],)).fetchone()[0]
+        check_people_limit(row["subscription_tier"], count)
+        conn.execute("""INSERT INTO profiles (owner_user_id, label, person_name,
+            relationship_type, birth_date, birth_time, birth_place, birth_time_known)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", (
+            row["owner_user_id"], row["label"] or data["person_name"], data["person_name"],
+            data.get("relationship_type"), data["birth_date"],
+            data["birth_time"] if data["birth_time_known"] else "12:00",
+            data["birth_place"], int(data["birth_time_known"])))
+        conn.execute("UPDATE invites SET used_at = ? WHERE id = ?", (now, row["id"]))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

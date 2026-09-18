@@ -9,6 +9,10 @@ types, a size ceiling, and deletion that takes the file with the row.
 from __future__ import annotations
 
 import os
+import io
+import warnings
+from PIL import Image, UnidentifiedImageError
+from fastapi import HTTPException
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -50,39 +54,49 @@ def _path_for(owner_user_id: int, stored_name: str) -> Path:
 
 def save_attachment(owner_user_id: int, content: bytes, content_type: str) -> dict:
     """Write one image to disk and record it. Caller validates the tier."""
-    extension = ALLOWED_TYPES[content_type]
-    # Random rather than sequential: the filename should say nothing about how
-    # many images exist or whose they are.
-    stored_name = f"{secrets.token_urlsafe(16)}{extension}"
+    formats = {"image/png":"PNG", "image/jpeg":"JPEG", "image/webp":"WEBP", "image/gif":"GIF"}
+    if not content or len(content) > MAX_BYTES or content_type not in formats:
+        raise HTTPException(400, "Please send a supported image under 8 MB.")
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(io.BytesIO(content)) as image:
+                frames = getattr(image, "n_frames", 1)
+                if image.format != formats[content_type] or image.width * image.height * frames > 40_000_000 or frames > 50:
+                    raise ValueError("Invalid image format or dimensions")
+                image.verify()
+            with Image.open(io.BytesIO(content)) as image:
+                for frame in range(frames):
+                    image.seek(frame)
+                    image.load()
+    except (ValueError, OSError, UnidentifiedImageError, Image.DecompressionBombError, Image.DecompressionBombWarning):
+        raise HTTPException(400, "That image is invalid or too large to process. Please send a smaller image.")
 
+    stored_name = f"{secrets.token_urlsafe(16)}{ALLOWED_TYPES[content_type]}"
     path = _path_for(owner_user_id, stored_name)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_bytes(content)
-
     conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        INSERT INTO attachments (owner_user_id, stored_name, content_type, byte_size, created_at)
-        VALUES (?, ?, ?, ?, ?)
-        """,
-        (
-            owner_user_id,
-            stored_name,
-            content_type,
-            len(content),
-            datetime.now(timezone.utc).isoformat(),
-        ),
-    )
-    conn.commit()
-    attachment_id = cursor.lastrowid
-    conn.close()
-
-    return {
-        "id": attachment_id,
-        "content_type": content_type,
-        "byte_size": len(content),
-    }
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        if not conn.execute("SELECT id FROM users WHERE id=?", (owner_user_id,)).fetchone():
+            raise HTTPException(401, "Please log in again.")
+        owned = conn.execute("SELECT COALESCE(SUM(byte_size),0) FROM attachments WHERE owner_user_id=?", (owner_user_id,)).fetchone()[0]
+        total = conn.execute("SELECT COALESCE(SUM(byte_size),0) FROM attachments").fetchone()[0]
+        if owned + len(content) > 50 * 1024 * 1024 or total + len(content) > 400 * 1024 * 1024:
+            raise HTTPException(413, "Image storage is full. Please delete older attachments first.")
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(content)
+        cursor = conn.execute("""INSERT INTO attachments
+            (owner_user_id, stored_name, content_type, byte_size, created_at)
+            VALUES (?, ?, ?, ?, ?)""", (owner_user_id,stored_name,content_type,len(content),datetime.now(timezone.utc).isoformat()))
+        attachment_id = cursor.lastrowid
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        path.unlink(missing_ok=True)
+        raise
+    finally:
+        conn.close()
+    return {"id":attachment_id,"content_type":content_type,"byte_size":len(content)}
 
 
 def get_attachment(attachment_id: int) -> dict | None:

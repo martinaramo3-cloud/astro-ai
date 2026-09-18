@@ -133,13 +133,14 @@ def test_stream_endpoint_passes_the_same_ceiling(client, monkeypatch, images):
     assert seen == [900]
 
 
-def test_openai_stream_uses_the_requested_ceiling(monkeypatch):
+def test_openai_stream_uses_the_requested_ceiling(monkeypatch, account):
+    user, _ = account()
     seen = []
     def stream(prompt, model, ceiling, usage):
         seen.append(ceiling)
         yield "Text"
     monkeypatch.setattr(ai, "_stream_openai", stream)
-    assert list(ai.stream_astrologer_answer("Explain", max_output_tokens=900)) == ["Text"]
+    assert list(ai.stream_astrologer_answer("Explain", max_output_tokens=900, user_id=user["id"])) == ["Text"]
     assert seen == [900]
 
 

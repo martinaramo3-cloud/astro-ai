@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
@@ -26,6 +27,7 @@ function EyeIcon({ open }: { open: boolean }) {
 }
 
 function ResetForm() {
+  const router = useRouter();
   const { theme } = useTheme();
   const night = theme === "night";
   const params = useSearchParams();
@@ -53,7 +55,7 @@ function ResetForm() {
       if (res.ok) {
         // The reset signs you in fresh, so drop straight into the app.
         saveAuth(data);
-        window.location.href = "/chat";
+        router.push("/chat");
       } else {
         setError(errorMessage(data, "That reset link is invalid or has expired."));
       }

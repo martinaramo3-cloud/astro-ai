@@ -14,6 +14,7 @@ frontend origin), so the emails point at the real site.
 from __future__ import annotations
 
 import os
+from html import escape
 
 import requests
 
@@ -65,6 +66,7 @@ def _send(to: str, subject: str, html: str) -> bool:
 # A quiet, on-brand shell so both emails look like they belong to Zodi without
 # pulling in a templating dependency.
 def _wrap(heading: str, body_html: str, button_label: str, url: str) -> str:
+    url = escape(url, quote=True)
     return f"""
 <div style="font-family:Georgia,'Times New Roman',serif;max-width:480px;margin:0 auto;
             padding:32px 28px;color:#241f19;background:#faf6ec;border-radius:16px">
@@ -88,7 +90,7 @@ def _wrap(heading: str, body_html: str, button_label: str, url: str) -> str:
 
 def send_password_reset(to: str, name: str, url: str) -> bool:
     body = (
-        f"Hi {name or 'there'}, someone asked to reset your Zodi password. "
+        f"Hi {escape(name or 'there')}, someone asked to reset your Zodi password. "
         "Tap below to choose a new one — the link works for the next hour. "
         "If it wasn't you, you can ignore this; nothing has changed."
     )
@@ -97,7 +99,7 @@ def send_password_reset(to: str, name: str, url: str) -> bool:
 
 def send_verification(to: str, name: str, url: str) -> bool:
     body = (
-        f"Welcome, {name or 'there'}. Confirm this is your email so we can keep "
+        f"Welcome, {escape(name or 'there')}. Confirm this is your email so we can keep "
         "your account safe and reach you if you ever need a password reset."
     )
     return _send(to, "Confirm your email for Zodi", _wrap("One quick thing", body, "Confirm my email", url))

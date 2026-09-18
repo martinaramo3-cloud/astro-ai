@@ -21,6 +21,9 @@ const jost = Jost({
   weight: ["300", "400", "500"],
 });
 
+// CSP uses a fresh script nonce for every document response.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Zodi",
   description: "The sky, in plain language. Astrology readings grounded in your real birth chart.",

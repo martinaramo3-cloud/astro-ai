@@ -2,8 +2,9 @@ import asyncio
 import hashlib
 import json
 import os
+import secrets
 from fastapi.middleware.cors import CORSMiddleware
-from app.auth_service import create_account, login_user, set_password
+from app.auth_service import create_account, login_user
 from app.user_service import get_user_by_id, update_user
 from app.profile_service import (
     create_profile,
@@ -35,14 +36,14 @@ from app.image_reading_service import read_images
 from app.usage_log_service import usage_summary
 from app.backup_service import create_backup, list_backups, backup_dir, run_backup_loop
 from app.error_log_service import record_error, recent_errors, error_summary, prune_errors
-from app.invite_service import create_invite, peek_invite, consume_invite, pending_invites
+from app.invite_service import create_invite, peek_invite, pending_invites, accept_invite
 from app.email_service import (
     send_password_reset,
     send_verification,
     email_configured,
     frontend_base,
 )
-from app.auth_token_service import issue_token, consume_token, PURPOSE_RESET, PURPOSE_VERIFY
+from app.auth_token_service import issue_token, consume_token, PURPOSE_RESET, PURPOSE_VERIFY, reset_password_by_token
 from app.sky_view_service import build_sky_view
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
@@ -54,7 +55,6 @@ from app.chart_analysis_service import build_chart_analysis, get_house_rulers
 from app.session_service import (
     create_session,
     delete_session,
-    delete_all_sessions_for_user,
     get_user_id_for_token,
     purge_expired_sessions,
 )
@@ -72,7 +72,9 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
+from app.request_validation import RequestModel as BaseModel
+from pydantic import BaseModel as ResponseModel
 
 from app.astrology_engine import (
     get_planet_positions_from_utc,
@@ -145,7 +147,10 @@ from app.content_repository import (
     get_signs as get_content_signs,
 )
 
+from app.security_service import SecurityMiddleware, rate_limit
+
 app = FastAPI(title="AI Horoscope API")
+app.add_middleware(SecurityMiddleware)
 
 frontend_origins = [
     origin.strip()
@@ -193,10 +198,10 @@ class BirthData(BaseModel):
     # guessed at.
     birth_time_known: bool = True
 
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 class ChatMessage(BaseModel):
-    role: str
+    role: Literal["user", "assistant"]
     content: str
     # Pictures sent with this message, so a reopened conversation still shows
     # them. Ids only — the files are fetched one at a time, by their owner.
@@ -319,7 +324,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AuthUserResponse(BaseModel):
+class AuthUserResponse(ResponseModel):
     id: int
     name: str
     email: str
@@ -331,7 +336,7 @@ class AuthUserResponse(BaseModel):
     email_verified: bool = True
     token: str
 
-class UserResponse(BaseModel):
+class UserResponse(ResponseModel):
     id: int
     name: str
     birth_date: str
@@ -410,7 +415,15 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
     user = get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="Please log in again.")
+    rate_limit("account-requests", str(user_id), 120, 60)
     return user
+
+
+def require_owned_profile(profile_id: int | None, user_id: int) -> None:
+    if profile_id is not None:
+        profile = get_profile_by_id(profile_id)
+        if not profile or profile["owner_user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="That saved person is not available.")
 
 
 def require_self(current_user: dict, target_user_id: int) -> None:
@@ -436,6 +449,16 @@ def home():
 
 @app.get("/health")
 def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/admin/health")
+def health_diagnostics(x_admin_secret: str | None = Header(default=None)):
+    _require_admin(x_admin_secret)
+    return _health_details()
+
+
+def _health_details():
     """Liveness, storage, and which credentials are configured.
 
     `database_persistent` is the launch-critical bit: when the DB sits on the
@@ -1096,7 +1119,7 @@ def _prepare_astrologer_call(
 
     # A question that names a time gets that time's sky rather than an
     # extrapolation from this week's.
-    asked_date = extract_asked_date(data.question)
+    asked_date = extract_asked_date(data.question, user_id=user_id)
     if asked_date:
         try:
             moment = datetime.fromisoformat(asked_date).replace(tzinfo=timezone.utc)
@@ -1148,7 +1171,7 @@ def _prepare_astrologer_call(
         recent = "\n".join(
             f"{m['role']}: {m['content'][:200]}" for m in chat_context["history"][-3:-1]
         )
-        tier = classify_answer_tier(data.question, recent) or 4
+        tier = classify_answer_tier(data.question, recent, user_id=user_id) or 4
     if tier == 1 and not image_context:
         # A social turn needs the exchange, not astrological evidence to fill
         # the silence. Keep history so laughter or a symbol is read in context.
@@ -1253,34 +1276,10 @@ def read_invite(token: str):
 @app.post("/invite/{token}")
 def fill_invite(token: str, data: InviteFillRequest):
     """Someone filling in their own birth details from a link."""
-    invite = consume_invite(token)
-    if not invite:
+    if not peek_invite(token):
         raise HTTPException(status_code=404, detail="This link has expired or has already been used.")
-
-    # Slots can fill between sending a link and someone opening it.
-    check_people_limit(
-        get_user_tier(invite["owner_user_id"]),
-        len(list_profiles_by_owner(invite["owner_user_id"])),
-    )
-
-    # The place is geocoded before saving, so a typo can't produce a chart cast
-    # for nowhere.
-    location = get_location_data(data.birth_place)
-    if not location:
-        raise HTTPException(status_code=400, detail="Couldn't find that birth place. Try the nearest city.")
-
-    profile = create_profile(
-        owner_user_id=invite["owner_user_id"],
-        label=invite["label"] or data.person_name,
-        person_name=data.person_name,
-        relationship_type=data.relationship_type,
-        birth_date=data.birth_date,
-        birth_time=data.birth_time if data.birth_time_known else UNKNOWN_BIRTH_TIME,
-        birth_place=data.birth_place,
-        birth_time_known=data.birth_time_known,
-    )
-    if not profile:
-        raise HTTPException(status_code=400, detail="Couldn't save those details. Please try again.")
+    validate_birth_input(data)
+    accept_invite(token, data.model_dump())
     return {"message": "Thank you — your details are saved."}
 
 
@@ -1582,7 +1581,9 @@ def ask_saved_compatibility(
 
 @app.post("/signup", response_model=AuthUserResponse)
 def signup(data: SignupRequest):
+    rate_limit("signup-email", data.email.casefold(), 3, 3600)
     check_password(data.password)
+    validate_birth_input(data)
 
     user = create_account(
         name=data.name,
@@ -1631,6 +1632,7 @@ def forgot_password(data: ForgotPasswordRequest):
     The response is identical whether or not the email is registered, so this
     can't be used to discover who has a Zodi account.
     """
+    rate_limit("reset-email", data.email.casefold(), 1, 60)
     user_id = find_user_id_by_email(data.email)
     if user_id:
         user = get_user_by_id(user_id)
@@ -1651,16 +1653,9 @@ def reset_password(data: ResetPasswordRequest):
     # doesn't burn the one-time link and strand the user.
     check_password(data.password)
 
-    user_id = consume_token(data.token, PURPOSE_RESET)
+    user_id = reset_password_by_token(data.token, data.password)
     if not user_id:
         raise HTTPException(status_code=400, detail="This reset link is invalid or has expired.")
-
-    if not set_password(user_id, data.password):
-        raise HTTPException(status_code=404, detail="Account not found.")
-
-    # A reset means the account may have been compromised — cut every existing
-    # session so a stolen one can't outlive the old password.
-    delete_all_sessions_for_user(user_id)
 
     user = get_user_by_id(user_id)
     public = {key: user[key] for key in PUBLIC_USER_FIELDS if key in user}
@@ -1683,6 +1678,7 @@ def verify_email(data: TokenOnlyRequest):
 
 @app.post("/resend-verification")
 def resend_verification(current_user: dict = Depends(get_current_user)):
+    rate_limit("verify-email", str(current_user["id"]), 1, 60)
     """Send the confirmation email again, for someone who lost the first."""
     if current_user.get("email_verified"):
         return {"message": "Your email is already confirmed."}
@@ -1692,6 +1688,7 @@ def resend_verification(current_user: dict = Depends(get_current_user)):
 
 @app.post("/login", response_model=AuthUserResponse)
 def login(data: LoginRequest):
+    rate_limit("login-email", data.email.casefold(), 10, 900)
     user = login_user(
         email=data.email,
         password=data.password
@@ -1789,6 +1786,7 @@ def create_chat_session_endpoint(
     data: ChatSessionRequest,
     current_user: dict = Depends(get_current_user),
 ):
+    require_owned_profile(data.profile_id, current_user["id"])
     session = create_chat_session(
         # Ownership comes from the token, not the request body.
         owner_user_id=current_user["id"],
@@ -1810,6 +1808,7 @@ def update_chat_session_endpoint(
         raise HTTPException(status_code=404, detail="Chat session not found")
     require_self(current_user, existing["owner_user_id"])
 
+    require_owned_profile(data.profile_id, current_user["id"])
     session = update_chat_session(
         session_id=session_id,
         title=data.title,
@@ -1856,6 +1855,7 @@ def save_profile(
     data: SaveProfileRequest,
     current_user: dict = Depends(get_current_user),
 ):
+    validate_birth_input(data)
     # Free saves one person, standard three, premium unlimited.
     existing = list_profiles_by_owner(current_user["id"])
     check_people_limit(get_user_tier(current_user["id"]), len(existing))
@@ -1878,6 +1878,11 @@ def get_profile(profile_id: int, current_user: dict = Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Profile not found")
     require_self(current_user, profile["owner_user_id"])
     return profile
+
+def validate_birth_input(data) -> None:
+    if not get_location_data(data.birth_place):
+        raise HTTPException(400, "Could not find that birth place. Please use a city and country.")
+
 
 def clean_birth_edits(changes: dict, existing: dict) -> dict:
     """Validate a partial birth-details edit and normalise the time.
@@ -1997,6 +2002,7 @@ async def upload_attachment(
 ):
     """Store one image so a question can refer to it."""
     require_image_tier(current_user["id"])
+    rate_limit("uploads", str(current_user["id"]), 10, 60)
 
     content_type = (file.content_type or "").split(";")[0].strip().lower()
     if content_type not in ALLOWED_TYPES:
@@ -2016,7 +2022,7 @@ async def upload_attachment(
     if not content:
         raise HTTPException(status_code=400, detail="That file appears to be empty.")
 
-    return save_attachment(current_user["id"], content, content_type)
+    return await run_in_threadpool(save_attachment, current_user["id"], content, content_type)
 
 
 @app.get("/attachments/{attachment_id}")
@@ -2184,7 +2190,7 @@ def _require_admin(x_admin_secret: str | None) -> None:
             status_code=503,
             detail="Admin endpoint disabled: set ADMIN_SECRET in .env to enable.",
         )
-    if x_admin_secret != expected:
+    if not secrets.compare_digest((x_admin_secret or "").encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
 
 
@@ -2340,9 +2346,10 @@ def admin_update_tier_by_email(
             status_code=503,
             detail="Admin endpoint disabled: set ADMIN_SECRET to enable.",
         )
-    if x_admin_secret != expected:
+    if not secrets.compare_digest((x_admin_secret or "").encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
 
+    rate_limit("reset-email", data.email.casefold(), 1, 60)
     user_id = find_user_id_by_email(data.email)
     if user_id is None:
         raise HTTPException(status_code=404, detail="No account with that email.")

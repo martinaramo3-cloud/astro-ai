@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 type Particle = {
   id: number;
@@ -48,21 +48,20 @@ function spawnParticles(text: string): Particle[] {
 
 export default function FloatingParticles({ trigger }: { trigger: string | null }) {
   const [particles, setParticles] = useState<Particle[]>([]);
-  const prevTrigger = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!trigger || trigger === prevTrigger.current) return;
-    prevTrigger.current = trigger;
+    if (!trigger) return;
 
     const newParticles = spawnParticles(trigger);
-    setParticles((prev) => [...prev, ...newParticles]);
+    const frame = requestAnimationFrame(() => setParticles(newParticles));
 
     // Clean up after longest animation finishes
     const maxDur = Math.max(...newParticles.map((p) => p.delay + p.dur)) * 1000 + 200;
     const ids = new Set(newParticles.map((p) => p.id));
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       setParticles((prev) => prev.filter((p) => !ids.has(p.id)));
     }, maxDur);
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer); };
   }, [trigger]);
 
   if (particles.length === 0) return null;

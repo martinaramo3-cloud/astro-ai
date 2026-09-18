@@ -4,11 +4,10 @@
 
 // Bump this whenever cached assets change (e.g. new icons) so old caches,
 // which serve images cache-first, are dropped on activate.
-const VERSION = "zodi-v3";
+const VERSION = "zodi-v4";
 const STATIC_CACHE = `${VERSION}-static`;
-const PAGE_CACHE = `${VERSION}-pages`;
 
-const PRECACHE = ["/", "/offline.html", "/manifest.json", "/icon-192.png"];
+const PRECACHE = [ "/offline.html", "/manifest.json", "/icon-192.png"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
@@ -58,17 +57,7 @@ self.addEventListener("fetch", (event) => {
   // Pages: network first, so a new deploy is picked up immediately.
   if (request.mode === "navigate") {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
-          const copy = response.clone();
-          caches.open(PAGE_CACHE).then((cache) => cache.put(request, copy));
-          return response;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((cached) => cached || caches.match("/offline.html")),
-        ),
+      fetch(request).catch(() => caches.match("/offline.html")),
     );
     return;
   }

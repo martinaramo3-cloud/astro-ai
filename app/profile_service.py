@@ -9,28 +9,31 @@ def _row_to_profile(row) -> dict:
 
 
 def create_profile(owner_user_id, label, person_name, relationship_type, birth_date, birth_time, birth_place, birth_time_known=True):
+    from app.subscription_service import check_people_limit
+    from fastapi import HTTPException
     conn = get_db_connection()
-    cursor = conn.cursor()
-
-    cursor.execute("""
-        INSERT INTO profiles (
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        user = conn.execute("SELECT subscription_tier FROM users WHERE id=?", (owner_user_id,)).fetchone()
+        if not user:
+            raise HTTPException(401, "Please log in again.")
+        count = conn.execute("SELECT COUNT(*) FROM profiles WHERE owner_user_id=?", (owner_user_id,)).fetchone()[0]
+        check_people_limit(user['subscription_tier'], count)
+        cursor = conn.execute("""INSERT INTO profiles (
             owner_user_id, label, person_name, relationship_type,
-            birth_date, birth_time, birth_place, birth_time_known
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        owner_user_id, label, person_name, relationship_type,
-        birth_date, birth_time, birth_place, 1 if birth_time_known else 0
-    ))
+            birth_date, birth_time, birth_place, birth_time_known)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)""", (
+            owner_user_id,label,person_name,relationship_type,birth_date,
+            birth_time,birth_place,int(birth_time_known)))
+        row = conn.execute("SELECT * FROM profiles WHERE id=?", (cursor.lastrowid,)).fetchone()
+        conn.commit()
+        return _row_to_profile(row)
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
-    conn.commit()
-    profile_id = cursor.lastrowid
-
-    cursor.execute("SELECT * FROM profiles WHERE id = ?", (profile_id,))
-    row = cursor.fetchone()
-    conn.close()
-
-    return _row_to_profile(row)
 
 def list_profiles_by_owner(owner_user_id):
     conn = get_db_connection()

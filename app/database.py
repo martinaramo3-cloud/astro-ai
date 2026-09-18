@@ -228,5 +228,19 @@ def init_db():
         FOREIGN KEY (profile_id) REFERENCES profiles(id)
     )
     """)
+    # Remove legacy cross-account associations before they can reach prompts.
+    cursor.execute("""UPDATE chat_sessions SET profile_id = NULL
+        WHERE profile_id IS NOT NULL AND NOT EXISTS (
+            SELECT 1 FROM profiles p WHERE p.id = chat_sessions.profile_id
+            AND p.owner_user_id = chat_sessions.owner_user_id)""")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS rate_limits (
+        key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires REAL NOT NULL)""")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_rate_limits_expires ON rate_limits(expires)")
+    cursor.execute("""CREATE TABLE IF NOT EXISTS ai_reservations (
+        id TEXT PRIMARY KEY, user_id INTEGER, model_key TEXT NOT NULL,
+        tokens INTEGER NOT NULL, cost REAL NOT NULL, created TEXT NOT NULL,
+        expires REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1,
+        uncertain INTEGER NOT NULL DEFAULT 1)""")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_reservations_created ON ai_reservations(created)")
     conn.commit()
     conn.close()
