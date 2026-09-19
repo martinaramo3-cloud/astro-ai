@@ -462,7 +462,7 @@ export default function ChatPage() {
           owner_user_id: user.id,
           profile_id: selectedProfile.id,
           question: userText,
-          history: nextHistory,
+          history: base,
           model: selectedModel ?? undefined,
         }
       : {
@@ -471,7 +471,7 @@ export default function ChatPage() {
           birth_place: user.birth_place,
           birth_time_known: user.birth_time_known ?? true,
           question: userText,
-          history: nextHistory,
+          history: base,
           attachment_ids: attachmentIds.length ? attachmentIds : undefined,
           user_id: user.id,
           model: selectedModel ?? undefined,
@@ -1707,7 +1707,7 @@ export default function ChatPage() {
                     // Unmetered for this tier + model (Fast, or a paid plan).
                     return (
                       <p className="micro-label" style={{ letterSpacing: "0.16em", color: "var(--ink-3)" }}>
-                        {label} · daily fair-use limits
+                        {label} · unlimited
                       </p>
                     );
                   }

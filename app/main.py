@@ -19,7 +19,6 @@ from app.chat_service import (
     list_chat_sessions,
     update_chat_session,
     delete_chat_session_by_id,
-    summarize_recent_sessions,
 )
 from app.account_service import export_user_data, delete_user_account
 from app.attachment_service import (
@@ -87,6 +86,8 @@ from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.month_outlook_service import build_month_outlook
 from app.relocation_reading_service import prepare_relocation
+from app.conversation_service import attach_conversation, conversation_state, normalize_history, relevant_history_question
+from app.answer_review_service import reviewed_answer
 from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -112,7 +113,6 @@ from app.ai_context_service import (
 from app.ai_service import (
     classify_answer_tier,
     extract_asked_date,
-    stream_astrologer_answer,
     generate_chart_summary,
     generate_astrologer_answer,
     generate_compatibility_reading,
@@ -774,7 +774,9 @@ def chart_summary(
     )
 
     prompt = build_summary_prompt(chart_context)
-    summary, tokens = generate_chart_summary(prompt, model=tier_config["model"], user_id=current_user["id"])
+    review_context = attach_conversation({}, "Give me a brief personal overview.")
+    summary, tokens = reviewed_answer(generate_chart_summary, prompt, review_context,
+                                     model=tier_config["model"], user_id=current_user["id"])
     record_usage(current_user["id"], tokens)
 
     return {
@@ -934,16 +936,18 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
     }
 
 
-# Generous enough that a correct answer is never cut off, tight enough that a
-# wandering one cannot become a paragraph.
-ANSWER_CEILING = {1: 90, 2: 130, 3: 110, 4: 550}
+# Provider token ceilings complement the word/paragraph limits in draft review.
+# Detailed requests receive additional space; defaults stay conversational.
+ANSWER_CEILING = {1: 90, 2: 130, 3: 280, 4: 380}
 # Extra room is opt-in through the request, not a longer default for every chat.
-DETAIL_CEILING = {"explanation": 900, "detailed": 1400}
+DETAIL_CEILING = {"explanation": 450, "detailed": 650}
 
 
-def answer_ceiling(question: str, tier: int) -> int:
+def answer_ceiling(question: str, tier: int, conversation: dict | None = None) -> int:
     if detect_relocation_request(question):
         return 1600  # a ranked city comparison and practical arrival details
+    if conversation and conversation["kind"] == "follow_up" and not requested_detail(question):
+        return ANSWER_CEILING[3]
     return DETAIL_CEILING.get(requested_detail(question), ANSWER_CEILING[tier])
 
 
@@ -968,6 +972,10 @@ def _prepare_astrologer_call(
     Shared by the blocking endpoint and the streaming one, so the two can
     never drift apart: same tier gate, same chart, same context.
     """
+    state = conversation_state(data.question, data.history, {"user": {
+        k: current_user[k] for k in ("name", "birth_date") if current_user.get(k)
+    }})
+    normalized_history = normalize_history(data.history, data.question)
     # Usage and tier follow the token, so nobody can bill another account.
     user_id = current_user["id"]
     tier_config = check_usage(user_id)
@@ -994,15 +1002,21 @@ def _prepare_astrologer_call(
 
     natal_data = build_natal_chart_data(data)
 
-    relocation = detect_relocation_request(data.question)
+    relocation_question = data.question
+    relocation = detect_relocation_request(relocation_question)
+    relocation_followup = False
+    if not relocation and state['kind'] == 'follow_up':
+        relocation_question = state['original_question']
+        relocation = detect_relocation_request(relocation_question)
+        relocation_followup = bool(relocation)
     if relocation:
-        context, answer = prepare_relocation(data.question, data.birth_date, natal_data, relocation)
-        context.update(question=data.question, answer_tier=4)
+        context, answer = prepare_relocation(relocation_question, data.birth_date, natal_data, relocation)
+        context.update(question=data.question, answer_tier=4, conversation=state, history=normalized_history)
         return {
             "user_id": user_id, "tier": 4, "tier_config": tier_config,
             "max_output_tokens": 1600, "model": model, "effort": effort,
             "images": None, "image_tokens": image_tokens, "question_type": "relocation",
-            "chat_context": context, "calculated_answer": answer,
+            "chat_context": context, **({} if relocation_followup and context["where_to_be"]["status"] in ("ok", "partial") else {"calculated_answer": answer}),
         }
 
     transit_planets = get_current_transit_positions()
@@ -1016,16 +1030,7 @@ def _prepare_astrologer_call(
         natal_data["planet_positions"],
     )
 
-    question_type = classify_question(data.question)
-    # A short clarification continues the topic of this conversation.
-    if question_type == "general" and requested_detail(data.question):
-        for message in reversed(data.history or []):
-            if message.role == "user" and message.content != data.question:
-                previous_type = classify_question(message.content)
-                if requested_detail(message.content) and previous_type == "general":
-                    continue
-                question_type = previous_type
-                break
+    question_type = state["topic"]
     focus_planets = get_focus_planets(question_type)
 
     filtered_context = filter_chart_context_by_question_type(
@@ -1058,9 +1063,7 @@ def _prepare_astrologer_call(
         "question": data.question,
         # Attachment ids are dropped: the model can't fetch a file, and a
         # column of nulls in every past turn is only noise in the prompt.
-        "history": [
-            {"role": msg.role, "content": msg.content} for msg in (data.history or [])
-        ],
+        "history": normalized_history,
         # Stated up front, not just buried in chart_structure: everything the
         # birth time would have given is null below, and the difference between
         # "unknown" and "absent" is the difference between honest and invented.
@@ -1109,9 +1112,7 @@ def _prepare_astrologer_call(
                             "house_system": "Placidus", "rulership_system": "traditional"},
         "prediction": build_prediction(natal_data, active_transits, question_type),
         # Titles only, so a question can be picked back up across sessions.
-        "past_conversations": summarize_recent_sessions(
-            user_id, exclude_session_id=data.session_id
-        ),
+
     }
 
     if image_context:
@@ -1119,7 +1120,7 @@ def _prepare_astrologer_call(
 
     # A question that names a time gets that time's sky rather than an
     # extrapolation from this week's.
-    asked_date = extract_asked_date(data.question, user_id=user_id)
+    asked_date = extract_asked_date(relevant_history_question(state), user_id=user_id)
     if asked_date:
         try:
             moment = datetime.fromisoformat(asked_date).replace(tzinfo=timezone.utc)
@@ -1164,6 +1165,8 @@ def _prepare_astrologer_call(
     # thread, before the prompt is assembled — because the honest way to get a
     # one-line reply is to stop shipping three thousand tokens of chart with it.
     tier = classify_tier(data.question, chat_context["history"])
+    if state["kind"] == "follow_up" and tier != 1 and not requested_detail(data.question):
+        tier = 3
     if tier is None:
         # Greetings and mid-thread follow-ups are certain from the text alone.
         # Everything else is put to a cheap model, because guessing weight from
@@ -1179,7 +1182,7 @@ def _prepare_astrologer_call(
             "question": chat_context["question"],
             "history": chat_context["history"],
         }
-    elif tier < 4 and not image_context:
+    elif tier == 2 and not image_context:
         sky = chat_context.get("sky_now") or {}
         chat_context = {
             "question": chat_context["question"],
@@ -1210,6 +1213,7 @@ def _prepare_astrologer_call(
             "sky_now": "current_sky_and_transits_through_natal_houses",
         }.items() if key in chat_context
     }
+    chat_context["conversation"] = state
     chat_context["answer_tier"] = tier
     chat_context["conversation_cue"] = conversational_cue(data.question)
 
@@ -1217,7 +1221,7 @@ def _prepare_astrologer_call(
         "user_id": user_id,
         "tier": tier,
         "tier_config": tier_config,
-        "max_output_tokens": answer_ceiling(data.question, tier),
+        "max_output_tokens": answer_ceiling(data.question, tier, state),
         "model": model,
         "effort": effort,
         "images": images_for_model or None,
@@ -1283,6 +1287,17 @@ def fill_invite(token: str, data: InviteFillRequest):
     return {"message": "Thank you — your details are saved."}
 
 
+def _answer_prepared(prep):
+    if "calculated_answer" in prep:
+        return prep["calculated_answer"], 0
+    return reviewed_answer(
+        generate_astrologer_answer, build_ask_astrologer_user(prep["chat_context"]), prep["chat_context"],
+        on_repair=lambda: check_model_allowance(prep["user_id"], get_user_tier(prep["user_id"]), model_key_for_id(prep["model"])),
+        model=prep["model"], system=build_ask_astrologer_system(), effort=prep["effort"],
+        images=prep["images"], user_id=prep["user_id"], max_output_tokens=prep["max_output_tokens"],
+    )
+
+
 @app.post("/ask-astrologer")
 def ask_astrologer(
     data: AstrologyQuestionRequest,
@@ -1290,18 +1305,7 @@ def ask_astrologer(
 ):
     prep = _prepare_astrologer_call(data, current_user)
 
-    if "calculated_answer" in prep:
-        answer, tokens = prep["calculated_answer"], 0
-    else:
-        answer, tokens = generate_astrologer_answer(
-            build_ask_astrologer_user(prep["chat_context"]),
-            model=prep["model"],
-            system=build_ask_astrologer_system(),
-            effort=prep["effort"],
-            images=prep["images"],
-            user_id=prep["user_id"],
-            max_output_tokens=prep["max_output_tokens"],
-        )
+    answer, tokens = _answer_prepared(prep)
     # The inspection pass is billed too — it is a real call on the user's behalf.
     record_usage(prep["user_id"], tokens + prep["image_tokens"])
 
@@ -1319,74 +1323,29 @@ def ask_astrologer_stream(
     data: AstrologyQuestionRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """The same answer as /ask-astrologer, sent as it is written.
-
-    Everything that can refuse the request — the tier gate, the token budget —
-    runs here, before the response begins, so those still come back as ordinary
-    HTTP errors. Once the stream has opened the status is already sent, so a
-    later failure has to travel as an event instead.
-    """
+    """SSE-compatible response; review the complete draft before displaying it."""
     prep = _prepare_astrologer_call(data, current_user)
-    prompt = build_ask_astrologer_user(prep["chat_context"])
 
     def event(name: str, payload: dict) -> str:
         return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
 
     def events():
-        usage: dict = {}
         try:
-            if "calculated_answer" in prep:
-                yield event("delta", {"text": prep["calculated_answer"]})
-                if prep["image_tokens"]:
-                    record_usage(prep["user_id"], prep["image_tokens"])
-            elif prep["images"]:
-                # A picture is read and answered in one go: the interesting part
-                # is the reading, and it doesn't stream usefully. Sent down the
-                # same channel so the client keeps one code path.
-                answer, tokens = generate_astrologer_answer(
-                    prompt,
-                    model=prep["model"],
-                    system=build_ask_astrologer_system(),
-                    effort=prep["effort"],
-                    images=prep["images"],
-                    user_id=prep["user_id"],
-                    max_output_tokens=prep["max_output_tokens"],
-                )
-                record_usage(prep["user_id"], tokens + prep["image_tokens"])
-                yield event("delta", {"text": answer})
-            else:
-                for piece in stream_astrologer_answer(
-                    prompt,
-                    model=prep["model"],
-                    system=build_ask_astrologer_system(),
-                    effort=prep["effort"],
-                    user_id=prep["user_id"],
-                    max_output_tokens=prep["max_output_tokens"],
-                    usage_out=usage,
-                ):
-                    yield event("delta", {"text": piece})
-                # Metered after the fact, from what the stream actually reported.
-                record_usage(prep["user_id"], usage.get("total", 0) + prep["image_tokens"])
-
-            yield event("done", {
-                "question_type": prep["question_type"],
-                "tier": prep["tier_config"]["label"],
-            })
+            answer, tokens = _answer_prepared(prep)
+            record_usage(prep["user_id"], tokens + prep["image_tokens"])
+            yield event("delta", {"text": answer})
+            yield event("done", {"question_type": prep["question_type"], "tier": prep["tier_config"]["label"]})
         except HTTPException as exc:
             yield event("error", {"detail": exc.detail})
-        except Exception as exc:  # noqa: BLE001
-            print("Streaming answer failed:", repr(exc))
-            yield event("error", {
-                "detail": "The astrologer is temporarily unavailable. Please try again in a moment.",
-            })
+        except Exception:
+            yield event("error", {"detail": "The astrologer is temporarily unavailable. Please try again in a moment."})
 
     return StreamingResponse(
         events(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            # Render sits behind a proxy that will otherwise buffer the whole
-            # response and hand it over at the end, undoing the point of this.
+            # Keep the SSE completion/error envelope unbuffered by the proxy.
             "X-Accel-Buffering": "no",
         },
     )
@@ -1451,7 +1410,9 @@ def compatibility_reading(
 
     prompt = build_compatibility_prompt(context)
 
-    reading, tokens = generate_compatibility_reading(prompt, model=tier_config["model"], user_id=current_user["id"])
+    review_context = attach_conversation({}, "Give me a brief overview of how we relate to each other.")
+    reading, tokens = reviewed_answer(generate_compatibility_reading, prompt, review_context,
+                                     model=tier_config["model"], user_id=current_user["id"])
     record_usage(current_user["id"], tokens)
 
     return {
@@ -1516,17 +1477,19 @@ def ask_compatibility(
     )
     context["timing"] = timing
     context["requested_detail"] = requested_detail(data.question)
-    # Earlier chats about this same person, and nothing else. Continuity where
-    # it belongs, without one relationship's conversation reaching into another.
+    facts = {"user": {k: current_user[k] for k in ("name", "birth_date") if current_user.get(k)}}
     if profile_id is not None:
-        context["past_conversations"] = summarize_recent_sessions(
-            current_user["id"], profile_id=profile_id
-        )
-
+        saved = get_profile_by_id(profile_id)
+        if saved and saved.get("owner_user_id") == user_id:
+            facts["other_person"] = {k: saved[k] for k in ("person_name", "birth_date", "relationship_type", "label") if saved.get(k)}
+    attach_conversation(context, data.question, data.history, facts)
+    state = context["conversation"]
+    context["answer_tier"] = 3 if state["kind"] == "follow_up" else 4
     prompt = build_ask_compatibility_prompt(context)
-    answer, tokens = generate_compatibility_answer(
-        prompt, model=model, user_id=user_id,
-        max_output_tokens=answer_ceiling(data.question, 4),
+    answer, tokens = reviewed_answer(
+        generate_compatibility_answer, prompt, context, model=model, user_id=user_id,
+        on_repair=lambda: check_model_allowance(user_id, tier, model_key_for_id(model)),
+        max_output_tokens=answer_ceiling(data.question, context["answer_tier"], state),
     )
     record_usage(user_id, tokens)
 

@@ -23,46 +23,25 @@ def _angle(point):
     return f"{point['degree_in_sign']:.2f}° {point['sign']}"
 
 
-def render_relocation(result: dict) -> str:
+def render_relocation(result: dict, technical: bool = False) -> str:
     if result['status'] not in ('ok', 'partial'):
         return result.get('message', FAILURE)
     best = result['best']
     first = best[0]
-    tied = len([c for c in best if c['score'] == first['score']]) > 1
-    lines = [f"I calculated your {result['year']} solar return for {result['calculated']} of {result['searched']} candidate cities in {"Europe" if result['region'] == "europe" else "the worldwide catalogue"}. {first['place']} {'ties for first' if tied else 'ranks first'} under this {result['purpose']} scoring model.",
-        "A solar return is the instant the Sun reaches the position it had at your birth. It is the same instant worldwide. Changing city changes the chart's houses (sections associated with areas of life) and angles, not the planets' zodiac positions or their relationships to each other.",
-        "Scores are comparison points from a draft astrology model, not percentages or predictions of earnings. Small differences and ties should not be treated as decisive reasons to travel.",
-        "How to read the ranking: the Ascendant (ASC) is the rising point, associated with how you approach the year. The Midheaven (MC) is associated with work and public reputation. Jupiter represents growth; Venus represents values and cooperation; Saturn represents limits, responsibility and sustained effort. A planet close to an angle gets more emphasis, which does not automatically make it helpful.",
-        "The 2nd house concerns personal income, the 8th shared money and funding, the 10th career, and the 11th gains and networks. A house ruler is the planet assigned to the sign at the start of that house. Its position links those two areas. For example, the income ruler in the career house connects earnings with work; it does not promise a pay rise."]
-    lines.append("Mercury represents thinking and communication, the Moon feelings and familiar needs, and the Sun identity and direction. Traditional planet-in-sign classifications describe how easily those themes are expressed within astrology; they are not judgments about your ability. House numbers below refer to chart sections, and degrees measure position, not score.")
+    tied = sum(c['score'] == first['score'] for c in best) > 1
+    lines = [f"{first['place']} {'ties for first' if tied else 'ranks first'} among the {result['calculated']} locations calculated for your {result['year']} birthday, using this {result['purpose']} comparison. These scores are an astrological interpretation, not a prediction of financial results; small differences are not a strong reason to travel."]
     if result['failed_candidates']:
-        lines.append(f"{len(result['failed_candidates'])} candidate calculations failed and were excluded. This ranking covers only the successfully calculated cities.")
+        lines.append(f"{len(result['failed_candidates'])} locations could not be calculated and are excluded.")
     for city in best:
-        pathways = city['pathway_scores']
-        strongest = max(pathways, key=pathways.get)
-        conditions = []
-        for planet in city['planet_conditions']:
-            near = ', '.join(f"{a['angle']} ({a['orb']:.2f}° away)" for a in planet['angularity']) or 'no angle within 5°'
-            conditions.append(f"{planet['planet']}: house {planet['house']}; {near}")
-        rulers = '; '.join(f"{r['house']}H {r['cusp_sign']} → {r['ruler']} in house {r['ruler_in_house']}" for r in city['house_rulers'] if r['house'] in (2, 8, 10, 11))
-        saturn = next(p for p in city['planet_conditions'] if p['planet'] == 'Saturn')
-        aspects = '; '.join(f"{a['planet_1']} {a['aspect']} {a['planet_2']} ({a['orb']:.2f}° from exact)" for a in saturn['aspects'][:2]) or 'no major planetary aspects within the configured range'
-        advantages = '; '.join(city['advantages'][:2]) or 'No positive scored factor; this is a relative ranking only.'
-        downside = '; '.join(city['tradeoffs'][:2]) or 'No negative factor in this scoring model; that does not mean there is no risk.'
-        lines.append(f"#{city['rank']} {city['place']} — {city['score']:g} points\n"
-                     f"Strongest scored area: {strongest}.\n"
-                     f"ASC: {_angle(city['ascendant'])}; MC: {_angle(city['midheaven'])}.\n"
-                     + '\n'.join(conditions) + '\n'
-                     f"Financial house rulers: {rulers}.\n"
-                     f"Saturn: {saturn['sign']} ({_condition(saturn['dignity'])}); rules houses {', '.join(map(str, saturn['rules_houses'])) or 'none'}; {aspects}.\n"
-                     f"Main advantages: {advantages}\nMain downside: {downside}\n"
-                     f"Exact local return: {city['be_there_at']} ({city['timezone']}).")
-    lines.append("In the details above, a conjunction means two points are close together; a trine or sextile is traditionally read as cooperation, while a square or opposition is read as tension. For Saturn, this is about how responsibilities and limits interact with the other planet. A positive or negative point adjustment is the model's interpretation, not an event it knows will happen.")
-    if result['best_by_financial_pathway']:
-        lines.append('Best by financial area (comparing house occupants and rulers):\n' + '\n'.join(
-            f"- {name}: {', '.join(info['places'][:3])}" + (f" and {len(info['places'])-3} other tied cities" if len(info['places'])>3 else '')
-            for name, info in result['best_by_financial_pathway'].items()))
-    lines.append(f"For the overall top-ranked option, be physically in {first['place']} at {first['be_there_at']} ({first['timezone']}). Aim to arrive by {first['arrive_by']}; the one-hour buffer is practical advice, not an astrological requirement. Both latitude and longitude were used, so being in the same time zone is not enough.")
+        strongest = max(city['pathway_scores'], key=city['pathway_scores'].get)
+        description = f"#{city['rank']} {city['place']} — {city['score']:g} points\nStrongest scored area: {strongest}."
+        if technical:
+            advantages = '; '.join(city['advantages'][:1]) or 'No positive scored factor.'
+            tradeoff = '; '.join(city['tradeoffs'][:1]) or 'No negative scored factor.'
+            description += f"\nSupporting factor: {advantages}\nTradeoff: {tradeoff}"
+        description += f"\nExact local return: {city['be_there_at']} ({city['timezone']})."
+        lines.append(description)
+    lines.append(f"For the top option, be physically in {first['place']} at {first['be_there_at']} ({first['timezone']}). Aim to arrive by {first['arrive_by']} for a practical buffer. Being elsewhere in the same time zone is not enough: the calculation uses the city's coordinates.")
     return '\n\n'.join(lines)
 
 
@@ -97,4 +76,5 @@ def prepare_relocation(question: str, birth_date: str, natal: dict, request: dic
                               'natal': 'birth-chart reference only; not return-house rulers'},
                'natal_transits': {'source': 'transit_to_natal', 'included': False,
                                   'reason': 'Not substituted for a solar-return ranking.'}}
-    return context, render_relocation(result)
+    from app.conversation_service import astrology_requested
+    return context, render_relocation(result, technical=astrology_requested(question))

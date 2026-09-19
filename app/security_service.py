@@ -1,9 +1,5 @@
 """Persistent abuse controls shared by workers; never trust client-supplied IDs."""
-from contextlib import contextmanager
-from datetime import datetime, timezone
 import hashlib
-import os
-import secrets
 import time
 from fastapi import HTTPException
 from starlette.responses import JSONResponse
@@ -90,72 +86,3 @@ class SecurityMiddleware:
                 message = {**message, 'headers': headers}
             await send(message)
         await self.app(scope, request_receive, secure_send)
-
-
-@contextmanager
-def ai_budget(user_id, model, prompt, max_output_tokens, images=None):
-    """Reserve worst-case tokens before spend; failed/abandoned calls retain a charge.
-
-    Dollar controls are conservative application estimates. Provider-side spending
-    limits should remain enabled as the independent billing backstop.
-    """
-    from app.subscription_service import ALLOWANCES, model_key_for_id
-    from app.usage_log_service import cost_for
-    byte_count = len(prompt.encode('utf-8'))
-    if byte_count > 128 * 1024:
-        raise HTTPException(413, "This conversation is too long. Please start a new chat.")
-    tokens = byte_count + 20000 * len(images or []) + max_output_tokens
-    # Reserve for server-side fallback/cache billing too. Never assume unknown models are free.
-    cost = max(cost_for(model, tokens - max_output_tokens, max_output_tokens) * 2, tokens * .000002)
-    now = datetime.now(timezone.utc)
-    today = now.date().isoformat()
-    month = now.replace(day=1).date().isoformat()
-    key = model_key_for_id(model)
-    reservation = secrets.token_urlsafe(24)
-    conn = get_db_connection()
-    try:
-        conn.execute('BEGIN IMMEDIATE')
-        user = conn.execute('SELECT subscription_tier, email_verified FROM users WHERE id=?', (user_id,)).fetchone()
-        if not user:
-            raise HTTPException(401, 'Please log in again.')
-        tier = user['subscription_tier']
-        if tier == 'free' and key in ('smart', 'deep') and not user['email_verified']:
-            raise HTTPException(403, 'Please confirm your email before using Smart or Deep.')
-        active = conn.execute('SELECT COUNT(*) FROM ai_reservations WHERE active=1 AND expires>?', (time.time(),)).fetchone()[0]
-        own = conn.execute('SELECT COUNT(*) FROM ai_reservations WHERE user_id=? AND active=1 AND expires>?', (user_id,time.time())).fetchone()[0]
-        if own or active >= 8:
-            raise HTTPException(429, 'An answer is already being prepared. Please try again shortly.', headers={'Retry-After':'10'})
-        global_cost = conn.execute('SELECT COALESCE(SUM(cost),0) FROM ai_reservations WHERE created>=?', (today,)).fetchone()[0]
-        user_cost = conn.execute('SELECT COALESCE(SUM(cost),0) FROM ai_reservations WHERE user_id=? AND created>=?', (user_id,today)).fetchone()[0]
-        daily = float(os.getenv('AI_USER_DAILY_USD', str({'free':1,'standard':5,'premium':15}.get(tier,1))))
-        if global_cost + cost > float(os.getenv('AI_GLOBAL_DAILY_USD','100')) or user_cost + cost > daily:
-            raise HTTPException(429, 'The daily AI allowance has been reached. Please try again tomorrow.')
-        allowance = ALLOWANCES.get(tier,{}).get(key)
-        if allowance:
-            since = month if allowance['window'] == 'month' else ''
-            used = conn.execute('SELECT COALESCE(SUM(tokens_in+tokens_out),0) FROM usage_events WHERE user_id=? AND model_key=? AND created_at>=?', (user_id,key,since)).fetchone()[0]
-            pending = conn.execute('SELECT COALESCE(SUM(tokens),0) FROM ai_reservations WHERE user_id=? AND model_key=? AND uncertain=1 AND created>=?', (user_id,key,since)).fetchone()[0]
-            if used + pending >= allowance['limit']:
-                raise HTTPException(402, 'This model allowance has been used. Please choose Fast or try after it resets.')
-        rate_count = conn.execute('SELECT COUNT(*) FROM ai_reservations WHERE user_id=? AND created>=?', (user_id,today)).fetchone()[0]
-        if rate_count >= 200:
-            raise HTTPException(429, 'The daily AI request limit has been reached.')
-        conn.execute('INSERT INTO ai_reservations (id,user_id,model_key,tokens,cost,created,expires) VALUES (?,?,?,?,?,?,?)',
-                     (reservation,user_id,key,tokens,cost,now.isoformat(),time.time()+300))
-        conn.commit()
-    finally:
-        conn.close()
-    usage = {}
-    try:
-        yield usage
-    finally:
-        conn = get_db_connection()
-        try:
-            if usage:
-                actual = cost_for(model,usage.get('tokens_in',0),usage.get('tokens_out',0))
-                conn.execute('UPDATE ai_reservations SET active=0, uncertain=0, cost=? WHERE id=?', (actual,reservation))
-            else:
-                conn.execute('UPDATE ai_reservations SET active=0 WHERE id=?', (reservation,))
-            conn.commit()
-        finally:
-            conn.close()

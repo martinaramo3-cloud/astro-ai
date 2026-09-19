@@ -91,8 +91,6 @@ def delete_user_account(user_id: int) -> bool:
             conn.execute(f"DELETE FROM {table} WHERE owner_user_id=?", (user_id,))
         for table in ("sessions", "auth_tokens", "bug_reports", "error_events", "usage_events"):
             conn.execute(f"DELETE FROM {table} WHERE user_id=?", (user_id,))
-        # Preserve anonymous global spend so deletion cannot reset the budget.
-        conn.execute("UPDATE ai_reservations SET user_id=NULL WHERE user_id=?", (user_id,))
         conn.execute("DELETE FROM users WHERE id=?", (user_id,))
         conn.commit()
         return True

@@ -236,11 +236,5 @@ def init_db():
     cursor.execute("""CREATE TABLE IF NOT EXISTS rate_limits (
         key TEXT PRIMARY KEY, count INTEGER NOT NULL, expires REAL NOT NULL)""")
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_rate_limits_expires ON rate_limits(expires)")
-    cursor.execute("""CREATE TABLE IF NOT EXISTS ai_reservations (
-        id TEXT PRIMARY KEY, user_id INTEGER, model_key TEXT NOT NULL,
-        tokens INTEGER NOT NULL, cost REAL NOT NULL, created TEXT NOT NULL,
-        expires REAL NOT NULL, active INTEGER NOT NULL DEFAULT 1,
-        uncertain INTEGER NOT NULL DEFAULT 1)""")
-    cursor.execute("CREATE INDEX IF NOT EXISTS idx_ai_reservations_created ON ai_reservations(created)")
     conn.commit()
     conn.close()

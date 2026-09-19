@@ -10,7 +10,7 @@ from tests.conftest import SOFIA
 from app.database import get_db_connection, init_db
 from app.chat_service import summarize_recent_sessions
 from app.auth_token_service import issue_token, consume_token, PURPOSE_RESET
-from app.security_service import ai_budget, rate_limit
+from app.security_service import rate_limit
 import app.ai_service as ai
 
 
@@ -73,12 +73,10 @@ def test_account_deletion_cleans_all_linked_records(client,account):
     create_invite(user['id'],'Private label','Private name')
     log_usage(user['id'],'gpt-4.1-mini',100,100)
     client.post('/bug-reports',headers=h,json={'message':'Private report'})
-    with ai_budget(user['id'],'gpt-4.1-mini','test',100): pass
     assert client.delete('/me',headers=h).status_code == 200
     conn=get_db_connection()
     for table,col in [('auth_tokens','user_id'),('invites','owner_user_id'),('bug_reports','user_id'),('usage_events','user_id'),('sessions','user_id')]:
         assert conn.execute(f'SELECT count(*) FROM {table} WHERE {col}=?',(user['id'],)).fetchone()[0] == 0
-    assert conn.execute('SELECT user_id FROM ai_reservations').fetchone()[0] is None
     conn.close()
 
 
@@ -147,30 +145,6 @@ def test_reset_token_atomic_even_when_both_read_unused(account,monkeypatch):
     assert results.count(user['id']) == 1 and results.count(None) == 1
 
 
-def test_budget_refuses_parallel_and_unverified_premium(account,monkeypatch):
-    user,_=account()
-    with pytest.raises(HTTPException) as exc:
-        with ai_budget(user['id'],'claude-opus-5','hello',100): pass
-    assert exc.value.status_code == 403
-    with ai_budget(user['id'],'gpt-4.1-mini','hello',100):
-        with pytest.raises(HTTPException) as exc:
-            with ai_budget(user['id'],'gpt-4.1-mini','hello',100): pass
-        assert exc.value.status_code == 429
-    monkeypatch.setenv('AI_GLOBAL_DAILY_USD','0.00001')
-    with pytest.raises(HTTPException) as exc:
-        with ai_budget(user['id'],'gpt-4.1-mini','hello',100): pass
-    assert exc.value.status_code == 429
-
-
-def test_success_reconciles_and_failure_retains_budget(account):
-    user,_=account()
-    with ai_budget(user['id'],'gpt-4.1-mini','hello',100) as usage:
-        usage.update(tokens_in=10,tokens_out=10)
-    with pytest.raises(RuntimeError):
-        with ai_budget(user['id'],'gpt-4.1-mini','hello',100): raise RuntimeError('timeout')
-    conn=get_db_connection(); rows=conn.execute('SELECT active,uncertain,cost FROM ai_reservations ORDER BY rowid').fetchall(); conn.close()
-    assert [(r['active'],r['uncertain']) for r in rows] == [(0,0),(0,1)]
-    assert rows[1]['cost'] > rows[0]['cost'] > 0
 
 
 def test_claude_stream_and_regular_forward_output_cap(monkeypatch,account):
@@ -242,12 +216,3 @@ def test_late_usage_after_account_deletion_stays_anonymous(client,account):
     user,h=account(); client.delete('/me',headers=h)
     assert log_usage(user['id'],'gpt-4.1-mini',10,10)
     conn=get_db_connection(); assert conn.execute('SELECT user_id FROM usage_events').fetchone()[0] is None; conn.close()
-
-
-def test_paid_provider_is_not_called_when_budget_is_exhausted(account,monkeypatch):
-    user,_=account()
-    monkeypatch.setenv('AI_GLOBAL_DAILY_USD','0')
-    called=[]
-    monkeypatch.setattr(ai,'_get_openai_client',lambda:called.append(True))
-    with pytest.raises(HTTPException): ai.generate_astrologer_answer('hello',user_id=user['id'])
-    assert not called

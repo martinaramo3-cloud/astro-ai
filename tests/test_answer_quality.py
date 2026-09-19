@@ -115,13 +115,9 @@ def test_stream_endpoint_passes_the_same_ceiling(client, monkeypatch, images):
         "question_type": "general", "tier_config": {"label": "test"},
     })
     monkeypatch.setattr(main, "record_usage", lambda *args: None)
-    def stream(prompt, **kwargs):
-        seen.append(kwargs["max_output_tokens"])
-        yield "Explanation."
     def generate(prompt, **kwargs):
         seen.append(kwargs["max_output_tokens"])
         return "Explanation.", 10
-    monkeypatch.setattr(main, "stream_astrologer_answer", stream)
     monkeypatch.setattr(main, "generate_astrologer_answer", generate)
     main.app.dependency_overrides[main.get_current_user] = lambda: {"id": 1}
     try:

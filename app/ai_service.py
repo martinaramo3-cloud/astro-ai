@@ -7,7 +7,6 @@ from fastapi import HTTPException
 from openai import OpenAI
 
 from app.usage_log_service import log_usage
-from app.security_service import ai_budget
 
 load_dotenv()
 
@@ -245,36 +244,34 @@ def _create_response(
     Callers keep getting the token total they always did; passing `user_id`
     additionally records the cost of the call against that user.
     """
-    with ai_budget(user_id, model, (system or "") + user_prompt, max_output_tokens, images) as reserved:
-        try:
-            if _is_anthropic(model):
-                text, usage = _anthropic_response(
-                    user_prompt, model=model, system=system, effort=effort, images=images, max_output_tokens=max_output_tokens
-                )
-            else:
-                text, usage = _openai_response(
-                    user_prompt,
-                    model=model,
-                    max_output_tokens=max_output_tokens,
-                    system=system,
-                    images=images,
-                )
-            # Logged here rather than at each call site: one choke point, so no
-            # future endpoint can spend money without it showing up.
-            if log_usage(user_id, model, usage["tokens_in"], usage["tokens_out"]):
-                reserved.update(usage)
-            return text, usage["total"]
-        except HTTPException:
-            raise
-        except Exception as exc:
-            # Log full detail server-side (Render logs) but never leak it — including
-            # the API key, which can appear in header errors — to the client.
-            cause = getattr(exc, "__cause__", None)
-            print("AI provider error:", repr(exc), "| cause:", repr(cause))
-            raise HTTPException(
-                status_code=502,
-                detail="The astrologer is temporarily unavailable. Please try again in a moment.",
+    try:
+        if _is_anthropic(model):
+            text, usage = _anthropic_response(
+                user_prompt, model=model, system=system, effort=effort, images=images, max_output_tokens=max_output_tokens
             )
+        else:
+            text, usage = _openai_response(
+                user_prompt,
+                model=model,
+                max_output_tokens=max_output_tokens,
+                system=system,
+                images=images,
+            )
+        # Logged here rather than at each call site: one choke point, so no
+        # future endpoint can spend money without it showing up.
+        log_usage(user_id, model, usage["tokens_in"], usage["tokens_out"])
+        return text, usage["total"]
+    except HTTPException:
+        raise
+    except Exception as exc:
+        # Log full detail server-side (Render logs) but never leak it — including
+        # the API key, which can appear in header errors — to the client.
+        cause = getattr(exc, "__cause__", None)
+        print("AI provider error:", repr(exc), "| cause:", repr(cause))
+        raise HTTPException(
+            status_code=502,
+            detail="The astrologer is temporarily unavailable. Please try again in a moment.",
+        )
 
 
 def generate_chart_summary(
@@ -428,27 +425,25 @@ def stream_astrologer_answer(
     against a tier's token budget the same as any other.
     """
     usage: dict = usage_out if usage_out is not None else {}
-    with ai_budget(user_id, model, (system or "") + prompt, max_output_tokens) as reserved:
-        try:
-            if _is_anthropic(model):
-                yield from _stream_anthropic(prompt, model, system, effort, usage, max_output_tokens)
-            else:
-                # The Responses API takes one string, so the standing instructions
-                # ride at the front, exactly as in the non-streaming path.
-                joined = f"{system}\n\n{prompt}" if system else prompt
-                yield from _stream_openai(joined, model, max_output_tokens, usage)
-        except HTTPException:
-            raise
-        except Exception as exc:
-            cause = getattr(exc, "__cause__", None)
-            print("AI stream error:", repr(exc), "| cause:", repr(cause))
-            raise
-        finally:
-            # Whatever happened, bill for what was actually generated. A reader who
-            # closes the tab mid-answer still cost real tokens.
-            if usage:
-                if log_usage(user_id, model, usage.get("tokens_in", 0), usage.get("tokens_out", 0)):
-                    reserved.update(usage)
+    try:
+        if _is_anthropic(model):
+            yield from _stream_anthropic(prompt, model, system, effort, usage, max_output_tokens)
+        else:
+            # The Responses API takes one string, so the standing instructions
+            # ride at the front, exactly as in the non-streaming path.
+            joined = f"{system}\n\n{prompt}" if system else prompt
+            yield from _stream_openai(joined, model, max_output_tokens, usage)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        cause = getattr(exc, "__cause__", None)
+        print("AI stream error:", repr(exc), "| cause:", repr(cause))
+        raise
+    finally:
+        # Whatever happened, bill for what was actually generated. A reader who
+        # closes the tab mid-answer still cost real tokens.
+        if usage:
+            log_usage(user_id, model, usage.get("tokens_in", 0), usage.get("tokens_out", 0))
 
 
 # ── How much does this question weigh? ─────────────────────────────────────

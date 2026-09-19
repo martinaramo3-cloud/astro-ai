@@ -213,12 +213,12 @@ def check_model_allowance(user_id: int | None, tier: str | None, model_key: str)
         detail = (
             f"You've used your welcome {label} messages. "
             f"{label} is part of a paid plan — subscriptions are coming soon. "
-            "Fast is free, subject to daily fair-use limits."
+            "Fast is always free and unlimited."
         )
     else:
         detail = (
             f"You've used your free {label} for this month (resets "
-            f"{_human_until(_next_month_start())}). Fast is free, subject to daily fair-use limits, "
+            f"{_human_until(_next_month_start())}). Fast is always free and unlimited, "
             "or upgrade for more."
         )
     raise HTTPException(status_code=402, detail=detail)

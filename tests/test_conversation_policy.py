@@ -1,0 +1,169 @@
+"""Offline routing/review regressions. No claim of live-model style evaluation."""
+import pytest
+import app.main as main
+from app.conversation_service import conversation_state, astrology_requested
+from app.answer_review_service import review_issues, reviewed_answer
+from app.ai_context_service import build_ask_astrologer_system
+from tests.conftest import SOFIA
+
+QUESTION = 'Do you think my ex is coming back?'
+ANSWER = "I can't tell whether they'll come back. Consistent contact would be more meaningful than a chance encounter."
+HISTORY = [{'role':'user','content':QUESTION}, {'role':'assistant','content':ANSWER}]
+UPDATE = 'I have been seeing him a lot recently. We go to the same university.'
+NEW = "Sharing a campus makes chance encounters more likely. I'd pay attention to whether he makes an effort to talk to you. How has he acted when you meet?"
+
+
+def test_greeting_is_not_a_previous_reading_and_current_message_is_not_duplicated():
+    state = conversation_state(QUESTION, [{'role':'assistant','content':'Welcome!'}, {'role':'user','content':QUESTION}])
+    assert state['kind'] == 'new_question'
+    assert state['recent_turns'] == []
+
+
+@pytest.mark.parametrize('question, expected', [('why?', True), ('What in my chart shows that?',True), ('Which planets are involved?',True), ('Why is my friend avoiding me?',False), ('Explain without astrology',False)])
+def test_explicit_technical_opt_in(question, expected):
+    assert astrology_requested(question) is expected
+
+
+def test_topic_switch_resets_anchor_then_keeps_new_anchor():
+    history = HISTORY + [{'role':'user','content':'Different question: will my business grow?'}, {'role':'assistant','content':'Consider what demand you have already seen.'}]
+    state = conversation_state('What should I do next?', history)
+    assert state['original_question'] == history[-2]['content']
+
+
+def test_relationship_answer_keeps_internal_calculations(client, account, monkeypatch):
+    calls=[]
+    def generate(prompt, **kwargs):
+        calls.append((prompt, kwargs))
+        return ANSWER, 20
+    monkeypatch.setattr(main, 'generate_astrologer_answer', generate)
+    user, headers=account()
+    response=client.post('/ask-astrologer', headers=headers, json={**SOFIA,'question':QUESTION,'user_id':user['id']})
+    assert response.status_code == 200
+    result=response.json()
+    assert result['answer'] == ANSWER
+    assert result['context']['conversation']['mode'] == 'everyday'
+    assert 'Saturn' in calls[0][0]  # calculated inputs reach the model
+    assert 'Saturn' not in result['answer']
+    assert len(result['answer'].split()) < 190
+    assert 'biograph' in build_ask_astrologer_system().lower()
+
+
+def test_followup_repair_responds_to_university_context(client, account, monkeypatch):
+    calls=[]
+    def generate(prompt, **kwargs):
+        calls.append(prompt)
+        return (ANSWER if len(calls)==1 else NEW), 20
+    monkeypatch.setattr(main,'generate_astrologer_answer',generate)
+    user,headers=account()
+    response=client.post('/ask-astrologer',headers=headers,json={**SOFIA,'question':UPDATE,'history':HISTORY,'user_id':user['id']})
+    assert response.status_code==200
+    result=response.json()
+    assert result['answer']==NEW
+    assert result['context']['conversation']['kind']=='follow_up'
+    assert len(calls)==2
+    assert 'repeats a previous' in calls[-1]
+
+
+def test_technical_explanation_accepted_only_when_requested():
+    answer='Venus represents connection; its current aspect suggests an opening for conversation, not a promised reunion.'
+    assert 'technical astrology in an everyday reply' in review_issues(answer,conversation_state(QUESTION))
+    assert review_issues(answer,conversation_state('What in my chart shows that?',HISTORY))==[]
+
+
+@pytest.mark.parametrize('draft', ["Your friend may be focused on her children.", "Their kids need attention.", 'Your friend has a daughter.'])
+def test_age_never_establishes_children(draft):
+    state=conversation_state('My friend is 22. Why are they distant?')
+    assert 'unsupported personal fact: children' in review_issues(draft,state)
+
+
+@pytest.mark.parametrize('answer', ['They may be busy; have they mentioned what is happening?', 'Do they have children or other responsibilities taking up their time?'])
+def test_missing_information_uses_neutral_or_question(answer):
+    assert review_issues(answer,conversation_state('My friend is distant.'))==[]
+
+
+@pytest.mark.parametrize('answer', ['He will come back.', "He's coming back.", 'He still loves you.', 'He is coming back.'])
+def test_no_certainty_about_other_person(answer):
+    assert 'unqualified claim about another person' in review_issues(answer,conversation_state('Will he come back?'))
+
+
+def test_user_supplied_pronoun_in_question_is_allowed():
+    assert review_issues('He may reach out, but I cannot tell from this alone.',conversation_state('Will he come back?'))==[]
+
+
+def test_multiple_followups_compare_more_than_last_answer():
+    history=HISTORY + [{'role':'user','content':UPDATE},{'role':'assistant','content':NEW},{'role':'user','content':'We talked yesterday.'},{'role':'assistant','content':'What did you talk about, and who started the conversation?'}]
+    state=conversation_state('He asked about my classes.',history)
+    assert any('repeats' in p for p in review_issues(ANSWER,state))
+    assert state['original_question']==QUESTION
+    assert review_issues('Asking about your classes gives you a little more to go on. Did he keep the conversation going?',state)==[]
+
+
+def test_failed_repair_never_serves_invented_biography():
+    state=conversation_state('My friend is 22. Why are they distant?')
+    calls=[]
+    def generate(prompt, **kwargs):
+        calls.append(prompt)
+        return 'Their children need attention.',10
+    result,tokens=reviewed_answer(generate,'prompt',{'conversation':state})
+    assert len(calls)==2 and tokens==20
+    assert 'children' not in result
+
+
+def test_stream_does_not_leak_unreviewed_draft(client,account,monkeypatch):
+    answers=iter([('Saturn means he definitely will return.',10),(ANSWER,10)])
+    monkeypatch.setattr(main,'generate_astrologer_answer',lambda *a,**k:next(answers))
+    user,headers=account()
+    response=client.post('/ask-astrologer/stream',headers=headers,json={**SOFIA,'question':QUESTION,'user_id':user['id']})
+    assert response.status_code==200
+    assert 'Saturn means he definitely' not in response.text
+    assert "can't tell whether" in response.text
+
+
+def test_explicit_astrology_endpoint_has_calculations_and_relevant_explanation(client,account,monkeypatch):
+    seen=[]
+    explanation='Venus represents connection; its aspect is one factor to consider, rather than evidence of what someone intends.'
+    def generate(prompt,**kwargs):
+        seen.append(prompt)
+        return explanation,20
+    monkeypatch.setattr(main,'generate_astrologer_answer',generate)
+    user,headers=account()
+    response=client.post('/ask-astrologer',headers=headers,json={**SOFIA,'question':'What in my chart shows that?','history':HISTORY,'user_id':user['id']})
+    assert response.json()['answer']==explanation
+    assert 'astrology_on_request' in seen[0]
+    assert 'Venus' in seen[0]
+    assert len(seen)==1
+
+
+def test_summary_and_weekly_templates_share_plain_language_policy():
+    from app.ai_context_service import build_summary_prompt,build_weekly_horoscope_prompt,build_compatibility_prompt
+    for builder in (build_summary_prompt,build_weekly_horoscope_prompt,build_compatibility_prompt):
+        prompt=builder({})
+        assert 'EVERYDAY mode' in prompt
+        assert 'Only saved profile fields' in prompt
+
+
+def test_original_question_survives_recent_window():
+    history=HISTORY + sum(([{'role':'user','content':f'Another detail {i}.'},{'role':'assistant','content':f'Observation {i}.'}] for i in range(9)),[])
+    state=conversation_state('And then?',history)
+    assert len(state['recent_turns'])==12
+    assert state['original_question']==QUESTION
+
+
+def test_relocation_followup_reuses_return_calculation(client,account,monkeypatch):
+    question='Rank top 5 European cities for my 2027 solar return for money'
+    user,headers=account()
+    first=client.post('/ask-astrologer',headers=headers,json={**SOFIA,'question':question,'user_id':user['id']}).json()
+    assert '#5' in first['answer']
+    assert 'ASC:' not in first['answer']
+    seen=[]
+    def generate(prompt,**kwargs):
+        seen.append(prompt)
+        return 'You only need to be there at the calculated moment, not move there permanently.',20
+    monkeypatch.setattr(main,'generate_astrologer_answer',generate)
+    history=[{'role':'user','content':question},{'role':'assistant','content':first['answer']}]
+    response=client.post('/ask-astrologer',headers=headers,json={**SOFIA,'question':'Do I have to move there?','history':history,'user_id':user['id']})
+    result=response.json()
+    assert result['context']['where_to_be']['year']==2027
+    assert 'not move there permanently' in result['answer']
+    assert len(seen)==1
+    assert 'relocated_solar_return' in seen[0]

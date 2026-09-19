@@ -22,7 +22,7 @@ import app.main as main  # noqa: E402
 from app.database import get_db_connection, init_db  # noqa: E402
 
 TABLES = (
-    "rate_limits", "ai_reservations", "bug_reports", "chat_sessions", "attachments", "usage_events", "error_events",
+    "rate_limits", "bug_reports", "chat_sessions", "attachments", "usage_events", "error_events",
     "invites", "auth_tokens", "sessions", "profiles", "users",
 )
 

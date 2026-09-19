@@ -105,7 +105,6 @@ def test_failed_search_is_short_and_does_not_call_the_model(client, account, mon
     import app.relocation_reading_service as reading
     monkeypatch.setattr(reading, 'rank_places_for', lambda *a, **kw: (_ for _ in ()).throw(ValueError('bad chart')))
     monkeypatch.setattr(main, 'generate_astrologer_answer', lambda *a, **kw: pytest.fail('No AI fallback'))
-    monkeypatch.setattr(main, 'stream_astrologer_answer', lambda *a, **kw: pytest.fail('No streaming AI fallback'))
     user, headers = account()
     endpoint = '/ask-astrologer/stream' if streaming else '/ask-astrologer'
     response = client.post(endpoint, headers=headers, json={**BIRTH_INPUT, 'user_id': user['id'],
