@@ -45,3 +45,11 @@ Review may require one extra paid generation. Full-draft buffering delays the fi
 ## Deferred AI restrictions
 
 Per the user's prior instruction, removed the newly introduced email-verification model gate, daily AI spending reservations, call caps and concurrency guard. Changes touch `.env.example`, account/database/security/subscription services, provider integration, frontend plan wording and security fixtures/tests/docs. Existing subscription allowances, request throttles and independent security fixes remain. This branch includes the prior local security commit; neither is published by this work.
+
+## Follow-up: complete, fuller replies
+
+The first release made token ceilings too tight (130–380 tokens for substantive turns), and provider stop reasons were discarded. A reply could therefore end mid-word and pass review. The corrected release allows 800–1,200 tokens for normal substantive turns, 1,600–2,200 for explicitly detailed explanations, and 1,000 for summary/compatibility overviews. Word checks now allow 350 words for new questions/technical explanations, 260 for follow-ups, and 500 for requested detail, with up to five ordinary paragraphs. Guidance encourages useful 150–250-word substantive answers without a minimum or padding.
+
+OpenAI incomplete status and Claude max-token stop reasons now travel with generated text into review. Truncated drafts receive one complete rewrite, with a larger token allowance where configurable; incomplete repairs are never displayed. A secondary check catches substantial prose ending without closing punctuation when provider metadata is unavailable. Brief casual replies remain valid. This punctuation heuristic can misclassify unpunctuated lists or emoji endings; provider metadata is the primary signal.
+
+Validation: 278 backend tests passed, including six new tests for both provider adapters, the reported mid-word cutoff, repair headroom, rejected incomplete repairs, and fuller answers. No frontend code changed in this follow-up. Actual paid-model output has not been sampled.
