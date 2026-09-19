@@ -40,6 +40,13 @@ def _asserted(sentence):
 def review_issues(answer, state):
     issues=[]
     if not answer.strip(): return ['empty answer']
+    if getattr(answer, 'incomplete', False):
+        issues.append('provider stopped before the answer was complete')
+    # Legacy providers/tests may not supply stop metadata. Catch substantial
+    # prose that visibly ends mid-thought, without rejecting casual short chat.
+    ending = answer.rstrip().rstrip('\"\'”’)*_')
+    if len(answer.split()) >= 20 and ending and ending[-1] not in '.!?…':
+        issues.append('answer ends mid-sentence')
     if len(answer.split()) > state['max_words']: issues.append('too long for this turn')
     if len([p for p in answer.split('\n\n') if p.strip()]) > state['max_paragraphs']: issues.append('too many paragraphs')
     if state['mode'] == 'everyday' and JARGON.search(answer): issues.append('technical astrology in an everyday reply')
@@ -97,10 +104,13 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, **kwargs):
         return answer,tokens
     repair=prompt+'\n\nDRAFT REVIEW — revise once, return only the replacement answer.\n'+json.dumps({
         'problems':problems,'draft':answer,
-        'instruction':'Answer the latest message. Remove repetitions and unsupported claims. Use only reported facts for biography, neutral wording for unknowns, and the requested presentation mode. Do not add new personal facts or new chart data.'},ensure_ascii=False)
+        'instruction':'Write a complete replacement, not a continuation. Finish every sentence. Answer the latest message. Remove repetitions and unsupported claims. Use only reported facts for biography, neutral wording for unknowns, and the requested presentation mode. Do not add new personal facts or new chart data.'},ensure_ascii=False)
     try:
         if on_repair: on_repair()
-        revised,extra=generate(repair,**kwargs)
+        repair_kwargs = dict(kwargs)
+        if any('complete' in issue or 'mid-sentence' in issue for issue in problems) and 'max_output_tokens' in repair_kwargs:
+            repair_kwargs['max_output_tokens'] = min(4000, max(1600, repair_kwargs['max_output_tokens'] * 2))
+        revised,extra=generate(repair,**repair_kwargs)
     except Exception:
         # Do not serve an unsafe draft if a correction cannot be generated.
         return safe_reply(state),tokens

@@ -167,3 +167,58 @@ def test_relocation_followup_reuses_return_calculation(client,account,monkeypatc
     assert 'not move there permanently' in result['answer']
     assert len(seen)==1
     assert 'relocated_solar_return' in seen[0]
+
+
+def test_provider_truncation_is_repaired_even_after_full_sentence():
+    from app.ai_service import GeneratedText
+    state=conversation_state(QUESTION)
+    calls=[]
+    def generate(prompt,**kwargs):
+        calls.append(kwargs['max_output_tokens'])
+        return (GeneratedText('Consider reaching out.',incomplete=True) if len(calls)==1 else 'You could reach out and see whether the conversation feels mutual.'),10
+    answer,tokens=reviewed_answer(generate,'prompt',{'conversation':state},max_output_tokens=1000)
+    assert calls==[1000,2000]
+    assert answer.endswith('mutual.') and tokens==20
+
+
+def test_reported_cutoff_is_detected_without_provider_metadata():
+    draft="I can't promise you a yes tonight, honestly — but the odds don't look stacked against you either. If I were you, I'd actually reach out instead of wa"
+    assert 'answer ends mid-sentence' in review_issues(draft,conversation_state('Should I reach out tonight?'))
+
+
+def test_roomier_answer_is_allowed_without_forcing_more_words():
+    state=conversation_state(QUESTION)
+    answer=' '.join(['There are several possibilities to consider before deciding what to do next.']*20)
+    assert 190 < len(answer.split()) < state['max_words']
+    assert review_issues(answer,state)==[]
+    assert review_issues('You could ask directly.',state)==[]
+    assert main.answer_ceiling(QUESTION,4,state)>=1200
+
+
+def test_incomplete_repair_is_never_shown():
+    from app.ai_service import GeneratedText
+    result,tokens=reviewed_answer(lambda *a,**k:(GeneratedText('You could try reaching ou',incomplete=True),10),'prompt',{'conversation':conversation_state(QUESTION)},max_output_tokens=1200)
+    assert 'reaching ou' not in result
+    assert tokens==20
+
+
+def test_openai_adapter_preserves_incomplete_status(monkeypatch):
+    from types import SimpleNamespace
+    import app.ai_service as ai
+    response=SimpleNamespace(output_text='A partial answer',status='incomplete',usage=SimpleNamespace(input_tokens=4,output_tokens=8))
+    monkeypatch.setattr(ai,'_get_openai_client',lambda:SimpleNamespace(responses=SimpleNamespace(create=lambda **kwargs:response)))
+    text,usage=ai._openai_response('prompt','test',1200,None)
+    assert text.incomplete and usage['total']==12
+
+
+def test_anthropic_adapter_preserves_max_tokens_stop(monkeypatch):
+    from types import SimpleNamespace
+    import app.ai_service as ai
+    message=SimpleNamespace(content=[SimpleNamespace(type='text',text='A partial answer')],stop_reason='max_tokens',usage=SimpleNamespace(input_tokens=4,output_tokens=8))
+    class Stream:
+        def __enter__(self): return self
+        def __exit__(self,*args): pass
+        def get_final_message(self): return message
+    monkeypatch.setattr(ai,'_get_anthropic_client',lambda:SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=lambda **kwargs:Stream()))))
+    text,usage=ai._anthropic_response('prompt','test',None,max_output_tokens=1200)
+    assert text.incomplete and usage['total']==12

@@ -106,6 +106,14 @@ def _anthropic_usage(usage) -> dict:
     return {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
 
 
+class GeneratedText(str):
+    """String-compatible provider text carrying completion status into review."""
+    def __new__(cls, text, *, incomplete=False):
+        value = super().__new__(cls, text or '')
+        value.incomplete = incomplete
+        return value
+
+
 def _anthropic_request(content, model: str, system: str | None, effort: str | None, max_output_tokens: int = 550) -> dict:
     """The request body, built once so streaming and non-streaming can't drift."""
     request = {
@@ -184,7 +192,7 @@ def _anthropic_response(
     text = "".join(
         block.text for block in message.content if getattr(block, "type", None) == "text"
     )
-    return text, _anthropic_usage(message.usage)
+    return GeneratedText(text, incomplete=message.stop_reason == "max_tokens"), _anthropic_usage(message.usage)
 
 
 def _openai_response(
@@ -226,7 +234,7 @@ def _openai_response(
     u = response.usage
     tin = getattr(u, "input_tokens", 0) or 0 if u else 0
     tout = getattr(u, "output_tokens", 0) or 0 if u else 0
-    return response.output_text, {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
+    return GeneratedText(response.output_text, incomplete=getattr(response, "status", None) == "incomplete"), {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
 
 
 def _create_response(
@@ -278,7 +286,7 @@ def generate_chart_summary(
     prompt: str, model: str = DEFAULT_MODEL, system: str | None = None,
     user_id: int | None = None,
 ) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=180, system=system,
+    return _create_response(prompt, model=model, max_output_tokens=1000, system=system,
                             user_id=user_id)
 
 
@@ -326,7 +334,7 @@ def generate_compatibility_reading(
     prompt: str, model: str = DEFAULT_MODEL, system: str | None = None,
     user_id: int | None = None,
 ) -> tuple[str, int]:
-    return _create_response(prompt, model=model, max_output_tokens=220, system=system,
+    return _create_response(prompt, model=model, max_output_tokens=1000, system=system,
                             user_id=user_id)
 
 

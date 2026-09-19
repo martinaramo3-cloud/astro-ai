@@ -938,9 +938,9 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
 
 # Provider token ceilings complement the word/paragraph limits in draft review.
 # Detailed requests receive additional space; defaults stay conversational.
-ANSWER_CEILING = {1: 90, 2: 130, 3: 280, 4: 380}
+ANSWER_CEILING = {1: 180, 2: 800, 3: 1000, 4: 1200}
 # Extra room is opt-in through the request, not a longer default for every chat.
-DETAIL_CEILING = {"explanation": 450, "detailed": 650}
+DETAIL_CEILING = {"explanation": 1600, "detailed": 2200}
 
 
 def answer_ceiling(question: str, tier: int, conversation: dict | None = None) -> int:
