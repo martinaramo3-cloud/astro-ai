@@ -3,13 +3,11 @@
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
 import ZodiMark from "../../components/ZodiMark";
-import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
+import { ThemeToggle } from "../../components/ThemeProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export default function ForgotPasswordPage() {
-  const { theme } = useTheme();
-  const night = theme === "night";
 
   const [email, setEmail] = useState("");
   const [sent, setSent] = useState(false);
@@ -50,7 +48,7 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div style={{ width: "min(430px, 100%)" }} className="mx-auto flex flex-col items-center">
-        <ZodiMark night={night} sizeFromCss className="auth-mark" />
+        <ZodiMark sizeFromCss className="auth-mark" />
         <div style={{ marginTop: 10 }} />
 
         <div className="auth-card w-full" style={{ background: "var(--surface)", border: "1px solid var(--line)", boxShadow: "var(--shadow)" }}>

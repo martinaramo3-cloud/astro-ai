@@ -6,7 +6,7 @@ import PlaceAutocomplete from "../components/PlaceAutocomplete";
 import ZodiMark from "../components/ZodiMark";
 import Wordmark from "../components/Wordmark";
 import ReportBug from "../components/ReportBug";
-import { ThemeToggle, useTheme } from "../components/ThemeProvider";
+import { ThemeToggle } from "../components/ThemeProvider";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -52,8 +52,6 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 export default function Home() {
-  const { theme } = useTheme();
-  const night = theme === "night";
 
   // The splash covers app boot on a cold open; it shouldn't replay all session.
   const [showSplash, setShowSplash] = useState(true);
@@ -253,7 +251,7 @@ export default function Home() {
         style={{ background: "var(--sky)" }}
       >
         <div className="zo-fade">
-          <ZodiMark size={268} night={night} className="max-w-[56vw]" />
+          <ZodiMark size={268} className="max-w-[56vw]" />
         </div>
         <div style={{ marginTop: 26 }}>
           <Wordmark zSize="clamp(52px, 13vw, 84px)" restSize="clamp(28px, 6.6vw, 44px)" animate />
@@ -291,7 +289,7 @@ export default function Home() {
       </div>
 
       <div style={{ width: "min(430px, 100%)" }} className="mx-auto flex flex-col items-center">
-        <ZodiMark night={night} sizeFromCss className="auth-mark" />
+        <ZodiMark sizeFromCss className="auth-mark" />
         <div style={{ marginTop: 10 }}>
           <Wordmark zSize={46} restSize={25} />
         </div>

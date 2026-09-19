@@ -27,8 +27,6 @@
   --shadow-sm: 0 6px 18px rgba(120, 95, 50, 0.08);
   --sky: radial-gradient(1200px 720px at 50% -10%, #fff7e6 0%, #fbf6ec 55%, #f6eee1 100%);
 
-  --mark-ray: #c99a45;
-  --mark-ray-opacity: 0.95;
   --color-scheme: light;
   --theme-swap: 200ms;
 }
@@ -55,8 +53,6 @@
   --shadow-sm: 0 8px 22px rgba(0, 0, 0, 0.3);
   --sky: radial-gradient(1100px 700px at 50% -12%, #1d2740 0%, #141b2b 52%, #0e131f 100%);
 
-  --mark-ray: #d9b06a;
-  --mark-ray-opacity: 0.42;
   --color-scheme: dark;
 }
 
@@ -139,7 +135,9 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 
 .auth-main { padding: 32px 24px; }
 
-.auth-mark { width: 78px; height: 78px; }
+/* The mark carries real detail — a Z, a moon's face, two rings of rays — and
+   below about 120px it stops reading as any of them. */
+.auth-mark { width: min(42vw, 140px); height: min(42vw, 140px); }
 
 .auth-blurb { font-size: 16px; line-height: 1.55; margin-top: 10px; }
 
@@ -171,7 +169,10 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 
 @media (max-width: 640px) {
   .auth-main { padding: 18px 20px 28px; }
-  .auth-mark { width: 60px; height: 60px; }
+  /* Larger than it was, so the new artwork reads — but not the full 140px:
+     create-account carries six fields, and every pixel here pushes the form
+     closer to the fold, which is the thing this whole block exists to stop. */
+  .auth-mark { width: 88px; height: 88px; }
   .auth-blurb { font-size: 15px; line-height: 1.5; margin-top: 8px; }
   .auth-card { margin-top: 16px; padding: 18px 18px 18px; border-radius: 24px; }
   .auth-fields { gap: 9px; }
@@ -556,35 +557,78 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   animation: zo-word 1800ms cubic-bezier(0.22, 0.61, 0.36, 1) 300ms both;
 }
 
-/* ─── The mark (ZodiMark) ─── */
+/* ─── The mark (ZodiMark) ───
+   Two stacked copies of one cut-out PNG. The outer copy rotates; the inner one
+   is masked to the medallion and never turns, so the Z and the moon's face
+   stay upright. The two masks are exact complements at 40.5% / 41.7% of the
+   box's half-width, measured to this artwork's rim — change one radius and you
+   must change the other, or you get a seam or a doubled image.
 
-@keyframes zm-glow {
-  0%, 100% { opacity: 0.42; transform: scale(1); }
-  50%      { opacity: 0.82; transform: scale(1.14); }
+   Nothing goes behind it: a glow, a plate or a blurred layer each read as a
+   grey disc on the night ground, and the artwork carries its own highlights. */
+
+.zodiMark {
+  position: relative;
+  aspect-ratio: 1 / 1;
+  animation: zm-in 1100ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
-@keyframes zm-breathe {
-  0%, 100% { transform: scale(1); }
-  50%      { transform: scale(1.06); }
+.zodiMark__layer {
+  position: absolute;
+  inset: 0;
+  background-image: url(/zodi-mark.png);
+  background-size: 100% 100%;
+  background-repeat: no-repeat;
 }
 
-@keyframes zm-shimmer {
-  0%, 100% { opacity: 0.4; }
-  50%      { opacity: 1; }
+/* Rays: centre punched out, so only one layer paints any pixel. */
+.zodiMark__rays {
+  -webkit-mask-image: radial-gradient(circle closest-side, transparent 0 40.5%, #000 41.7%);
+  mask-image: radial-gradient(circle closest-side, transparent 0 40.5%, #000 41.7%);
+  animation: zm-rot var(--zm-idle, 150s) linear infinite;
+  will-change: transform;
 }
 
-@keyframes zm-spin { to { transform: rotate(360deg); } }
-@keyframes zm-orbit { to { transform: rotate(360deg); } }
+/* The disc: everything inside the rim, static. */
+.zodiMark__core {
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 0 40.5%, transparent 41.7%);
+  mask-image: radial-gradient(circle closest-side, #000 0 40.5%, transparent 41.7%);
+}
 
-.zm-glow    { animation: zm-glow 7s ease-in-out infinite; }
-.zm-breathe { animation: zm-breathe 7s ease-in-out infinite; }
-.zm-shimmer { animation: zm-shimmer 6s ease-in-out infinite; }
+/* Barely a drift at rest; the fast turn is the whole loader. */
+.zodiMark[data-spin="true"] .zodiMark__rays { animation-duration: var(--zm-spin, 4.2s); }
 
-/* Almost imperceptible drift at rest; the fast spin is the whole loader. */
-.zm-spin-rest { animation: zm-spin 120s linear infinite; }
-.zm-spin-fast { animation: zm-spin 3.6s linear infinite; }
-.zm-orbit-rest { animation: zm-orbit 40s linear infinite; }
-.zm-orbit-fast { animation: zm-orbit 6s linear infinite; }
+/* ── Small sizes ──
+   Beside a message the mark is 24–26px, and the medallion is only ~40% of the
+   box's width — which leaves the Z about eight pixels across and the rays a
+   grey haze. So below ~34px the rays go and the medallion fills the box: the
+   detail that identifies it survives, and the haze doesn't. 247% is 1/0.405,
+   the reciprocal of the mask radius, so the disc lands exactly edge to edge. */
+.zodiMark[data-compact="true"] .zodiMark__rays { display: none; }
+.zodiMark[data-compact="true"] .zodiMark__core {
+  background-size: 247% 247%;
+  background-position: center;
+  -webkit-mask-image: radial-gradient(circle closest-side, #000 0 99%, transparent 100%);
+  mask-image: radial-gradient(circle closest-side, #000 0 99%, transparent 100%);
+}
+
+/* Spinning the mark is the app's whole loading state, and at this size there
+   are no rays left to spin. Turning the medallion itself would stand the Z on
+   its head, so it breathes instead — still plainly "working", still upright. */
+.zodiMark[data-compact="true"][data-spin="true"] .zodiMark__core {
+  animation: zm-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes zm-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%      { opacity: 0.55; transform: scale(0.94); }
+}
+
+@keyframes zm-rot { to { transform: rotate(360deg); } }
+@keyframes zm-in {
+  from { opacity: 0; transform: scale(0.965); }
+  to   { opacity: 1; transform: scale(1); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {

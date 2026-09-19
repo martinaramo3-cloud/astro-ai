@@ -4,11 +4,9 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiFetch } from "../../lib/api";
 import ZodiMark from "../../components/ZodiMark";
-import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
+import { ThemeToggle } from "../../components/ThemeProvider";
 
 function VerifyInner() {
-  const { theme } = useTheme();
-  const night = theme === "night";
   const params = useSearchParams();
   const token = params.get("token") ?? "";
 
@@ -45,7 +43,7 @@ function VerifyInner() {
 
   return (
     <div className="auth-card w-full text-center" style={{ background: "var(--surface)", border: "1px solid var(--line)", boxShadow: "var(--shadow)" }}>
-      <div className="mx-auto mb-3"><ZodiMark night={night} size={44} /></div>
+      <div className="mx-auto mb-3"><ZodiMark size={44} /></div>
       {state === "working" && (
         <p className="font-reading" style={{ fontSize: 16, color: "var(--ink-2)" }}>Confirming your email…</p>
       )}

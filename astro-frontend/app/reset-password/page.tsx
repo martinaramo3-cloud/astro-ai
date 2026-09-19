@@ -4,7 +4,7 @@ import { Suspense, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { apiFetch, errorMessage, saveAuth } from "../../lib/api";
 import ZodiMark from "../../components/ZodiMark";
-import { ThemeToggle, useTheme } from "../../components/ThemeProvider";
+import { ThemeToggle } from "../../components/ThemeProvider";
 
 // Mirrors the server's rule; the server is the one that counts.
 const PASSWORD_RULES: { label: string; ok: (p: string) => boolean }[] = [
@@ -26,8 +26,6 @@ function EyeIcon({ open }: { open: boolean }) {
 }
 
 function ResetForm() {
-  const { theme } = useTheme();
-  const night = theme === "night";
   const params = useSearchParams();
   const token = params.get("token") ?? "";
 
@@ -143,7 +141,7 @@ function ResetForm() {
         {loading ? "Saving…" : "Set password & sign in"}
       </button>
 
-      <ZodiMark night={night} size={0} className="hidden" />
+      <ZodiMark size={0} className="hidden" />
     </div>
   );
 }
