@@ -82,7 +82,8 @@ export default function CosmicAlert({
   useEffect(() => {
     if (!event) return;
     const key = `cosmic-dismissed:${event.name}:${event.date.slice(0, 10)}`;
-    setDismissed(window.localStorage.getItem(key) === "1");
+    const frame = requestAnimationFrame(() => setDismissed(window.localStorage.getItem(key) === "1"));
+    return () => cancelAnimationFrame(frame);
   }, [event]);
 
   if (!event || dismissed) return null;

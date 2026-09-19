@@ -41,10 +41,14 @@ def cost_for(model_id: str, tokens_in: int, tokens_out: int) -> float:
     return (tokens_in * in_rate + tokens_out * out_rate) / 1_000_000
 
 
-def log_usage(user_id: int | None, model_id: str, tokens_in: int, tokens_out: int) -> None:
-    """Record one AI call. Never raises — a failure to log must not fail a reply."""
+def log_usage(user_id: int | None, model_id: str, tokens_in: int, tokens_out: int) -> bool:
+    """Return whether usage was persisted; keep a reservation if logging fails."""
+    conn = None
     try:
         conn = get_db_connection()
+        conn.execute("BEGIN IMMEDIATE")
+        if user_id is not None and not conn.execute("SELECT id FROM users WHERE id=?", (user_id,)).fetchone():
+            user_id = None
         conn.execute(
             """
             INSERT INTO usage_events
@@ -62,9 +66,13 @@ def log_usage(user_id: int | None, model_id: str, tokens_in: int, tokens_out: in
             ),
         )
         conn.commit()
-        conn.close()
+        return True
     except Exception as exc:  # noqa: BLE001 - logging must never break a reply
-        print("usage log failed:", repr(exc))
+        print("usage log failed:", type(exc).__name__)
+        return False
+    finally:
+        if conn is not None:
+            conn.close()
 
 
 def month_start_iso() -> str:

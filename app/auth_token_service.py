@@ -80,10 +80,37 @@ def consume_token(token: str | None, purpose: str) -> int | None:
         conn.close()
         return None
 
-    conn.execute(
-        "UPDATE auth_tokens SET used_at = ? WHERE id = ?",
+    consumed = conn.execute(
+        "UPDATE auth_tokens SET used_at = ? WHERE id = ? AND used_at IS NULL",
         (datetime.now(timezone.utc).isoformat(), row["id"]),
     )
     conn.commit()
     conn.close()
-    return row["user_id"]
+    return row["user_id"] if consumed.rowcount == 1 else None
+
+
+def reset_password_by_token(token: str, password: str) -> int | None:
+    """Spend the reset, replace the password and revoke sessions atomically."""
+    from app.auth_service import hash_password
+    hashed = hash_password(password)
+    now = datetime.now(timezone.utc).isoformat()
+    conn = get_db_connection()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("""UPDATE auth_tokens SET used_at=?
+            WHERE token_hash=? AND purpose=? AND used_at IS NULL AND expires_at>?
+            AND EXISTS (SELECT 1 FROM users WHERE users.id=auth_tokens.user_id)
+            RETURNING user_id""", (now,_hash(token),PURPOSE_RESET,now)).fetchone()
+        if not row:
+            conn.rollback()
+            return None
+        user_id = row['user_id']
+        conn.execute("UPDATE users SET hashed_password=? WHERE id=?", (hashed,user_id))
+        conn.execute("DELETE FROM sessions WHERE user_id=?", (user_id,))
+        conn.commit()
+        return user_id
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()

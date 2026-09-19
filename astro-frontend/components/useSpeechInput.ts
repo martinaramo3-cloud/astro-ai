@@ -1,6 +1,20 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useBrowserReady } from "./useBrowserReady";
+
+type RecognitionResult = ArrayLike<{ transcript: string }>;
+type Recognition = {
+  continuous: boolean; interimResults: boolean; lang: string;
+  onresult: ((event: { results: ArrayLike<RecognitionResult> }) => void) | null;
+  onerror: ((event: { error: string }) => void) | null;
+  onend: (() => void) | null;
+  start(): void; stop(): void; abort(): void;
+};
+type SpeechWindow = Window & {
+  SpeechRecognition?: new () => Recognition;
+  webkitSpeechRecognition?: new () => Recognition;
+};
 
 /**
  * Dictation via the browser's own speech recognition.
@@ -28,10 +42,11 @@ const REASONS: Record<string, string> = {
 };
 
 export function useSpeechInput(onText: (text: string) => void) {
-  const [supported, setSupported] = useState(false);
+  const ready = useBrowserReady();
+  const supported = ready && !!((window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition);
   const [listening, setListening] = useState(false);
   const [error, setError] = useState("");
-  const recognitionRef = useRef<any>(null);
+  const recognitionRef = useRef<Recognition | null>(null);
 
   // Keep the latest callback without restarting recognition on every render.
   const onTextRef = useRef(onText);
@@ -41,10 +56,9 @@ export function useSpeechInput(onText: (text: string) => void) {
 
   useEffect(() => {
     const Recognition =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      (window as SpeechWindow).SpeechRecognition || (window as SpeechWindow).webkitSpeechRecognition;
     if (!Recognition) return;
 
-    setSupported(true);
     const recognition = new Recognition();
     recognition.continuous = false;
     recognition.interimResults = false;
@@ -53,9 +67,9 @@ export function useSpeechInput(onText: (text: string) => void) {
     const locale = navigator.language || "en-US";
     recognition.lang = /^en\b/i.test(locale) ? locale : "en-US";
 
-    recognition.onresult = (event: any) => {
+    recognition.onresult = (event) => {
       const transcript = Array.from(event.results)
-        .map((result: any) => result[0].transcript)
+        .map((result) => result[0].transcript)
         .join(" ")
         .trim();
       if (transcript) {
@@ -63,7 +77,7 @@ export function useSpeechInput(onText: (text: string) => void) {
         onTextRef.current(transcript);
       }
     };
-    recognition.onerror = (event: any) => {
+    recognition.onerror = (event) => {
       const code = event?.error ?? "";
       setError(REASONS[code] ?? `Dictation stopped (${code || "unknown"}). Try again.`);
       setListening(false);

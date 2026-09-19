@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 import { useEffect, useState } from "react";
 import { apiFetch, saveAuth } from "../lib/api";
@@ -52,6 +53,7 @@ function Label({ children }: { children: React.ReactNode }) {
 }
 
 export default function Home() {
+  const router = useRouter();
   const { theme } = useTheme();
   const night = theme === "night";
 
@@ -81,8 +83,8 @@ export default function Home() {
       /* private mode — just show it */
     }
     if (seen) {
-      setShowSplash(false);
-      return;
+      const frame = requestAnimationFrame(() => setShowSplash(false));
+      return () => cancelAnimationFrame(frame);
     }
 
     let done = false;
@@ -210,7 +212,7 @@ export default function Home() {
       }
       saveAuth(data);
       setMessage("Account created successfully.");
-      setTimeout(() => { window.location.href = "/chat"; }, 700);
+      setTimeout(() => { router.push("/chat"); }, 700);
     } catch {
       setMessage("Couldn\u2019t reach the server just now — it may be updating. Try again in a moment.");
     }
@@ -238,7 +240,7 @@ export default function Home() {
         return;
       }
       saveAuth(data);
-      window.location.href = "/chat";
+      router.push("/chat");
     } catch {
       setMessage("Couldn\u2019t reach the server just now — it may be updating. Try again in a moment.");
     }

@@ -73,6 +73,8 @@ export async function apiFetch(path: string, options: RequestInit = {}) {
 
   if (response.status === 401 && typeof window !== "undefined") {
     clearAuth();
+    // A full reload discards all in-memory private state after session expiry.
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
     if (window.location.pathname !== "/") window.location.href = "/";
   }
   return response;

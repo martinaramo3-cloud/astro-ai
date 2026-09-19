@@ -22,7 +22,7 @@ import app.main as main  # noqa: E402
 from app.database import get_db_connection, init_db  # noqa: E402
 
 TABLES = (
-    "chat_sessions", "attachments", "usage_events", "error_events",
+    "rate_limits", "bug_reports", "chat_sessions", "attachments", "usage_events", "error_events",
     "invites", "auth_tokens", "sessions", "profiles", "users",
 )
 
@@ -51,8 +51,8 @@ def offline(monkeypatch):
     # Any model call returns something harmless and free.
     monkeypatch.setattr(main, "generate_astrologer_answer",
                         lambda prompt, **kw: ("A test answer.", 100), raising=False)
-    monkeypatch.setattr(main, "classify_answer_tier", lambda q, recent="": 4, raising=False)
-    monkeypatch.setattr(main, "extract_asked_date", lambda q: None, raising=False)
+    monkeypatch.setattr(main, "classify_answer_tier", lambda q, recent="", **kw: 4, raising=False)
+    monkeypatch.setattr(main, "extract_asked_date", lambda q, **kw: None, raising=False)
     monkeypatch.setattr(main, "send_password_reset", lambda *a, **k: True, raising=False)
     monkeypatch.setattr(main, "send_verification", lambda *a, **k: True, raising=False)
 

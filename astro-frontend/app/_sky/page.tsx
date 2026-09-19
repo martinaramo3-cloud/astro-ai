@@ -76,15 +76,13 @@ export default function SkyPage() {
   useEffect(() => {
     // Each view is fetched once and kept: the sky at birth never changes, and
     // the sky now changes too slowly to be worth refetching on a tab press.
-    if (sky[which]) {
-      setLoading(false);
-      return;
-    }
+    if (sky[which]) return;
     let cancelled = false;
-    setLoading(true);
-    setError("");
-
     (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
+      setLoading(true);
+      setError("");
       try {
         const path =
           which === "birth"

@@ -1,4 +1,5 @@
 "use client";
+import Image from "next/image";
 
 import { useEffect, useState } from "react";
 
@@ -89,7 +90,7 @@ export default function PWAInstaller() {
           padding: 12,
         }}
       >
-        <img src="/icon-192.png" alt="" className="h-11 w-11 rounded-xl" />
+        <Image src="/icon-192.png" alt="" width={44} height={44} className="h-11 w-11 rounded-xl" />
         <div className="min-w-0 flex-1">
           <p className="font-reading" style={{ fontSize: 16 }}>
             Add Zodi to your home screen

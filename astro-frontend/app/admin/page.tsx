@@ -140,7 +140,7 @@ export default function AdminPage() {
           .then(setBugs)
           .catch(() => setBugs(null));
         try {
-          sessionStorage.setItem("zodi-admin-secret", withSecret);
+          sessionStorage.removeItem("zodi-admin-secret");
         } catch {
           /* private mode — fine */
         }
@@ -152,16 +152,7 @@ export default function AdminPage() {
   };
 
   useEffect(() => {
-    let saved = "";
-    try {
-      saved = sessionStorage.getItem("zodi-admin-secret") ?? "";
-    } catch {
-      /* ignore */
-    }
-    if (saved) {
-      setSecret(saved);
-      load(saved);
-    }
+    try { sessionStorage.removeItem("zodi-admin-secret"); } catch { /* unavailable storage */ }
   }, []);
 
   return (

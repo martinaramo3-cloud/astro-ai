@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 
 import { use, useEffect, useState } from "react";
 import { apiFetch, errorMessage } from "../../../lib/api";
@@ -107,13 +108,13 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 Invitations last two weeks and can only be used once. Ask
                 whoever sent it for a fresh one.
               </p>
-              <a
+              <Link
                 href="/"
                 className="mt-4 block text-center micro-label"
                 style={{ color: "var(--gold-deep)", textDecoration: "none" }}
               >
                 What is Zodi?
-              </a>
+              </Link>
             </>
           )}
 
@@ -130,7 +131,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 Curious what your own chart says? It takes a minute, and Zodi is
                 free to try.
               </p>
-              <a
+              <Link
                 href="/"
                 className="auth-cta mt-4 block text-center uppercase"
                 style={{
@@ -139,7 +140,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 }}
               >
                 Read my chart
-              </a>
+              </Link>
             </>
           )}
 
@@ -234,7 +235,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
               <p className="font-reading" style={{ fontSize: 13, lineHeight: 1.55, color: "var(--ink-3)", marginTop: 14 }}>
                 Your details go to {invite.from_name} only, to calculate the two
                 charts. Nothing is posted anywhere.{" "}
-                <a href="/privacy" style={{ color: "var(--gold-deep)" }}>How data is handled</a>.
+                <Link href="/privacy" style={{ color: "var(--gold-deep)" }}>How data is handled</Link>.
               </p>
             </>
           )}

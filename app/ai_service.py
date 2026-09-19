@@ -106,11 +106,11 @@ def _anthropic_usage(usage) -> dict:
     return {"tokens_in": tin, "tokens_out": tout, "total": tin + tout}
 
 
-def _anthropic_request(content, model: str, system: str | None, effort: str | None) -> dict:
+def _anthropic_request(content, model: str, system: str | None, effort: str | None, max_output_tokens: int = 550) -> dict:
     """The request body, built once so streaming and non-streaming can't drift."""
     request = {
         "model": model,
-        "max_tokens": ANTHROPIC_MAX_TOKENS,
+        "max_tokens": min(max_output_tokens, ANTHROPIC_MAX_TOKENS),
         "messages": [{"role": "user", "content": content}],
         "output_config": {
             "effort": effort or EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)
@@ -135,6 +135,7 @@ def _anthropic_response(
     system: str | None,
     effort: str | None = None,
     images: list[dict] | None = None,
+    max_output_tokens: int = 550,
 ) -> tuple[str, int]:
     client = _get_anthropic_client()
 
@@ -156,7 +157,7 @@ def _anthropic_response(
     else:
         content = user_prompt
 
-    request = _anthropic_request(content, model=model, system=system, effort=effort)
+    request = _anthropic_request(content, model=model, system=system, effort=effort, max_output_tokens=max_output_tokens)
 
     # Thinking is intentionally not configured: it is on by default on these
     # models, and passing an explicit configuration is rejected.
@@ -246,7 +247,7 @@ def _create_response(
     try:
         if _is_anthropic(model):
             text, usage = _anthropic_response(
-                user_prompt, model=model, system=system, effort=effort, images=images
+                user_prompt, model=model, system=system, effort=effort, images=images, max_output_tokens=max_output_tokens
             )
         else:
             text, usage = _openai_response(
@@ -347,10 +348,10 @@ def generate_compatibility_answer(
 # instead of the last, which is most of what "fast" feels like.
 
 
-def _stream_anthropic(content, model: str, system: str | None, effort: str | None, usage_out: dict):
+def _stream_anthropic(content, model: str, system: str | None, effort: str | None, usage_out: dict, max_output_tokens: int = 550):
     """Yield text as Claude writes it; record what it cost in `usage_out`."""
     client = _get_anthropic_client()
-    request = _anthropic_request(content, model=model, system=system, effort=effort)
+    request = _anthropic_request(content, model=model, system=system, effort=effort, max_output_tokens=max_output_tokens)
 
     def run(with_fallbacks: bool):
         extra = {"betas": [FALLBACK_BETA], "fallbacks": "default"} if with_fallbacks else {}
@@ -426,7 +427,7 @@ def stream_astrologer_answer(
     usage: dict = usage_out if usage_out is not None else {}
     try:
         if _is_anthropic(model):
-            yield from _stream_anthropic(prompt, model, system, effort, usage)
+            yield from _stream_anthropic(prompt, model, system, effort, usage, max_output_tokens)
         else:
             # The Responses API takes one string, so the standing instructions
             # ride at the front, exactly as in the non-streaming path.
@@ -476,12 +477,13 @@ Recent conversation:
 The question: {question}"""
 
 
-def classify_answer_tier(question: str, recent: str = "") -> int | None:
+def classify_answer_tier(question: str, recent: str = "", user_id: int | None = None) -> int | None:
     """Return 2 or 4, or None if the call fails and the caller should decide."""
     try:
-        text, _ = _openai_response(
+        text, _ = _create_response(
             _TIER_PROMPT.format(question=question.strip()[:400], recent=recent[:600] or "(none)"),
             model=TIER_CLASSIFIER_MODEL,
+            user_id=user_id,
             max_output_tokens=16,
             system=None,
         )
@@ -507,7 +509,7 @@ Answer with the date or with NONE, and nothing else.
 Question: {question}"""
 
 
-def extract_asked_date(question: str) -> str | None:
+def extract_asked_date(question: str, user_id: int | None = None) -> str | None:
     """The date a question is about, or None for "right now".
 
     Everything was anchored to today with eight weeks of look-ahead, so a
@@ -517,9 +519,10 @@ def extract_asked_date(question: str) -> str | None:
     from datetime import date
 
     try:
-        text, _ = _openai_response(
+        text, _ = _create_response(
             _DATE_PROMPT.format(today=date.today().isoformat(), question=question.strip()[:400]),
             model=TIER_CLASSIFIER_MODEL,
+            user_id=user_id,
             max_output_tokens=16,
             system=None,
         )

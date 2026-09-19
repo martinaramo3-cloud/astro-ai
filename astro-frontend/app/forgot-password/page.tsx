@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import { useState } from "react";
 import { apiFetch } from "../../lib/api";
 import ZodiMark from "../../components/ZodiMark";
@@ -70,10 +72,10 @@ export default function ForgotPasswordPage() {
                   try another email
                 </button>.
               </p>
-              <a href="/" className="auth-cta mt-4 block text-center uppercase"
+              <Link href="/" className="auth-cta mt-4 block text-center uppercase"
                  style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-deep))", color: "var(--on-gold)", fontSize: 12, letterSpacing: "0.2em", textDecoration: "none" }}>
                 Back to sign in
-              </a>
+              </Link>
             </>
           ) : (
             <>
@@ -101,9 +103,9 @@ export default function ForgotPasswordPage() {
               >
                 {loading ? "Sending…" : "Send reset link"}
               </button>
-              <a href="/" className="mt-4 block text-center micro-label" style={{ color: "var(--ink-3)", textDecoration: "none" }}>
+              <Link href="/" className="mt-4 block text-center micro-label" style={{ color: "var(--ink-3)", textDecoration: "none" }}>
                 Back to sign in
-              </a>
+              </Link>
             </>
           )}
         </div>

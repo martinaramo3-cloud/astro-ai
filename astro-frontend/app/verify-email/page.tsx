@@ -12,10 +12,12 @@ function VerifyInner() {
   const params = useSearchParams();
   const token = params.get("token") ?? "";
 
-  const [state, setState] = useState<"working" | "done" | "failed">("working");
+  const [result, setState] = useState<"working" | "done" | "failed">("working");
+
+  const state = token ? result : "failed";
 
   useEffect(() => {
-    if (!token) { setState("failed"); return; }
+    if (!token) return;
     let cancelled = false;
     (async () => {
       try {

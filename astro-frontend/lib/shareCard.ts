@@ -45,7 +45,7 @@ export async function drawShareCard(
   night: boolean,
 ): Promise<Blob | null> {
   // The card is the brand, so it must not be drawn in a fallback face.
-  try { await (document as any).fonts?.ready; } catch { /* proceed regardless */ }
+  try { await document.fonts?.ready; } catch { /* proceed regardless */ }
 
   const canvas = document.createElement("canvas");
   canvas.width = W;

@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useSyncExternalStore } from "react";
 
 type Theme = "day" | "night";
 
@@ -19,36 +19,40 @@ function themeFromClock(): Theme {
   return hour >= 19 || hour < 7 ? "night" : "day";
 }
 
+let memoryTheme: Theme | null = null;
+function readTheme(): Theme {
+  if (memoryTheme) return memoryTheme;
+  try {
+    const value = window.localStorage.getItem(STORAGE_KEY);
+    if (value === "day" || value === "night") return value;
+  } catch { /* private mode */ }
+  return themeFromClock();
+}
+function subscribeTheme(listener: () => void) {
+  const changed = () => { memoryTheme = null; listener(); };
+  window.addEventListener("storage", changed);
+  window.addEventListener("zodi-theme-change", listener);
+  return () => {
+    window.removeEventListener("storage", changed);
+    window.removeEventListener("zodi-theme-change", listener);
+  };
+}
+
 export default function ThemeProvider({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  // Render day on the server, then correct on the client — the local hour
-  // isn't knowable during SSR, and guessing causes a hydration mismatch.
-  const [theme, setThemeState] = useState<Theme>("day");
-
-  useEffect(() => {
-    let stored: string | null = null;
-    try {
-      stored = window.localStorage.getItem(STORAGE_KEY);
-    } catch {
-      /* private mode — fall back to the clock */
-    }
-    setThemeState(stored === "day" || stored === "night" ? stored : themeFromClock());
-  }, []);
+  const theme = useSyncExternalStore(subscribeTheme, readTheme, () => "day" as Theme);
 
   useEffect(() => {
     document.documentElement.setAttribute("data-theme", theme);
   }, [theme]);
 
   const setTheme = (next: Theme) => {
-    setThemeState(next);
-    try {
-      window.localStorage.setItem(STORAGE_KEY, next);
-    } catch {
-      /* the choice just won't persist */
-    }
+    memoryTheme = next;
+    try { window.localStorage.setItem(STORAGE_KEY, next); } catch { /* private mode */ }
+    window.dispatchEvent(new Event("zodi-theme-change"));
   };
 
   return (

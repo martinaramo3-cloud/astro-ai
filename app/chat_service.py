@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from fastapi import HTTPException
 
 from app.database import get_db_connection
 
@@ -47,6 +48,11 @@ def get_chat_session_by_id(session_id: int):
 def create_chat_session(owner_user_id: int, profile_id: int | None, title: str, messages: list[dict]):
     conn = get_db_connection()
     cursor = conn.cursor()
+    cursor.execute("BEGIN IMMEDIATE")
+    if cursor.execute("SELECT COUNT(*) FROM chat_sessions WHERE owner_user_id=?", (owner_user_id,)).fetchone()[0] >= 100:
+        conn.close()
+        raise HTTPException(413, "You have 100 saved chats. Please delete an older chat first.")
+
     cursor.execute(
         """
         INSERT INTO chat_sessions (owner_user_id, profile_id, title, messages_json)
@@ -109,7 +115,7 @@ def summarize_recent_sessions(
         """
         SELECT s.id, s.title, s.messages_json, s.updated_at, p.label AS person
         FROM chat_sessions s
-        LEFT JOIN profiles p ON p.id = s.profile_id
+        LEFT JOIN profiles p ON p.id = s.profile_id AND p.owner_user_id = s.owner_user_id
         WHERE s.owner_user_id = ?
           AND (? IS NULL OR s.profile_id = ?)
         ORDER BY s.updated_at DESC

@@ -24,6 +24,8 @@ from app.ai_service import inspect_images
 INSPECTION_PROMPT = """
 You are examining one or more images a user attached to a question for an astrologer.
 
+Do not infer biography, gender, family circumstances, diagnoses, or intentions from appearance, chart symbolism, or message layout. Attribute visible statements to their visible speaker; mark unclear attribution as unknown.
+
 Reply with JSON only — no prose, no code fences. Use exactly this shape:
 
 {
@@ -49,8 +51,7 @@ somewhere in the image. Most astrology apps print them near the title. Rules:
 what, like:
   THEM: hey, are we still on for friday?
   ME: think so! what time were you thinking
-Messages on the right side of a screenshot are almost always the user ("ME"); the left side is
-the other person ("THEM"). Include timestamps only where they are visible and meaningful. Do not
+Use visible sender labels when available. Otherwise use LEFT and RIGHT, not ME/THEM: screenshot layout does not establish whose conversation this is. Include timestamps only where they are visible and meaningful. Do not
 paraphrase, soften or summarise — the exact wording is the whole point.
 
 "description" — one or two plain sentences on what is actually visible. For a chart, mention

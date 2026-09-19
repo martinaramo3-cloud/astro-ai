@@ -2,8 +2,9 @@ import asyncio
 import hashlib
 import json
 import os
+import secrets
 from fastapi.middleware.cors import CORSMiddleware
-from app.auth_service import create_account, login_user, set_password
+from app.auth_service import create_account, login_user
 from app.user_service import get_user_by_id, update_user
 from app.profile_service import (
     create_profile,
@@ -18,7 +19,6 @@ from app.chat_service import (
     list_chat_sessions,
     update_chat_session,
     delete_chat_session_by_id,
-    summarize_recent_sessions,
 )
 from app.account_service import export_user_data, delete_user_account
 from app.attachment_service import (
@@ -35,14 +35,14 @@ from app.image_reading_service import read_images
 from app.usage_log_service import usage_summary
 from app.backup_service import create_backup, list_backups, backup_dir, run_backup_loop
 from app.error_log_service import record_error, recent_errors, error_summary, prune_errors
-from app.invite_service import create_invite, peek_invite, consume_invite, pending_invites
+from app.invite_service import create_invite, peek_invite, pending_invites, accept_invite
 from app.email_service import (
     send_password_reset,
     send_verification,
     email_configured,
     frontend_base,
 )
-from app.auth_token_service import issue_token, consume_token, PURPOSE_RESET, PURPOSE_VERIFY
+from app.auth_token_service import issue_token, consume_token, PURPOSE_RESET, PURPOSE_VERIFY, reset_password_by_token
 from app.sky_view_service import build_sky_view
 from app.compatibility_service import get_synastry_aspects, build_synastry_engine
 from app.database import init_db, get_db_connection, DB_NAME
@@ -54,7 +54,6 @@ from app.chart_analysis_service import build_chart_analysis, get_house_rulers
 from app.session_service import (
     create_session,
     delete_session,
-    delete_all_sessions_for_user,
     get_user_id_for_token,
     purge_expired_sessions,
 )
@@ -72,7 +71,9 @@ from dotenv import load_dotenv
 load_dotenv()
 from fastapi import Depends, FastAPI, File, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel
+from starlette.concurrency import run_in_threadpool
+from app.request_validation import RequestModel as BaseModel
+from pydantic import BaseModel as ResponseModel
 
 from app.astrology_engine import (
     get_planet_positions_from_utc,
@@ -85,6 +86,8 @@ from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.month_outlook_service import build_month_outlook
 from app.relocation_reading_service import prepare_relocation
+from app.conversation_service import attach_conversation, conversation_state, normalize_history, relevant_history_question
+from app.answer_review_service import reviewed_answer
 from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -110,7 +113,6 @@ from app.ai_context_service import (
 from app.ai_service import (
     classify_answer_tier,
     extract_asked_date,
-    stream_astrologer_answer,
     generate_chart_summary,
     generate_astrologer_answer,
     generate_compatibility_reading,
@@ -145,7 +147,10 @@ from app.content_repository import (
     get_signs as get_content_signs,
 )
 
+from app.security_service import SecurityMiddleware, rate_limit
+
 app = FastAPI(title="AI Horoscope API")
+app.add_middleware(SecurityMiddleware)
 
 frontend_origins = [
     origin.strip()
@@ -193,10 +198,10 @@ class BirthData(BaseModel):
     # guessed at.
     birth_time_known: bool = True
 
-from typing import List, Optional
+from typing import List, Optional, Literal
 
 class ChatMessage(BaseModel):
-    role: str
+    role: Literal["user", "assistant"]
     content: str
     # Pictures sent with this message, so a reopened conversation still shows
     # them. Ids only — the files are fetched one at a time, by their owner.
@@ -319,7 +324,7 @@ class LoginRequest(BaseModel):
     password: str
 
 
-class AuthUserResponse(BaseModel):
+class AuthUserResponse(ResponseModel):
     id: int
     name: str
     email: str
@@ -331,7 +336,7 @@ class AuthUserResponse(BaseModel):
     email_verified: bool = True
     token: str
 
-class UserResponse(BaseModel):
+class UserResponse(ResponseModel):
     id: int
     name: str
     birth_date: str
@@ -410,7 +415,15 @@ def get_current_user(authorization: str | None = Header(default=None)) -> dict:
     user = get_user_by_id(user_id)
     if not user:
         raise HTTPException(status_code=401, detail="Please log in again.")
+    rate_limit("account-requests", str(user_id), 120, 60)
     return user
+
+
+def require_owned_profile(profile_id: int | None, user_id: int) -> None:
+    if profile_id is not None:
+        profile = get_profile_by_id(profile_id)
+        if not profile or profile["owner_user_id"] != user_id:
+            raise HTTPException(status_code=403, detail="That saved person is not available.")
 
 
 def require_self(current_user: dict, target_user_id: int) -> None:
@@ -436,6 +449,16 @@ def home():
 
 @app.get("/health")
 def health_check():
+    return {"status": "ok"}
+
+
+@app.get("/admin/health")
+def health_diagnostics(x_admin_secret: str | None = Header(default=None)):
+    _require_admin(x_admin_secret)
+    return _health_details()
+
+
+def _health_details():
     """Liveness, storage, and which credentials are configured.
 
     `database_persistent` is the launch-critical bit: when the DB sits on the
@@ -751,7 +774,9 @@ def chart_summary(
     )
 
     prompt = build_summary_prompt(chart_context)
-    summary, tokens = generate_chart_summary(prompt, model=tier_config["model"], user_id=current_user["id"])
+    review_context = attach_conversation({}, "Give me a brief personal overview.")
+    summary, tokens = reviewed_answer(generate_chart_summary, prompt, review_context,
+                                     model=tier_config["model"], user_id=current_user["id"])
     record_usage(current_user["id"], tokens)
 
     return {
@@ -911,16 +936,18 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
     }
 
 
-# Generous enough that a correct answer is never cut off, tight enough that a
-# wandering one cannot become a paragraph.
-ANSWER_CEILING = {1: 90, 2: 130, 3: 110, 4: 550}
+# Provider token ceilings complement the word/paragraph limits in draft review.
+# Detailed requests receive additional space; defaults stay conversational.
+ANSWER_CEILING = {1: 90, 2: 130, 3: 280, 4: 380}
 # Extra room is opt-in through the request, not a longer default for every chat.
-DETAIL_CEILING = {"explanation": 900, "detailed": 1400}
+DETAIL_CEILING = {"explanation": 450, "detailed": 650}
 
 
-def answer_ceiling(question: str, tier: int) -> int:
+def answer_ceiling(question: str, tier: int, conversation: dict | None = None) -> int:
     if detect_relocation_request(question):
         return 1600  # a ranked city comparison and practical arrival details
+    if conversation and conversation["kind"] == "follow_up" and not requested_detail(question):
+        return ANSWER_CEILING[3]
     return DETAIL_CEILING.get(requested_detail(question), ANSWER_CEILING[tier])
 
 
@@ -945,6 +972,10 @@ def _prepare_astrologer_call(
     Shared by the blocking endpoint and the streaming one, so the two can
     never drift apart: same tier gate, same chart, same context.
     """
+    state = conversation_state(data.question, data.history, {"user": {
+        k: current_user[k] for k in ("name", "birth_date") if current_user.get(k)
+    }})
+    normalized_history = normalize_history(data.history, data.question)
     # Usage and tier follow the token, so nobody can bill another account.
     user_id = current_user["id"]
     tier_config = check_usage(user_id)
@@ -971,15 +1002,21 @@ def _prepare_astrologer_call(
 
     natal_data = build_natal_chart_data(data)
 
-    relocation = detect_relocation_request(data.question)
+    relocation_question = data.question
+    relocation = detect_relocation_request(relocation_question)
+    relocation_followup = False
+    if not relocation and state['kind'] == 'follow_up':
+        relocation_question = state['original_question']
+        relocation = detect_relocation_request(relocation_question)
+        relocation_followup = bool(relocation)
     if relocation:
-        context, answer = prepare_relocation(data.question, data.birth_date, natal_data, relocation)
-        context.update(question=data.question, answer_tier=4)
+        context, answer = prepare_relocation(relocation_question, data.birth_date, natal_data, relocation)
+        context.update(question=data.question, answer_tier=4, conversation=state, history=normalized_history)
         return {
             "user_id": user_id, "tier": 4, "tier_config": tier_config,
             "max_output_tokens": 1600, "model": model, "effort": effort,
             "images": None, "image_tokens": image_tokens, "question_type": "relocation",
-            "chat_context": context, "calculated_answer": answer,
+            "chat_context": context, **({} if relocation_followup and context["where_to_be"]["status"] in ("ok", "partial") else {"calculated_answer": answer}),
         }
 
     transit_planets = get_current_transit_positions()
@@ -993,16 +1030,7 @@ def _prepare_astrologer_call(
         natal_data["planet_positions"],
     )
 
-    question_type = classify_question(data.question)
-    # A short clarification continues the topic of this conversation.
-    if question_type == "general" and requested_detail(data.question):
-        for message in reversed(data.history or []):
-            if message.role == "user" and message.content != data.question:
-                previous_type = classify_question(message.content)
-                if requested_detail(message.content) and previous_type == "general":
-                    continue
-                question_type = previous_type
-                break
+    question_type = state["topic"]
     focus_planets = get_focus_planets(question_type)
 
     filtered_context = filter_chart_context_by_question_type(
@@ -1035,9 +1063,7 @@ def _prepare_astrologer_call(
         "question": data.question,
         # Attachment ids are dropped: the model can't fetch a file, and a
         # column of nulls in every past turn is only noise in the prompt.
-        "history": [
-            {"role": msg.role, "content": msg.content} for msg in (data.history or [])
-        ],
+        "history": normalized_history,
         # Stated up front, not just buried in chart_structure: everything the
         # birth time would have given is null below, and the difference between
         # "unknown" and "absent" is the difference between honest and invented.
@@ -1086,9 +1112,7 @@ def _prepare_astrologer_call(
                             "house_system": "Placidus", "rulership_system": "traditional"},
         "prediction": build_prediction(natal_data, active_transits, question_type),
         # Titles only, so a question can be picked back up across sessions.
-        "past_conversations": summarize_recent_sessions(
-            user_id, exclude_session_id=data.session_id
-        ),
+
     }
 
     if image_context:
@@ -1096,7 +1120,7 @@ def _prepare_astrologer_call(
 
     # A question that names a time gets that time's sky rather than an
     # extrapolation from this week's.
-    asked_date = extract_asked_date(data.question)
+    asked_date = extract_asked_date(relevant_history_question(state), user_id=user_id)
     if asked_date:
         try:
             moment = datetime.fromisoformat(asked_date).replace(tzinfo=timezone.utc)
@@ -1141,6 +1165,8 @@ def _prepare_astrologer_call(
     # thread, before the prompt is assembled — because the honest way to get a
     # one-line reply is to stop shipping three thousand tokens of chart with it.
     tier = classify_tier(data.question, chat_context["history"])
+    if state["kind"] == "follow_up" and tier != 1 and not requested_detail(data.question):
+        tier = 3
     if tier is None:
         # Greetings and mid-thread follow-ups are certain from the text alone.
         # Everything else is put to a cheap model, because guessing weight from
@@ -1148,7 +1174,7 @@ def _prepare_astrologer_call(
         recent = "\n".join(
             f"{m['role']}: {m['content'][:200]}" for m in chat_context["history"][-3:-1]
         )
-        tier = classify_answer_tier(data.question, recent) or 4
+        tier = classify_answer_tier(data.question, recent, user_id=user_id) or 4
     if tier == 1 and not image_context:
         # A social turn needs the exchange, not astrological evidence to fill
         # the silence. Keep history so laughter or a symbol is read in context.
@@ -1156,7 +1182,7 @@ def _prepare_astrologer_call(
             "question": chat_context["question"],
             "history": chat_context["history"],
         }
-    elif tier < 4 and not image_context:
+    elif tier == 2 and not image_context:
         sky = chat_context.get("sky_now") or {}
         chat_context = {
             "question": chat_context["question"],
@@ -1187,6 +1213,7 @@ def _prepare_astrologer_call(
             "sky_now": "current_sky_and_transits_through_natal_houses",
         }.items() if key in chat_context
     }
+    chat_context["conversation"] = state
     chat_context["answer_tier"] = tier
     chat_context["conversation_cue"] = conversational_cue(data.question)
 
@@ -1194,7 +1221,7 @@ def _prepare_astrologer_call(
         "user_id": user_id,
         "tier": tier,
         "tier_config": tier_config,
-        "max_output_tokens": answer_ceiling(data.question, tier),
+        "max_output_tokens": answer_ceiling(data.question, tier, state),
         "model": model,
         "effort": effort,
         "images": images_for_model or None,
@@ -1253,35 +1280,22 @@ def read_invite(token: str):
 @app.post("/invite/{token}")
 def fill_invite(token: str, data: InviteFillRequest):
     """Someone filling in their own birth details from a link."""
-    invite = consume_invite(token)
-    if not invite:
+    if not peek_invite(token):
         raise HTTPException(status_code=404, detail="This link has expired or has already been used.")
-
-    # Slots can fill between sending a link and someone opening it.
-    check_people_limit(
-        get_user_tier(invite["owner_user_id"]),
-        len(list_profiles_by_owner(invite["owner_user_id"])),
-    )
-
-    # The place is geocoded before saving, so a typo can't produce a chart cast
-    # for nowhere.
-    location = get_location_data(data.birth_place)
-    if not location:
-        raise HTTPException(status_code=400, detail="Couldn't find that birth place. Try the nearest city.")
-
-    profile = create_profile(
-        owner_user_id=invite["owner_user_id"],
-        label=invite["label"] or data.person_name,
-        person_name=data.person_name,
-        relationship_type=data.relationship_type,
-        birth_date=data.birth_date,
-        birth_time=data.birth_time if data.birth_time_known else UNKNOWN_BIRTH_TIME,
-        birth_place=data.birth_place,
-        birth_time_known=data.birth_time_known,
-    )
-    if not profile:
-        raise HTTPException(status_code=400, detail="Couldn't save those details. Please try again.")
+    validate_birth_input(data)
+    accept_invite(token, data.model_dump())
     return {"message": "Thank you — your details are saved."}
+
+
+def _answer_prepared(prep):
+    if "calculated_answer" in prep:
+        return prep["calculated_answer"], 0
+    return reviewed_answer(
+        generate_astrologer_answer, build_ask_astrologer_user(prep["chat_context"]), prep["chat_context"],
+        on_repair=lambda: check_model_allowance(prep["user_id"], get_user_tier(prep["user_id"]), model_key_for_id(prep["model"])),
+        model=prep["model"], system=build_ask_astrologer_system(), effort=prep["effort"],
+        images=prep["images"], user_id=prep["user_id"], max_output_tokens=prep["max_output_tokens"],
+    )
 
 
 @app.post("/ask-astrologer")
@@ -1291,18 +1305,7 @@ def ask_astrologer(
 ):
     prep = _prepare_astrologer_call(data, current_user)
 
-    if "calculated_answer" in prep:
-        answer, tokens = prep["calculated_answer"], 0
-    else:
-        answer, tokens = generate_astrologer_answer(
-            build_ask_astrologer_user(prep["chat_context"]),
-            model=prep["model"],
-            system=build_ask_astrologer_system(),
-            effort=prep["effort"],
-            images=prep["images"],
-            user_id=prep["user_id"],
-            max_output_tokens=prep["max_output_tokens"],
-        )
+    answer, tokens = _answer_prepared(prep)
     # The inspection pass is billed too — it is a real call on the user's behalf.
     record_usage(prep["user_id"], tokens + prep["image_tokens"])
 
@@ -1320,74 +1323,29 @@ def ask_astrologer_stream(
     data: AstrologyQuestionRequest,
     current_user: dict = Depends(get_current_user),
 ):
-    """The same answer as /ask-astrologer, sent as it is written.
-
-    Everything that can refuse the request — the tier gate, the token budget —
-    runs here, before the response begins, so those still come back as ordinary
-    HTTP errors. Once the stream has opened the status is already sent, so a
-    later failure has to travel as an event instead.
-    """
+    """SSE-compatible response; review the complete draft before displaying it."""
     prep = _prepare_astrologer_call(data, current_user)
-    prompt = build_ask_astrologer_user(prep["chat_context"])
 
     def event(name: str, payload: dict) -> str:
         return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
 
     def events():
-        usage: dict = {}
         try:
-            if "calculated_answer" in prep:
-                yield event("delta", {"text": prep["calculated_answer"]})
-                if prep["image_tokens"]:
-                    record_usage(prep["user_id"], prep["image_tokens"])
-            elif prep["images"]:
-                # A picture is read and answered in one go: the interesting part
-                # is the reading, and it doesn't stream usefully. Sent down the
-                # same channel so the client keeps one code path.
-                answer, tokens = generate_astrologer_answer(
-                    prompt,
-                    model=prep["model"],
-                    system=build_ask_astrologer_system(),
-                    effort=prep["effort"],
-                    images=prep["images"],
-                    user_id=prep["user_id"],
-                    max_output_tokens=prep["max_output_tokens"],
-                )
-                record_usage(prep["user_id"], tokens + prep["image_tokens"])
-                yield event("delta", {"text": answer})
-            else:
-                for piece in stream_astrologer_answer(
-                    prompt,
-                    model=prep["model"],
-                    system=build_ask_astrologer_system(),
-                    effort=prep["effort"],
-                    user_id=prep["user_id"],
-                    max_output_tokens=prep["max_output_tokens"],
-                    usage_out=usage,
-                ):
-                    yield event("delta", {"text": piece})
-                # Metered after the fact, from what the stream actually reported.
-                record_usage(prep["user_id"], usage.get("total", 0) + prep["image_tokens"])
-
-            yield event("done", {
-                "question_type": prep["question_type"],
-                "tier": prep["tier_config"]["label"],
-            })
+            answer, tokens = _answer_prepared(prep)
+            record_usage(prep["user_id"], tokens + prep["image_tokens"])
+            yield event("delta", {"text": answer})
+            yield event("done", {"question_type": prep["question_type"], "tier": prep["tier_config"]["label"]})
         except HTTPException as exc:
             yield event("error", {"detail": exc.detail})
-        except Exception as exc:  # noqa: BLE001
-            print("Streaming answer failed:", repr(exc))
-            yield event("error", {
-                "detail": "The astrologer is temporarily unavailable. Please try again in a moment.",
-            })
+        except Exception:
+            yield event("error", {"detail": "The astrologer is temporarily unavailable. Please try again in a moment."})
 
     return StreamingResponse(
         events(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
-            # Render sits behind a proxy that will otherwise buffer the whole
-            # response and hand it over at the end, undoing the point of this.
+            # Keep the SSE completion/error envelope unbuffered by the proxy.
             "X-Accel-Buffering": "no",
         },
     )
@@ -1452,7 +1410,9 @@ def compatibility_reading(
 
     prompt = build_compatibility_prompt(context)
 
-    reading, tokens = generate_compatibility_reading(prompt, model=tier_config["model"], user_id=current_user["id"])
+    review_context = attach_conversation({}, "Give me a brief overview of how we relate to each other.")
+    reading, tokens = reviewed_answer(generate_compatibility_reading, prompt, review_context,
+                                     model=tier_config["model"], user_id=current_user["id"])
     record_usage(current_user["id"], tokens)
 
     return {
@@ -1517,17 +1477,19 @@ def ask_compatibility(
     )
     context["timing"] = timing
     context["requested_detail"] = requested_detail(data.question)
-    # Earlier chats about this same person, and nothing else. Continuity where
-    # it belongs, without one relationship's conversation reaching into another.
+    facts = {"user": {k: current_user[k] for k in ("name", "birth_date") if current_user.get(k)}}
     if profile_id is not None:
-        context["past_conversations"] = summarize_recent_sessions(
-            current_user["id"], profile_id=profile_id
-        )
-
+        saved = get_profile_by_id(profile_id)
+        if saved and saved.get("owner_user_id") == user_id:
+            facts["other_person"] = {k: saved[k] for k in ("person_name", "birth_date", "relationship_type", "label") if saved.get(k)}
+    attach_conversation(context, data.question, data.history, facts)
+    state = context["conversation"]
+    context["answer_tier"] = 3 if state["kind"] == "follow_up" else 4
     prompt = build_ask_compatibility_prompt(context)
-    answer, tokens = generate_compatibility_answer(
-        prompt, model=model, user_id=user_id,
-        max_output_tokens=answer_ceiling(data.question, 4),
+    answer, tokens = reviewed_answer(
+        generate_compatibility_answer, prompt, context, model=model, user_id=user_id,
+        on_repair=lambda: check_model_allowance(user_id, tier, model_key_for_id(model)),
+        max_output_tokens=answer_ceiling(data.question, context["answer_tier"], state),
     )
     record_usage(user_id, tokens)
 
@@ -1582,7 +1544,9 @@ def ask_saved_compatibility(
 
 @app.post("/signup", response_model=AuthUserResponse)
 def signup(data: SignupRequest):
+    rate_limit("signup-email", data.email.casefold(), 3, 3600)
     check_password(data.password)
+    validate_birth_input(data)
 
     user = create_account(
         name=data.name,
@@ -1631,6 +1595,7 @@ def forgot_password(data: ForgotPasswordRequest):
     The response is identical whether or not the email is registered, so this
     can't be used to discover who has a Zodi account.
     """
+    rate_limit("reset-email", data.email.casefold(), 1, 60)
     user_id = find_user_id_by_email(data.email)
     if user_id:
         user = get_user_by_id(user_id)
@@ -1651,16 +1616,9 @@ def reset_password(data: ResetPasswordRequest):
     # doesn't burn the one-time link and strand the user.
     check_password(data.password)
 
-    user_id = consume_token(data.token, PURPOSE_RESET)
+    user_id = reset_password_by_token(data.token, data.password)
     if not user_id:
         raise HTTPException(status_code=400, detail="This reset link is invalid or has expired.")
-
-    if not set_password(user_id, data.password):
-        raise HTTPException(status_code=404, detail="Account not found.")
-
-    # A reset means the account may have been compromised — cut every existing
-    # session so a stolen one can't outlive the old password.
-    delete_all_sessions_for_user(user_id)
 
     user = get_user_by_id(user_id)
     public = {key: user[key] for key in PUBLIC_USER_FIELDS if key in user}
@@ -1683,6 +1641,7 @@ def verify_email(data: TokenOnlyRequest):
 
 @app.post("/resend-verification")
 def resend_verification(current_user: dict = Depends(get_current_user)):
+    rate_limit("verify-email", str(current_user["id"]), 1, 60)
     """Send the confirmation email again, for someone who lost the first."""
     if current_user.get("email_verified"):
         return {"message": "Your email is already confirmed."}
@@ -1692,6 +1651,7 @@ def resend_verification(current_user: dict = Depends(get_current_user)):
 
 @app.post("/login", response_model=AuthUserResponse)
 def login(data: LoginRequest):
+    rate_limit("login-email", data.email.casefold(), 10, 900)
     user = login_user(
         email=data.email,
         password=data.password
@@ -1789,6 +1749,7 @@ def create_chat_session_endpoint(
     data: ChatSessionRequest,
     current_user: dict = Depends(get_current_user),
 ):
+    require_owned_profile(data.profile_id, current_user["id"])
     session = create_chat_session(
         # Ownership comes from the token, not the request body.
         owner_user_id=current_user["id"],
@@ -1810,6 +1771,7 @@ def update_chat_session_endpoint(
         raise HTTPException(status_code=404, detail="Chat session not found")
     require_self(current_user, existing["owner_user_id"])
 
+    require_owned_profile(data.profile_id, current_user["id"])
     session = update_chat_session(
         session_id=session_id,
         title=data.title,
@@ -1856,6 +1818,7 @@ def save_profile(
     data: SaveProfileRequest,
     current_user: dict = Depends(get_current_user),
 ):
+    validate_birth_input(data)
     # Free saves one person, standard three, premium unlimited.
     existing = list_profiles_by_owner(current_user["id"])
     check_people_limit(get_user_tier(current_user["id"]), len(existing))
@@ -1878,6 +1841,11 @@ def get_profile(profile_id: int, current_user: dict = Depends(get_current_user))
         raise HTTPException(status_code=404, detail="Profile not found")
     require_self(current_user, profile["owner_user_id"])
     return profile
+
+def validate_birth_input(data) -> None:
+    if not get_location_data(data.birth_place):
+        raise HTTPException(400, "Could not find that birth place. Please use a city and country.")
+
 
 def clean_birth_edits(changes: dict, existing: dict) -> dict:
     """Validate a partial birth-details edit and normalise the time.
@@ -1997,6 +1965,7 @@ async def upload_attachment(
 ):
     """Store one image so a question can refer to it."""
     require_image_tier(current_user["id"])
+    rate_limit("uploads", str(current_user["id"]), 10, 60)
 
     content_type = (file.content_type or "").split(";")[0].strip().lower()
     if content_type not in ALLOWED_TYPES:
@@ -2016,7 +1985,7 @@ async def upload_attachment(
     if not content:
         raise HTTPException(status_code=400, detail="That file appears to be empty.")
 
-    return save_attachment(current_user["id"], content, content_type)
+    return await run_in_threadpool(save_attachment, current_user["id"], content, content_type)
 
 
 @app.get("/attachments/{attachment_id}")
@@ -2184,7 +2153,7 @@ def _require_admin(x_admin_secret: str | None) -> None:
             status_code=503,
             detail="Admin endpoint disabled: set ADMIN_SECRET in .env to enable.",
         )
-    if x_admin_secret != expected:
+    if not secrets.compare_digest((x_admin_secret or "").encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
 
 
@@ -2340,9 +2309,10 @@ def admin_update_tier_by_email(
             status_code=503,
             detail="Admin endpoint disabled: set ADMIN_SECRET to enable.",
         )
-    if x_admin_secret != expected:
+    if not secrets.compare_digest((x_admin_secret or "").encode(), expected.encode()):
         raise HTTPException(status_code=401, detail="Invalid admin secret.")
 
+    rate_limit("reset-email", data.email.casefold(), 1, 60)
     user_id = find_user_id_by_email(data.email)
     if user_id is None:
         raise HTTPException(status_code=404, detail="No account with that email.")

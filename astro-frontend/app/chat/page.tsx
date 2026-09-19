@@ -1,4 +1,5 @@
 "use client";
+import { useRouter } from "next/navigation";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
@@ -117,6 +118,7 @@ const fieldStyle: React.CSSProperties = {
 };
 
 export default function ChatPage() {
+  const router = useRouter();
   const { theme } = useTheme();
   const night = theme === "night";
 
@@ -216,9 +218,9 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (user === null) {
-      window.location.href = "/";
+      router.push("/");
     }
-  }, [user]);
+  }, [user, router]);
 
   const loadData = useCallback(async (): Promise<boolean> => {
     if (!user) return true;
@@ -268,7 +270,8 @@ export default function ChatPage() {
     const keys = usage.available_models?.map((m) => m.key) ?? [];
     if (keys.length === 0) return;
     const saved = typeof window !== "undefined" ? window.localStorage.getItem("model") : null;
-    setSelectedModel(saved && keys.includes(saved) ? saved : keys[0]);
+    const frame = requestAnimationFrame(() => setSelectedModel(saved && keys.includes(saved) ? saved : keys[0]));
+    return () => cancelAnimationFrame(frame);
   }, [usage]);
 
   const selectModel = (key: string) => {
@@ -459,7 +462,7 @@ export default function ChatPage() {
           owner_user_id: user.id,
           profile_id: selectedProfile.id,
           question: userText,
-          history: nextHistory,
+          history: base,
           model: selectedModel ?? undefined,
         }
       : {
@@ -468,7 +471,7 @@ export default function ChatPage() {
           birth_place: user.birth_place,
           birth_time_known: user.birth_time_known ?? true,
           question: userText,
-          history: nextHistory,
+          history: base,
           attachment_ids: attachmentIds.length ? attachmentIds : undefined,
           user_id: user.id,
           model: selectedModel ?? undefined,
@@ -722,7 +725,7 @@ export default function ChatPage() {
       const res = await apiFetch("/me", { method: "DELETE" });
       if (res.ok) {
         clearAuth();
-        window.location.href = "/";
+        router.push("/");
         return;
       }
     } catch {
@@ -739,7 +742,7 @@ export default function ChatPage() {
       /* clearing local state matters more than the round trip */
     }
     clearAuth();
-    window.location.href = "/";
+    router.push("/");
   };
 
   const conversation = messages.filter(

@@ -1,4 +1,5 @@
 "use client";
+import { useBrowserReady } from "./useBrowserReady";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -48,14 +49,14 @@ function toChunks(text: string): string[] {
 }
 
 export function useSpeechOutput() {
-  const [supported, setSupported] = useState(false);
+  const ready = useBrowserReady();
+  const supported = ready && !!window.speechSynthesis;
   const [speakingId, setSpeakingId] = useState<number | null>(null);
   const voiceRef = useRef<SpeechSynthesisVoice | null>(null);
   const cancelledRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
-    setSupported(true);
 
     const load = () => {
       const voices = window.speechSynthesis.getVoices();

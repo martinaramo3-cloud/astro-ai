@@ -115,13 +115,9 @@ def test_stream_endpoint_passes_the_same_ceiling(client, monkeypatch, images):
         "question_type": "general", "tier_config": {"label": "test"},
     })
     monkeypatch.setattr(main, "record_usage", lambda *args: None)
-    def stream(prompt, **kwargs):
-        seen.append(kwargs["max_output_tokens"])
-        yield "Explanation."
     def generate(prompt, **kwargs):
         seen.append(kwargs["max_output_tokens"])
         return "Explanation.", 10
-    monkeypatch.setattr(main, "stream_astrologer_answer", stream)
     monkeypatch.setattr(main, "generate_astrologer_answer", generate)
     main.app.dependency_overrides[main.get_current_user] = lambda: {"id": 1}
     try:
@@ -133,13 +129,14 @@ def test_stream_endpoint_passes_the_same_ceiling(client, monkeypatch, images):
     assert seen == [900]
 
 
-def test_openai_stream_uses_the_requested_ceiling(monkeypatch):
+def test_openai_stream_uses_the_requested_ceiling(monkeypatch, account):
+    user, _ = account()
     seen = []
     def stream(prompt, model, ceiling, usage):
         seen.append(ceiling)
         yield "Text"
     monkeypatch.setattr(ai, "_stream_openai", stream)
-    assert list(ai.stream_astrologer_answer("Explain", max_output_tokens=900)) == ["Text"]
+    assert list(ai.stream_astrologer_answer("Explain", max_output_tokens=900, user_id=user["id"])) == ["Text"]
     assert seen == [900]
 
 
