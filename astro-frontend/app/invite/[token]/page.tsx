@@ -5,7 +5,7 @@ import { use, useEffect, useState } from "react";
 import { apiFetch, errorMessage } from "../../../lib/api";
 import PlaceAutocomplete from "../../../components/PlaceAutocomplete";
 import ZodiMark from "../../../components/ZodiMark";
-import { ThemeToggle, useTheme } from "../../../components/ThemeProvider";
+import { ThemeToggle } from "../../../components/ThemeProvider";
 
 /**
  * Someone else's first meeting with Zodi.
@@ -20,8 +20,6 @@ type Invite = { from_name: string; label: string; person_name: string };
 
 export default function InvitePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = use(params);
-  const { theme } = useTheme();
-  const night = theme === "night";
 
   const [invite, setInvite] = useState<Invite | null>(null);
   const [state, setState] = useState<"loading" | "form" | "gone" | "done">("loading");
@@ -88,7 +86,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
       </div>
 
       <div style={{ width: "min(460px, 100%)" }} className="mx-auto flex flex-col items-center">
-        <ZodiMark night={night} sizeFromCss className="auth-mark" />
+        <ZodiMark sizeFromCss className="auth-mark" />
         <div style={{ marginTop: 10 }} />
 
         <div

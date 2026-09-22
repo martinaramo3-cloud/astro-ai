@@ -24,7 +24,7 @@ export default function LegalPage({
     >
       <div className="mx-auto" style={{ maxWidth: 680 }}>
         <Link href="/" className="mb-10 flex items-center justify-center gap-2">
-          <ZodiMark size={38} night={theme === "night"} />
+          <ZodiMark size={38} />
           <Wordmark zSize={34} restSize={20} />
         </Link>
 

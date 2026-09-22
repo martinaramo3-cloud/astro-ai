@@ -121,7 +121,7 @@ export default function SkyPage() {
       <div className="mx-auto flex w-full flex-col" style={{ maxWidth: 1120 }}>
         <header className="mb-7 flex items-start justify-between gap-4">
           <div className="flex items-center gap-3">
-            <ZodiMark size={34} night={night} />
+            <ZodiMark size={34} />
             <div>
               <p className="micro-label" style={{ letterSpacing: "0.26em" }}>Your sky</p>
               <h1
