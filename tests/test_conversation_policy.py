@@ -330,3 +330,48 @@ def test_a_normal_conditional_about_their_own_choice_is_not_a_branch():
     """"If you want to ask, Tuesday" is advice. "If something happened" is a hedge."""
     answer = 'Tuesday is the window. If you want to ask him, do it then rather than at the weekend.'
     assert review_issues(answer, conversation_state('When should I ask him?')) == []
+
+
+# From a real conversation: a fight, then five follow-ups, every one of them
+# answered in eighty words because being mid-thread forced tier 3 before the
+# classifier ran. Depth of a question is not a function of its position.
+THREAD = [
+    {'role': 'user', 'content': 'we fought and honestly im done'},
+    {'role': 'assistant', 'content': 'I believe you, and how done you feel right now. It runs hot and heavy.'},
+]
+
+
+@pytest.mark.parametrize('question', [
+    'do u think he will regret it tho?',
+    'so no contact any time soon?',
+    'There\'s a Sun enters Libra today. What does it mean for me?',
+])
+def test_a_follow_up_is_not_automatically_a_small_question(question):
+    from app.conversation_service import budget_for
+    state = conversation_state(question, THREAD)
+    assert state['kind'] == 'follow_up'
+    tokens, _ = budget_for(question, 4, state)
+    assert tokens > main.ANSWER_CEILING[3], f'{question} was flattened to a follow-up budget'
+
+
+@pytest.mark.parametrize('question', ['so yes??', 'wait really', 'and the boots'])
+def test_short_leaning_follow_ups_still_stay_short(question):
+    from app.conversation_service import budget_for
+    from app.question_router import classify_tier
+    assert classify_tier(question, THREAD) == 3
+    tokens, _ = budget_for(question, 3, conversation_state(question, THREAD))
+    assert tokens == main.ANSWER_CEILING[3]
+
+
+@pytest.mark.parametrize('question', [
+    'what does his chart say?', "what's in her chart?", 'can you read his chart?',
+    'what in my chart shows that?',
+])
+def test_asking_about_a_chart_is_an_astrology_request(question):
+    """It is as explicit as asking gets, and it was being answered as ordinary
+    conversation inside an 82-word budget."""
+    from app.conversation_service import budget_for
+    state = conversation_state(question, THREAD)
+    assert state['mode'] == 'astrology_on_request'
+    tokens, _ = budget_for(question, 3, state)
+    assert tokens >= main.ANSWER_CEILING[4]

@@ -26,6 +26,10 @@ def astrology_requested(question: str) -> bool:
     return bool(re.search(
         r"\b(?:explain (?:the )?astrology|astrological (?:reasoning|reason|explanation)|"
         r"what in (?:my|their|our|his|her|the) chart|which (?:planets?|transits?|aspects?|houses?)|"
+        # "what does his chart say" is as explicit a request for the astrology
+        # as any, and it was being answered as ordinary conversation.
+        r"(?:what|how)(?:'s| is| does| do)?.{0,25}\b(?:my|their|our|his|her|the|its) chart\b|"
+        r"\b(?:read|look at|check)\b.{0,25}\bchart\b|"
         r"(?:why|how).{0,45}(?:chart|transit|planet|aspect)|"
         r"(?:explain|show|tell|interpret|analy[sz]e|analysis|focus).{0,65}(?:chart|planet|transit|aspect|houses?|jupiter|venus|saturn)|"
         r"(?:what|how).{0,35}(?:saturn|venus|mars|moon|jupiter|mercury|chiron|pluto|neptune|uranus|retrograde)|"
@@ -150,8 +154,10 @@ def budget_for(question, tier, state=None, detail=None):
         return max(EXPLANATION_BUDGET, tier_budget)
     if state is not None and state['mode'] == 'astrology_on_request':
         return max(EXPLANATION_BUDGET, tier_budget)
-    if state is not None and state['kind'] == 'follow_up':
-        return BUDGETS[3]
+    # No blanket follow-up budget. Being the second question does not make it a
+    # small question — classify_tier already returns tier 3 for the short
+    # leaning ones ("so yes??", "wait really"), and forcing everything else
+    # down to that answered an entire conversation in eighty words a turn.
     return tier_budget
 
 

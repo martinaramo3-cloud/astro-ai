@@ -1180,8 +1180,13 @@ def _prepare_astrologer_call(
     # thread, before the prompt is assembled — because the honest way to get a
     # one-line reply is to stop shipping three thousand tokens of chart with it.
     tier = classify_tier(data.question, chat_context["history"])
-    if state["kind"] == "follow_up" and tier != 1 and not requested_detail(data.question):
-        tier = 3
+    # Being mid-conversation does not make a question small. Forcing every
+    # follow-up to tier 3 here — before the classifier had even run — meant a
+    # whole thread answered in eighty words a turn however much was at stake:
+    # "do you think he'll regret it?" and "what does his chart say?" got the
+    # same budget as "so yes??". classify_tier already recognises the short
+    # leaning follow-ups that genuinely belong there, and repetition is caught
+    # in draft review, which is where it belongs.
     if tier is None:
         # Greetings and mid-thread follow-ups are certain from the text alone.
         # Everything else is put to a cheap model, because guessing weight from
