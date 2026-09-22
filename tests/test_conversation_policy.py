@@ -186,13 +186,31 @@ def test_reported_cutoff_is_detected_without_provider_metadata():
     assert 'answer ends mid-sentence' in review_issues(draft,conversation_state('Should I reach out tonight?'))
 
 
-def test_roomier_answer_is_allowed_without_forcing_more_words():
+def test_a_real_question_gets_room_without_being_padded():
     state=conversation_state(QUESTION)
     answer=' '.join(['There are several possibilities to consider before deciding what to do next.']*20)
     assert 190 < len(answer.split()) < state['max_words']
     assert review_issues(answer,state)==[]
+    # Short is still fine. The budget is a ceiling, never a quota.
     assert review_issues('You could ask directly.',state)==[]
-    assert main.answer_ceiling(QUESTION,4,state)>=1200
+    assert main.answer_ceiling(QUESTION,4,state)==main.ANSWER_CEILING[4]
+
+
+def test_the_four_tiers_are_four_different_sizes():
+    """A single default is the complaint that started the tiers: every answer
+    arriving the same shape regardless of what was asked."""
+    from app.conversation_service import apply_tier
+    ceilings=[main.ANSWER_CEILING[t] for t in (1,2,3,4)]
+    assert len(set(ceilings))==4
+    assert main.ANSWER_CEILING[1] < main.ANSWER_CEILING[4] / 4
+
+    sizes=[apply_tier(conversation_state(QUESTION),t)['max_words'] for t in (1,2,3,4)]
+    assert sizes[0] < sizes[3] / 4, sizes
+    assert sizes[1] < sizes[3], sizes
+
+    # A greeting stays a greeting even if it is classified generously.
+    greeting=apply_tier(conversation_state('hi'),4)
+    assert greeting['max_words']==48
 
 
 def test_incomplete_repair_is_never_shown():

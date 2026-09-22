@@ -86,7 +86,17 @@ from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.month_outlook_service import build_month_outlook
 from app.relocation_reading_service import prepare_relocation
-from app.conversation_service import attach_conversation, conversation_state, normalize_history, relevant_history_question
+from app.conversation_service import (
+    BUDGETS,
+    DETAILED_BUDGET,
+    EXPLANATION_BUDGET,
+    apply_tier,
+    attach_conversation,
+    budget_for,
+    conversation_state,
+    normalize_history,
+    relevant_history_question,
+)
 from app.answer_review_service import reviewed_answer
 from app.transit_timing_service import build_predictive_timeline
 from app.transit_service import (
@@ -936,19 +946,24 @@ def build_prediction(natal_data: dict, active_transits: list, question_type: str
     }
 
 
-# Provider token ceilings complement the word/paragraph limits in draft review.
-# Detailed requests receive additional space; defaults stay conversational.
-ANSWER_CEILING = {1: 180, 2: 800, 3: 1000, 4: 1200}
-# Extra room is opt-in through the request, not a longer default for every chat.
-DETAIL_CEILING = {"explanation": 1600, "detailed": 2200}
+# How long the visible answer may be, per tier — the original numbers. Four
+# genuinely different sizes, so a greeting costs a greeting and a real question
+# gets room. A single default, whatever its value, brings back the complaint
+# that started the tiers: every answer arriving the same shape.
+#
+# This is the answer's budget alone. Claude spends its thinking from a separate
+# allowance (THINKING_HEADROOM in ai_service), so these stay tight without
+# strangling the reasoning behind them.
+#
+# The matching word limits live beside these in conversation_service.BUDGETS,
+# because the provider ceiling and the draft review have to agree.
+ANSWER_CEILING = {tier: tokens for tier, (tokens, _) in BUDGETS.items()}
+DETAIL_CEILING = {"explanation": EXPLANATION_BUDGET[0], "detailed": DETAILED_BUDGET[0]}
 
 
 def answer_ceiling(question: str, tier: int, conversation: dict | None = None) -> int:
-    if detect_relocation_request(question):
-        return 1600  # a ranked city comparison and practical arrival details
-    if conversation and conversation["kind"] == "follow_up" and not requested_detail(question):
-        return ANSWER_CEILING[3]
-    return DETAIL_CEILING.get(requested_detail(question), ANSWER_CEILING[tier])
+    tokens, _ = budget_for(question, tier, conversation)
+    return tokens
 
 
 _MONTH_WORDS = (
@@ -1175,6 +1190,9 @@ def _prepare_astrologer_call(
             f"{m['role']}: {m['content'][:200]}" for m in chat_context["history"][-3:-1]
         )
         tier = classify_answer_tier(data.question, recent, user_id=user_id) or 4
+    # Now the tier is settled, let it set the size the draft is reviewed
+    # against, so the ceiling and the review agree about how long this is.
+    apply_tier(state, tier, requested_detail(data.question))
     if tier == 1 and not image_context:
         # A social turn needs the exchange, not astrological evidence to fill
         # the silence. Keep history so laughter or a symbol is read in context.
