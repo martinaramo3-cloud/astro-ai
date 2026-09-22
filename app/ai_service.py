@@ -18,12 +18,19 @@ _anthropic_client: Anthropic | None = None
 DEFAULT_MODEL = "gpt-4.1-mini"
 
 # Claude models think before answering, and thinking tokens count toward
-# max_tokens. The visible reply is kept short by the prompt itself, so this
-# budget is headroom for reasoning rather than a length target — but it is also
-# the ceiling on what a single reading can cost, since thinking bills as
-# output. 4000 leaves roughly 3,400 tokens of reasoning behind a ~550-token
-# answer, which is ample; 8000 was paying for headroom nothing used.
+# max_tokens. It is also the ceiling on what a single reading can cost, since
+# thinking bills as output. 8000 was paying for headroom nothing used.
 ANTHROPIC_MAX_TOKENS = 4000
+
+# The caller's ceiling means "how long may the answer be". Claude spends the
+# same budget on thinking first, so passing that number straight through funds
+# the reasoning out of the answer's allowance and the reply arrives truncated
+# or thin — which is exactly what happened to Smart and Deep. OpenAI reports no
+# thinking against the ceiling, so only the Claude path needs the top-up.
+#
+# Sized to cover a chart's worth of reasoning without becoming a second budget:
+# the whole thing is still capped by ANTHROPIC_MAX_TOKENS.
+THINKING_HEADROOM = 1800
 
 # How hard the model works. Thinking bills as output, and at $50/M on the
 # premium model that was most of the cost per answer — for interpretive
@@ -118,7 +125,7 @@ def _anthropic_request(content, model: str, system: str | None, effort: str | No
     """The request body, built once so streaming and non-streaming can't drift."""
     request = {
         "model": model,
-        "max_tokens": min(max_output_tokens, ANTHROPIC_MAX_TOKENS),
+        "max_tokens": min(max_output_tokens + THINKING_HEADROOM, ANTHROPIC_MAX_TOKENS),
         "messages": [{"role": "user", "content": content}],
         "output_config": {
             "effort": effort or EFFORT_BY_MODEL.get(model, DEFAULT_EFFORT)

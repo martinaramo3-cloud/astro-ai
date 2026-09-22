@@ -161,7 +161,12 @@ def test_claude_stream_and_regular_forward_output_cap(monkeypatch,account):
     monkeypatch.setattr(ai,'_get_anthropic_client',lambda:SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=stream))))
     assert ai.generate_astrologer_answer('hello',model='claude-sonnet-5',user_id=user['id'],max_output_tokens=180)[0] == 'Hello'
     assert list(ai.stream_astrologer_answer('hello',model='claude-sonnet-5',user_id=user['id'],max_output_tokens=240)) == ['Hello']
-    assert seen == [180,240]
+    # The caller's ceiling reaches Claude — the bug this covers is it being
+    # ignored in favour of a flat 4000. It arrives with thinking room added on
+    # top, because Claude bills its reasoning against the same budget and a
+    # bare 180 would be spent thinking before a word was written.
+    assert seen == [180 + ai.THINKING_HEADROOM, 240 + ai.THINKING_HEADROOM]
+    assert all(value <= ai.ANTHROPIC_MAX_TOKENS for value in seen)
 
 
 def test_large_body_and_private_health(client):

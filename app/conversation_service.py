@@ -33,6 +33,16 @@ def astrology_requested(question: str) -> bool:
         r"technical (?:reading|analysis|explanation))\b", q, re.S))
 
 
+SOCIAL_OPENERS = {'hi','hey','hello','thanks','thank you','ok','okay','bye'}
+
+
+def is_social_turn(question, cue=None):
+    """A greeting or a laugh rather than a question, however it was classified."""
+    if cue is None:
+        cue = conversational_cue(question)
+    return bool(cue) or question.strip().lower().rstrip('!.?') in SOCIAL_OPENERS
+
+
 def conversation_state(question, history=None, known_profile=None):
     turns = normalize_history(history, question)
     users = [m['content'] for m in turns if m['role'] == 'user']
@@ -67,8 +77,10 @@ def conversation_state(question, history=None, known_profile=None):
     statements.reverse()
     cue = conversational_cue(question)
     detail = requested_detail(question)
-    max_words = 500 if detail == 'detailed' else (350 if technical else (260 if followup else 350))
-    if cue or question.strip().lower().rstrip('!.?') in {'hi','hey','hello','thanks','thank you','ok','okay','bye'}:
+    # A provisional budget, used when nobody supplies a tier (the summary and
+    # compatibility paths). apply_tier replaces it once the tier is known.
+    max_words = 400 if detail == 'detailed' else (300 if technical else (200 if followup else 300))
+    if is_social_turn(question, cue):
         max_words = 30
     return {
         'kind': 'follow_up' if followup else 'new_question',
@@ -85,6 +97,78 @@ def conversation_state(question, history=None, known_profile=None):
         'max_paragraphs': 7 if detail == 'detailed' else 5,
         'conversation_cue': cue,
     }
+
+
+# How long an answer may be, as (provider tokens, review words) together.
+#
+# The same budget is enforced in two different units — the provider stops the
+# model at a token count, draft review rejects a word count — and when the two
+# disagree you get one of two bugs: a reply chopped off mid-sentence because
+# review was happy with 300 words the ceiling could never produce, or an
+# expensive one, where review trips on ordinary output and spends a second
+# billed call rewriting. So both numbers live here, side by side.
+#
+# Words are set just ABOVE what the tokens can physically produce (roughly
+# three words per four tokens), not at the length the tier is meant to be:
+# length is already enforced by TIER_DIRECTIVE in the prompt and by the ceiling
+# itself. This is the backstop for a runaway answer, and it is the costly one.
+BUDGETS = {
+    1: (90, 75),
+    2: (130, 105),
+    3: (110, 90),
+    4: (550, 420),
+}
+# "wdym", "why?", "explain that" — a request to be clearer, which is answered
+# in MORE words than the first attempt used, not fewer. A second, shorter,
+# prettier sentence is a refusal. So this sits just above a full tier 4 answer
+# rather than below it, and it is opt-in: someone has to ask.
+EXPLANATION_BUDGET = (620, 470)
+DETAILED_BUDGET = (760, 570)
+# Seven ranked cities with local arrival times is a table, not a paragraph.
+RELOCATION_BUDGET = (900, 690)
+# A greeting. The tokens stop the model at roughly the same place the word
+# limit would have rejected it, so "hi" can never cost a rewrite — the cheapest
+# turn in the app stays the cheapest turn in the app.
+SOCIAL_BUDGET = (60, 48)
+
+
+def budget_for(question, tier, state=None, detail=None):
+    """The one answer to "how long may this be", in both units."""
+    from app.question_router import detect_relocation_request
+    if detail is None:
+        detail = requested_detail(question)
+    if state is not None and is_social_turn(state['latest_message'], state['conversation_cue']):
+        return SOCIAL_BUDGET
+    if detect_relocation_request(question):
+        return RELOCATION_BUDGET
+    tier_budget = BUDGETS.get(tier, BUDGETS[4])
+    # These are floors, not overrides: asking for an explanation of a full
+    # answer must never end up with less room than the answer itself had.
+    if detail == 'detailed':
+        return max(DETAILED_BUDGET, tier_budget)
+    if detail == 'explanation':
+        return max(EXPLANATION_BUDGET, tier_budget)
+    if state is not None and state['mode'] == 'astrology_on_request':
+        return max(EXPLANATION_BUDGET, tier_budget)
+    if state is not None and state['kind'] == 'follow_up':
+        return BUDGETS[3]
+    return tier_budget
+
+
+def apply_tier(state, tier, detail=None):
+    """Let the tier decide the size, now that the tier is known.
+
+    conversation_state runs before the question has been classified, so it can
+    only guess. Once the tier exists it is the better answer — and it is the
+    same budget the token ceiling is drawn from, so the two agree by
+    construction rather than by coincidence.
+    """
+    if tier not in BUDGETS:
+        return state
+    _, words = budget_for(state['latest_message'], tier, state, detail)
+    state['max_words'] = words
+    state['max_paragraphs'] = 1 if tier <= 2 and words <= 110 else (7 if detail == 'detailed' else 5)
+    return state
 
 
 def attach_conversation(context, question=None, history=None, known_profile=None):
