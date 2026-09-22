@@ -285,3 +285,48 @@ def test_a_specific_closing_question_is_not_a_hand_back():
          'What happened this week?'),
     ):
         assert review_issues(good[0], conversation_state(good[1])) == []
+
+
+# Caught in production after the first fix shipped: the same three moves, in
+# wording the first set of patterns did not match. Kept verbatim, because the
+# lesson is that this failure mode rephrases itself rather than disappearing.
+VAGUE_2 = (
+    "This week's been about routines and health more than anything dramatic — the kind "
+    "of week where your body or daily habits quietly ask for attention. "
+    "If something specific stood out — a health thing, a shift in a daily routine, "
+    "feeling torn about a decision — that's probably the real story of your week. "
+    "What actually came up for you?"
+)
+
+
+def test_the_same_refusal_in_different_words_is_also_rejected():
+    problems = review_issues(VAGUE_2, conversation_state('What happened in my week?'))
+    assert 'covers both branches, so nothing could contradict it' in problems
+    assert 'ends by asking them to supply what they asked about' in problems
+
+
+@pytest.mark.parametrize('closing', [
+    'Does that land for you?',
+    'Did anything happen on Tuesday?',
+    'What actually came up this week?',
+])
+def test_validation_seeking_closers_are_rejected(closing):
+    answer = 'The sharpest thing this week was work, and it peaked Tuesday. ' + closing
+    assert 'ends by asking them to supply what they asked about' in review_issues(
+        answer, conversation_state('What happened in my week?'))
+
+
+@pytest.mark.parametrize('closing', [
+    'Has he answered your last message?',
+    'Did the invoice actually clear?',
+    'Are you still planning to hand in your notice?',
+])
+def test_specific_closers_still_pass(closing):
+    answer = 'The pressure this week was on money, and it peaked Tuesday. ' + closing
+    assert review_issues(answer, conversation_state('What happened with him this week?')) == []
+
+
+def test_a_normal_conditional_about_their_own_choice_is_not_a_branch():
+    """"If you want to ask, Tuesday" is advice. "If something happened" is a hedge."""
+    answer = 'Tuesday is the window. If you want to ask him, do it then rather than at the weekend.'
+    assert review_issues(answer, conversation_state('When should I ask him?')) == []

@@ -9,7 +9,7 @@ from difflib import SequenceMatcher
 from app.conversation_service import conversation_state
 
 JARGON = re.compile(r'\b(?:saturn|jupiter|venus|mars|mercury|neptune|uranus|pluto|chiron|ascendant|midheaven|natal|synastry|retrograde|conjunction|sextile|trine|opposition|chart ruler|\d+(?:st|nd|rd|th) house|moon|sun)\b', re.I)
-STOCK = re.compile(r'\b(?:the chart shows|the energy is|emotional weather|the universe is|this is not a guarantee|what you(?:\'re| are) (?:actually|really) asking)\b', re.I)
+STOCK = re.compile(r'\b(?:(?:the|your) chart (?:shows|says|suggests)|the energy is|emotional weather|the universe is|this is not a guarantee|what you(?:\'re| are) (?:actually|really) asking)\b', re.I)
 
 # Three ways an answer says nothing while sounding thorough. None of them trip
 # any other rule here — every sentence can be individually defensible while the
@@ -22,14 +22,19 @@ HEDGE_MENU = re.compile(
     r'\b(?:plausible|possible|likely|potential) (?:shapes|forms|versions|readings|scenarios|situations)\b'
     r'|\ba few (?:possibilities|options|ways this)\b'
     r'|\bcould be (?:any|one) of\b', re.I)
-# Both branches covered, so no outcome could contradict it.
+# The reading made conditional on whether anything happened, so no week could
+# contradict it. "if you..." is a normal conditional about their choices and is
+# deliberately not matched — only conditionals about whether events occurred.
 BOTH_BRANCHES = re.compile(
-    r'\bif (?:nothing|none of (?:this|that|it))\b'
+    r'\bif (?:something|anything|nothing|none of (?:this|that|it))\b'
     r'|\bif (?:that|this|none of it) (?:did not|didn\'t|does not|doesn\'t) (?:happen|land|apply)\b', re.I)
-# Asking them to supply the very thing they asked about. A question naming
-# someone or something specific is a real question and is not caught here.
+# Asking them to supply the very thing they came to ask, or to validate the
+# reading for you. A closing question naming a specific person or event is a
+# real question and is not caught here — that distinction is the whole point.
 HANDS_BACK = re.compile(
-    r'\b(?:did|has|have|was)\s+(?:anything|something|any of (?:this|that|it))\b'
+    r'\b(?:did|has|have|was|is)\s+(?:anything|something|any of (?:this|that|it))\b'
+    r'|\bwhat\s+(?:actually\s+|specifically\s+)?(?:came up|happened|stood out|landed|went on)\b'
+    r'|\bdoes (?:that|this|any of (?:this|that))\s+(?:land|resonate|ring|sound|match|fit|track)\b'
     r'|\bare you (?:just )?(?:checking|testing|going off)\b', re.I)
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
