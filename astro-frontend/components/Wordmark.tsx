@@ -3,8 +3,8 @@
 /**
  * "Zoli" — an oversized Z beside widely tracked lowercase.
  *
- * The Z's own letter-spacing supplies the gap before "odi". What used to open
- * that gap too wide was an additional text-indent on "odi", which pushed the
+ * The Z's own letter-spacing supplies the gap before "oli". What used to open
+ * that gap too wide was an additional text-indent on "oli", which pushed the
  * whole word right rather than centring it. Centring is handled instead by a
  * negative margin cancelling the trailing space after the final "i".
  */
@@ -44,7 +44,7 @@ export default function Wordmark({
           color: "var(--ink)",
         }}
       >
-        odi
+        oli
       </span>
     </div>
   );

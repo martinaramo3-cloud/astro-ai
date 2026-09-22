@@ -30,19 +30,10 @@ export default function ZodiMark({
   /** Let a stylesheet set the dimensions — inline sizing would win otherwise. */
   sizeFromCss?: boolean;
 }) {
-  // The medallion is only about 40% of the box's width, so at the sizes used
-  // beside a message the Z lands about eight pixels wide and the whole mark
-  // reads as a pale smudge. Below ~34px, drop the rays and let the medallion
-  // fill the box instead. Sized from CSS means the auth screen, which is large.
-  //
-  // Never while spinning, though: the turning rays ARE the loading state, and
-  // hiding them left the small mark quietly pulsing where a spinner should be.
-  const compact = !sizeFromCss && size < 34 && !spin;
 
   return (
     <div
       className={`zodiMark shrink-0 ${className}`}
-      data-compact={compact ? "true" : "false"}
       data-spin={spin ? "true" : "false"}
       style={sizeFromCss ? undefined : { width: size, height: size }}
       aria-hidden="true"

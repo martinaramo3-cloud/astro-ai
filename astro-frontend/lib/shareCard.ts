@@ -144,7 +144,7 @@ export async function shareAnswer(
   const blob = await drawShareCard(question, answer, night);
   if (!blob) return "Couldn't draw the card.";
 
-  const file = new File([blob], "zodi.png", { type: "image/png" });
+  const file = new File([blob], "zoli.png", { type: "image/png" });
   const nav = navigator as Navigator & { canShare?: (d: unknown) => boolean };
 
   if (nav.share && nav.canShare?.({ files: [file] })) {
@@ -160,7 +160,7 @@ export async function shareAnswer(
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "zodi.png";
+  link.download = "zoli.png";
   link.click();
   setTimeout(() => URL.revokeObjectURL(url), 1000);
   return "Saved as an image.";

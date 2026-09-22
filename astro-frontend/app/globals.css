@@ -598,20 +598,6 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 /* Barely a drift at rest; the fast turn is the whole loader. */
 .zodiMark[data-spin="true"] .zodiMark__rays { animation-duration: var(--zm-spin, 4.2s); }
 
-/* ── Small sizes ──
-   Beside a message the mark is 24–26px, and the medallion is only ~40% of the
-   box's width — which leaves the Z about eight pixels across and the rays a
-   grey haze. So below ~34px the rays go and the medallion fills the box: the
-   detail that identifies it survives, and the haze doesn't. 247% is 1/0.405,
-   the reciprocal of the mask radius, so the disc lands exactly edge to edge. */
-.zodiMark[data-compact="true"] .zodiMark__rays { display: none; }
-.zodiMark[data-compact="true"] .zodiMark__core {
-  background-size: 247% 247%;
-  background-position: center;
-  -webkit-mask-image: radial-gradient(circle closest-side, #000 0 99%, transparent 100%);
-  mask-image: radial-gradient(circle closest-side, #000 0 99%, transparent 100%);
-}
-
 @keyframes zm-rot { to { transform: rotate(360deg); } }
 @keyframes zm-in {
   from { opacity: 0; transform: scale(0.965); }

@@ -1259,7 +1259,7 @@ export default function ChatPage() {
             {isFresh && (
               <div className="zo-msg flex flex-col items-start gap-3 py-6">
                 <div className="flex items-center gap-2">
-                  <ZodiMark size={24} />
+                  <ZodiMark size={32} />
                   <span
                     className="micro-label"
                     style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
@@ -1389,7 +1389,7 @@ export default function ChatPage() {
                     ) : (
                       <div className="flex flex-col items-start">
                         <div className="mb-2 flex items-center gap-2">
-                          <ZodiMark size={24} />
+                          <ZodiMark size={32} />
                           <span
                             className="micro-label"
                             style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
@@ -1448,7 +1448,7 @@ export default function ChatPage() {
                   }}
                 >
                   <div className="mb-2 flex items-center gap-2">
-                    <ZodiMark size={26} spin />
+                    <ZodiMark size={32} spin />
                     <span
                       className="micro-label"
                       style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
@@ -1983,7 +1983,7 @@ export default function ChatPage() {
 
             {chartLoading && (
               <div className="flex items-center gap-3 py-10">
-                <ZodiMark size={26} spin />
+                <ZodiMark size={32} spin />
                 <span
                   className="font-reading zo-dots italic"
                   style={{ fontSize: 17, color: "var(--ink-2)" }}
