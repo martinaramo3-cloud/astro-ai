@@ -240,3 +240,48 @@ def test_anthropic_adapter_preserves_max_tokens_stop(monkeypatch):
     monkeypatch.setattr(ai,'_get_anthropic_client',lambda:SimpleNamespace(beta=SimpleNamespace(messages=SimpleNamespace(stream=lambda **kwargs:Stream()))))
     text,usage=ai._anthropic_response('prompt','test',None,max_output_tokens=1200)
     assert text.incomplete and usage['total']==12
+
+
+# The reply that prompted this rule, kept verbatim. Every sentence in it is
+# individually defensible; together they cover a conversation that went
+# sideways, feelings that grew privately, someone from the past, AND the case
+# where nothing happened at all — then ask her what happened. There is no week
+# it could be wrong about, which is what makes it worthless.
+VAGUE = (
+    "Looking back at the past week, the most exact thing in it was romantic — and it "
+    "peaked a few days ago rather than today. The flavour is contrast rather than ease. "
+    "Plausible shapes — a conversation where you wanted one thing and the other person "
+    "wanted a slightly different one; feelings that got noticeably stronger in private "
+    "than they looked from outside; a pull toward someone from the past. "
+    "If nothing external happened at all, the more likely version is that it was internal. "
+    "Did anything specific land this week, or are you checking a hunch?"
+)
+
+
+def test_a_reading_that_cannot_be_wrong_is_rejected():
+    problems = review_issues(VAGUE, conversation_state('What happened this week?'))
+    assert 'offers a menu of possibilities instead of one reading' in problems
+    assert 'covers both branches, so nothing could contradict it' in problems
+    assert 'ends by asking them to supply what they asked about' in problems
+
+
+def test_committing_to_one_reading_passes():
+    committed = (
+        "The sharpest thing this week was romantic, and it peaked on Tuesday rather "
+        "than today — so if it landed, it's already behind you. It reads as wanting "
+        "something direct while the situation stayed ambiguous. Did he give you a "
+        "straight answer, or leave it open?"
+    )
+    assert review_issues(committed, conversation_state('What happened with him this week?')) == []
+
+
+def test_a_specific_closing_question_is_not_a_hand_back():
+    """Asking about something you named is a conversation. Asking whether
+    anything happened at all is handing back the question they came with."""
+    for good in (
+        ("It reads as him pulling back. Has he answered your last message?",
+         'What happened with him this week?'),
+        ("The pressure is on money this week. Did the invoice actually clear?",
+         'What happened this week?'),
+    ):
+        assert review_issues(good[0], conversation_state(good[1])) == []

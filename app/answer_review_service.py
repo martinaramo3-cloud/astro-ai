@@ -10,6 +10,27 @@ from app.conversation_service import conversation_state
 
 JARGON = re.compile(r'\b(?:saturn|jupiter|venus|mars|mercury|neptune|uranus|pluto|chiron|ascendant|midheaven|natal|synastry|retrograde|conjunction|sextile|trine|opposition|chart ruler|\d+(?:st|nd|rd|th) house|moon|sun)\b', re.I)
 STOCK = re.compile(r'\b(?:the chart shows|the energy is|emotional weather|the universe is|this is not a guarantee|what you(?:\'re| are) (?:actually|really) asking)\b', re.I)
+
+# Three ways an answer says nothing while sounding thorough. None of them trip
+# any other rule here — every sentence can be individually defensible while the
+# whole reply commits to no version of the person's life and so cannot be wrong.
+# The prompt argues against all three, but the prompt also arrives behind
+# thousands of characters of chart data, and that argument has been lost before.
+#
+# A menu of readings offered instead of one.
+HEDGE_MENU = re.compile(
+    r'\b(?:plausible|possible|likely|potential) (?:shapes|forms|versions|readings|scenarios|situations)\b'
+    r'|\ba few (?:possibilities|options|ways this)\b'
+    r'|\bcould be (?:any|one) of\b', re.I)
+# Both branches covered, so no outcome could contradict it.
+BOTH_BRANCHES = re.compile(
+    r'\bif (?:nothing|none of (?:this|that|it))\b'
+    r'|\bif (?:that|this|none of it) (?:did not|didn\'t|does not|doesn\'t) (?:happen|land|apply)\b', re.I)
+# Asking them to supply the very thing they asked about. A question naming
+# someone or something specific is a real question and is not caught here.
+HANDS_BACK = re.compile(
+    r'\b(?:did|has|have|was)\s+(?:anything|something|any of (?:this|that|it))\b'
+    r'|\bare you (?:just )?(?:checking|testing|going off)\b', re.I)
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
 BIOGRAPHY = {
@@ -51,6 +72,16 @@ def review_issues(answer, state):
     if len([p for p in answer.split('\n\n') if p.strip()]) > state['max_paragraphs']: issues.append('too many paragraphs')
     if state['mode'] == 'everyday' and JARGON.search(answer): issues.append('technical astrology in an everyday reply')
     if STOCK.search(answer): issues.append('stock or poetic phrasing')
+    if HEDGE_MENU.search(answer):
+        issues.append('offers a menu of possibilities instead of one reading')
+    if BOTH_BRANCHES.search(answer):
+        issues.append('covers both branches, so nothing could contradict it')
+    # Only the closing question: a hand-back mid-answer is usually a real
+    # clarifying question, but ending on one leaves them holding the question
+    # they came to ask.
+    closing = _sentences(answer)[-1] if _sentences(answer) else ''
+    if closing.endswith('?') and HANDS_BACK.search(closing):
+        issues.append('ends by asking them to supply what they asked about')
     user_reports=state['reported_facts']['user_statements']
     reported=' '.join(s for text in user_reports for s in _sentences(text) if _asserted(s))
     saved=state['reported_facts']['saved_profile']
