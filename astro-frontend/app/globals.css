@@ -231,6 +231,44 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
 
 .time-warning .micro-label { color: var(--gold-deep); }
 
+/* ── Sidebar destinations ──
+   A flat row with an icon, not a bordered pill. Two pills read as two loose
+   controls; a list of rows reads as the places this app goes, which is what
+   they are. The hover fill is the only affordance they need. */
+.zo-nav {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 12px;
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 300;
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  transition: background 0.13s ease;
+}
+.zo-nav:hover { background: var(--sunk); }
+
+.zo-nav__icon {
+  display: grid;
+  place-items: center;
+  width: 18px;
+  flex-shrink: 0;
+  font-size: 14px;
+  color: var(--gold-deep);
+}
+
+/* How many people are saved, so the row says something before it is opened. */
+.zo-nav__count {
+  margin-left: auto;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--ink-3);
+  font-variant-numeric: tabular-nums;
+}
+
 /* Row actions (delete a chat, remove a person).
    Always present rather than revealed on hover: a touch screen has no hover,
    so hiding them there left them unreachable — tapping the row simply opened

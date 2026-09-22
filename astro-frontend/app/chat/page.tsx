@@ -154,6 +154,9 @@ export default function ChatPage() {
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  // Open by default: the whole point of moving People up here is that it
+  // stops being something you have to go looking for.
+  const [peopleOpen, setPeopleOpen] = useState(true);
   const [selectedModel, setSelectedModel] = useState<string | null>(null);
   const [chartOpen, setChartOpen] = useState(false);
   const [chart, setChart] = useState<NatalChart | null>(null);
@@ -787,7 +790,7 @@ export default function ChatPage() {
 
       {/* ─── Sidebar ─── */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 flex w-[86%] max-w-[300px] transform flex-col overflow-y-auto transition-transform duration-300 ease-out lg:static lg:w-[268px] lg:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-50 flex w-[86%] max-w-[300px] transform flex-col overflow-hidden transition-transform duration-300 ease-out lg:static lg:w-[268px] lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{
@@ -814,107 +817,40 @@ export default function ChatPage() {
           </button>
         </div>
 
-        <button
-          onClick={() => startNewChat(null)}
-          className="mt-5 w-full text-left"
-          style={{
-            background: "var(--surface)",
-            border: "1px solid var(--line-2)",
-            borderRadius: 16,
-            padding: "12px 16px",
-            fontSize: 14,
-            fontWeight: 300,
-          }}
-        >
-          + New conversation
-        </button>
-
-        <button
-          onClick={openChart}
-          className="mt-2 w-full text-left"
-          style={{
-            background: "transparent",
-            border: "1px solid var(--line-2)",
-            borderRadius: 16,
-            padding: "12px 16px",
-            fontSize: 14,
-            fontWeight: 300,
-            color: "var(--ink-2)",
-          }}
-        >
-          ✦ View my chart
-        </button>
+        {/* Destinations, not two isolated buttons. Bordered pills read as a
+            pair of controls; a flat list reads as places to go — and People
+            belongs here rather than below a conversation list long enough that
+            nobody ever scrolled to it. */}
+        <nav className="mt-5 flex flex-col gap-[2px]">
+          <button onClick={() => startNewChat(null)} className="zo-nav">
+            <span className="zo-nav__icon">✎</span>
+            New conversation
+          </button>
+          <button
+            onClick={() => setPeopleOpen((open) => !open)}
+            className="zo-nav"
+            aria-expanded={peopleOpen}
+          >
+            <span className="zo-nav__icon">☍</span>
+            People
+            {profiles.length > 0 && <span className="zo-nav__count">{profiles.length}</span>}
+          </button>
+          <button onClick={openChart} className="zo-nav">
+            <span className="zo-nav__icon">✦</span>
+            View my chart
+          </button>
+        </nav>
 
         {/* Parked, not deleted. The sky view lives on in app/_sky — a leading
             underscore keeps Next from routing to it — along with SkyView.tsx
             and the /sky-at-birth and /sky-now endpoints. To bring it back:
             git mv app/_sky app/sky, and restore this link. */}
 
-        {/* Conversations */}
-        {loadFailed && (
-          <div className="mt-6">
-            <p className="micro-label">Conversations</p>
-            <p className="font-reading mt-2" style={{ fontSize: 13, lineHeight: 1.55, color: "var(--ink-3)" }}>
-              Couldn&rsquo;t reach the server just now. Your conversations are
-              safe &mdash; they&rsquo;re saved to your account, not this device.
-            </p>
-            <button
-              onClick={async () => { setLoadFailed(false); if (!(await loadData())) setLoadFailed(true); }}
-              className="micro-label mt-2"
-              style={{ letterSpacing: "0.14em", color: "var(--gold-deep)" }}
-            >
-              Try again
-            </button>
-          </div>
-        )}
-
-        {sessions.length > 0 && (
-          <div className="mt-6">
-            <p className="micro-label">Conversations</p>
-            <div className="mt-2 flex flex-col gap-1">
-              {sessions.slice(0, 12).map((session) => {
-                const active = session.id === currentSessionId;
-                return (
-                  <div
-                    key={session.id}
-                    className="group flex items-center gap-1"
-                    style={{
-                      borderRadius: 14,
-                      background: active ? "var(--gold-soft)" : "transparent",
-                    }}
-                  >
-                    <button
-                      onClick={() => openSession(session)}
-                      className="min-w-0 flex-1 truncate text-left"
-                      style={{
-                        padding: "11px 14px",
-                        fontSize: 14,
-                        fontWeight: 300,
-                        color: active ? "var(--ink)" : "var(--ink-2)",
-                      }}
-                    >
-                      {session.title}
-                    </button>
-                    <button
-                      onClick={() => deleteSession(session)}
-                      aria-label={`Delete "${session.title}"`}
-                      title="Delete conversation"
-                      className="row-action"
-                      style={{ fontSize: 14 }}
-                    >
-                      ✕
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
+        {peopleOpen && (
+          <div className="-mx-2 max-h-[34vh] shrink-0 overflow-y-auto px-2">
         {/* Saved people */}
-        <div className="mt-6">
-          <div className="flex items-center justify-between">
-            <p className="micro-label">People</p>
+        <div className="mt-1">
+          <div className="flex items-center justify-end">
             <button
               onClick={() => {
                 setProfileError("");
@@ -1125,6 +1061,73 @@ export default function ChatPage() {
               </button>
             </div>
           )}
+        </div>
+
+          </div>
+        )}
+
+        <div className="-mx-2 mt-2 min-h-0 flex-1 overflow-y-auto px-2">
+        {/* Conversations */}
+        {loadFailed && (
+          <div className="mt-6">
+            <p className="micro-label">Conversations</p>
+            <p className="font-reading mt-2" style={{ fontSize: 13, lineHeight: 1.55, color: "var(--ink-3)" }}>
+              Couldn&rsquo;t reach the server just now. Your conversations are
+              safe &mdash; they&rsquo;re saved to your account, not this device.
+            </p>
+            <button
+              onClick={async () => { setLoadFailed(false); if (!(await loadData())) setLoadFailed(true); }}
+              className="micro-label mt-2"
+              style={{ letterSpacing: "0.14em", color: "var(--gold-deep)" }}
+            >
+              Try again
+            </button>
+          </div>
+        )}
+
+        {sessions.length > 0 && (
+          <div className="mt-6">
+            <p className="micro-label">Conversations</p>
+            <div className="mt-2 flex flex-col gap-1">
+              {sessions.slice(0, 12).map((session) => {
+                const active = session.id === currentSessionId;
+                return (
+                  <div
+                    key={session.id}
+                    className="group flex items-center gap-1"
+                    style={{
+                      borderRadius: 14,
+                      background: active ? "var(--gold-soft)" : "transparent",
+                    }}
+                  >
+                    <button
+                      onClick={() => openSession(session)}
+                      className="min-w-0 flex-1 truncate text-left"
+                      style={{
+                        padding: "11px 14px",
+                        fontSize: 14,
+                        fontWeight: 300,
+                        color: active ? "var(--ink)" : "var(--ink-2)",
+                      }}
+                    >
+                      {session.title}
+                    </button>
+                    <button
+                      onClick={() => deleteSession(session)}
+                      aria-label={`Delete "${session.title}"`}
+                      title="Delete conversation"
+                      className="row-action"
+                      style={{ fontSize: 14 }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         </div>
 
         {/* Footer */}
