@@ -279,3 +279,98 @@ def rank_places_for(
         "best": scored[:top], "best_by_financial_pathway": winners if purpose == "money" else {},
         "worst": scored[-3:][::-1],
     }
+
+
+def rank_places_to_live(
+    birth_moment: datetime, purpose: str = "money", places: list[dict] | None = None,
+    top: int = 7, region: str = "world", natal_planets: list[dict] | None = None,
+) -> dict:
+    """Where a place would suit someone to live, from the relocated natal chart.
+
+    The other ranking in this file answers a different question. A relocated
+    solar return says where to spend one birthday; this says how a city would
+    sit under you if you lived in it. Same birth moment, same planets in the
+    same degrees — only the houses and the angles move, because those depend on
+    where on Earth you were standing. Venus in the 1st in Sofia is Venus in the
+    2nd in London, and that is the entire technique.
+
+    Answering "where should I live?" with the solar return produced a list of
+    cities to be in for a single evening, complete with an arrival time.
+    """
+    from app.european_cities import as_places
+    from app.relocation_scoring import PURPOSES, score_chart
+
+    if purpose not in PURPOSES:
+        raise ValueError("No scoring method for the requested purpose")
+    if not 1 <= top <= 10:
+        raise ValueError("Request between one and ten ranked cities")
+
+    candidates = places if places is not None else as_places(region)
+    # One moment, one set of planets, computed once and shared by every city.
+    planets = get_planet_positions_from_utc(birth_moment)
+
+    scored, failed = [], []
+    for place in candidates:
+        try:
+            chart = chart_for(birth_moment, place["latitude"], place["longitude"], planets=planets)
+            chart["natal_planets"] = natal_planets or []
+            result = score_chart(chart, purpose)
+            scored.append({
+                "source": "relocated_natal", "place": place["label"],
+                "latitude": place["latitude"], "longitude": place["longitude"],
+                "timezone": place.get("timezone"),
+                "house_system": "Placidus", "rulership_system": "traditional",
+                "score": result["score"],
+                "score_unit": "heuristic points, not a percentage or probability",
+                "ascendant": _point(chart["ascendant"]), "midheaven": _point(chart["midheaven"]),
+                "houses_of": {p["planet"]: p["house"] for p in chart["planets"]},
+                "angular_planets": chart["angular_planets"],
+                **{key: result[key] for key in
+                   ("from_houses", "from_angles", "from_rulers", "from_mc_contacts",
+                    "why", "advantages", "tradeoffs", "pathway_scores")},
+            })
+        except (ValueError, KeyError, StopIteration, swe.Error, pytz.UnknownTimeZoneError) as exc:
+            failed.append({"place": place.get("label", "Unknown candidate"), "reason": type(exc).__name__})
+
+    if not scored:
+        return {"source": "relocated_natal", "status": "failed", "searched": len(candidates),
+                "calculated": 0, "failed_candidates": failed, "best": [],
+                "message": "The relocation calculation failed. I cannot rank places from natal transits instead."}
+
+    scored.sort(key=lambda p: (-p["score"], p["place"]))
+    rank = 0
+    for index, candidate in enumerate(scored):
+        if index == 0 or candidate["score"] != scored[index - 1]["score"]:
+            rank = index + 1
+        candidate["rank"] = rank
+    spread = round(scored[0]["score"] - scored[-1]["score"], 2)
+
+    return {
+        "source": "relocated_natal", "status": "partial" if failed else "ok",
+        "purpose": purpose, "region": region,
+        "searched": len(candidates), "calculated": len(scored), "failed_candidates": failed,
+        "scoring_version": "relocation-v2",
+        "scoring_reviewed_by_astrologer": False,
+        "score_unit": "heuristic points, not /100 and not a probability",
+        "note": (
+            "How each city's relocated birth chart scores for this purpose — a "
+            "place to live in, not a birthday to travel for. The planets and the "
+            "aspects between them are identical everywhere; only the houses and "
+            "angles change. There is no date and no arrival time attached to "
+            "this: say what the top places offer and which one you would pick, "
+            "never a schedule. Tied scores are equal, not ranked. Say plainly "
+            "how much the choice is worth — in a flat year telling someone to "
+            "move is selling a difference that is not there."
+        ),
+        "does_location_matter": (
+            "Barely — the scores are close enough that this is not a strong reason to move"
+            if spread < 6 else
+            "Somewhat — there is a real but modest difference between the best and worst"
+            if spread < 14 else
+            "A great deal — the best and worst places are meaningfully different charts"
+        ),
+        "score_spread": spread,
+        "cities_with_a_planet_on_an_angle": sum(bool(p["angular_planets"]) for p in scored),
+        "best": scored[:top],
+        "worst": scored[-3:][::-1],
+    }

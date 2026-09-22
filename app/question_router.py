@@ -342,4 +342,30 @@ def detect_relocation_request(question: str) -> dict | None:
             purpose, best = name, hits
 
     europe = any(word in lowered for word in ("europe", "european", "eu "))
-    return {"purpose": purpose, "region": "europe" if europe else "world"}
+    return {"purpose": purpose, "region": "europe" if europe else "world",
+            "technique": _relocation_technique(lowered)}
+
+
+# Two different questions, two different charts, and answering one with the
+# other is how "where should I live?" came back as a list of cities to spend a
+# single birthday in.
+_RETURN_WORDS = ("solar return", "birthday", "born day", "my return", "returns")
+_LIVING_WORDS = ("live", "living", "move", "moving", "relocate", "relocating",
+                 "settle", "settling", "based", "belong", "home", "aligned",
+                 "suits me", "suit me", "happiest", "thrive")
+
+
+def _relocation_technique(lowered: str) -> str:
+    """Which chart answers this.
+
+    A relocated solar return says where to spend one birthday. A relocated
+    natal chart says how a place would suit you to live in — the planets are
+    identical, the houses and angles are not, and that is the whole technique.
+    """
+    if any(word in lowered for word in _RETURN_WORDS):
+        return "solar_return"
+    if any(word in lowered for word in _LIVING_WORDS):
+        return "relocated_natal"
+    # "which city is best for my career" with nothing else to go on is about a
+    # life, not a birthday.
+    return "relocated_natal"

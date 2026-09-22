@@ -6,7 +6,7 @@ There is no language-model fallback to substitute unrelated natal transits.
 from datetime import datetime
 import re
 
-from app.relocation_service import choose_return_year, rank_places_for, _sun_longitude
+from app.relocation_service import choose_return_year, rank_places_for, rank_places_to_live, _sun_longitude
 from app.chart_analysis_service import get_house_rulers
 
 FAILURE = "The solar-return city calculation didn't complete, so I can't reliably rank the locations. Please try the same request again. I won't substitute a natal-transit reading for that calculation."
@@ -45,6 +45,25 @@ def render_relocation(result: dict, technical: bool = False) -> str:
     return '\n\n'.join(lines)
 
 
+def render_places_to_live(result: dict) -> str:
+    if result['status'] not in ('ok', 'partial'):
+        return result.get('message', FAILURE)
+    best = result['best']
+    first = best[0]
+    tied = sum(c['score'] == first['score'] for c in best) > 1
+    lines = [
+        f"{first['place']} {'ties for first' if tied else 'comes out first'} of the "
+        f"{result['calculated']} places compared for living, on a {result['purpose']} reading. "
+        f"{result['does_location_matter']}. This is how each city's chart sits for you if "
+        f"you lived there — an astrological comparison, not a forecast of how life would go."
+    ]
+    for city in best:
+        strongest = max(city['pathway_scores'], key=city['pathway_scores'].get)
+        reason = (city['advantages'] or ['No single standout factor.'])[0]
+        lines.append(f"#{city['rank']} {city['place']} — strongest for {strongest}. {reason}")
+    return '\n\n'.join(lines)
+
+
 def prepare_relocation(question: str, birth_date: str, natal: dict, request: dict) -> tuple[dict, str]:
     natal_context = {'source': 'natal', 'house_system': 'Placidus', 'rulership_system': 'traditional',
                      'house_rulers': get_house_rulers(natal['houses'], natal['planet_positions'])}
@@ -58,6 +77,26 @@ def prepare_relocation(question: str, birth_date: str, natal: dict, request: dic
                   'message': 'Which solar-return year should I compare? Your question contains more than one year.'}
         return {'where_to_be': result, 'natal': natal_context}, result['message']
     born = datetime.fromisoformat(birth_date)
+
+    if request.get('technique') == 'relocated_natal':
+        # Where to live. No year, no return instant, no arrival time — the
+        # chart is their own birth moment seen from somewhere else.
+        try:
+            count_match = re.search(r'\b(?:top|best|rank)\s+(\d{1,2})', question, re.I)
+            count = max(1, min(10, int(count_match.group(1)))) if count_match else 7
+            result = rank_places_to_live(
+                datetime.fromisoformat(natal['utc_birth_time']),
+                purpose=request['purpose'], region=request['region'], top=count,
+                natal_planets=natal['planet_positions'])
+        except Exception as exc:
+            print('Relocation search failed:', type(exc).__name__)
+            result = {'source': 'relocated_natal', 'status': 'failed', 'best': [], 'message': FAILURE}
+        context = {'where_to_live': result, 'natal': natal_context,
+                   'techniques': {'relocated_natal': 'the birth chart seen from another place: same planets, different houses and angles'},
+                   'natal_transits': {'source': 'transit_to_natal', 'included': False,
+                                      'reason': 'Not substituted for a relocation ranking.'}}
+        return context, render_places_to_live(result)
+
     try:
         # Do not use the two-decimal display longitude to time an exact return.
         sun = _sun_longitude(datetime.fromisoformat(natal['utc_birth_time']))

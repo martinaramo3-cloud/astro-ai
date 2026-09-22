@@ -250,16 +250,29 @@ def test_the_search_is_worldwide_unless_asked_otherwise(natal_sun):
 from app.question_router import detect_relocation_request
 
 
-@pytest.mark.parametrize("question, purpose, region", [
-    ("where should i be for my solar return to make money", "money", "world"),
-    ("which european city is best for my birthday for my career", "career", "europe"),
-    ("where should i go to meet someone", "love", "world"),
-    ("rank the best cities for me to study", "study", "world"),
-    ("where should i live with my family", "home and family", "world"),
+@pytest.mark.parametrize("question, purpose, region, technique", [
+    ("where should i be for my solar return to make money", "money", "world", "solar_return"),
+    ("which european city is best for my birthday for my career", "career", "europe", "solar_return"),
+    ("where should i go to meet someone", "love", "world", "relocated_natal"),
+    ("rank the best cities for me to study", "study", "world", "relocated_natal"),
+    ("where should i live with my family", "home and family", "world", "relocated_natal"),
 ])
-def test_a_where_question_is_recognised_with_what_it_is_for(question, purpose, region):
+def test_a_where_question_is_recognised_with_what_it_is_for(question, purpose, region, technique):
     found = detect_relocation_request(question)
-    assert found == {"purpose": purpose, "region": region}
+    assert found == {"purpose": purpose, "region": region, "technique": technique}
+
+
+@pytest.mark.parametrize("question, technique", [
+    ("where should i live", "relocated_natal"),
+    ("what city am i most aligned with", "relocated_natal"),
+    ("which city should i move to", "relocated_natal"),
+    ("where should i be for my birthday", "solar_return"),
+    ("rank european cities for my 2027 solar return", "solar_return"),
+])
+def test_living_and_birthday_are_different_questions(question, technique):
+    """Answering one with the other is how "where should I live?" came back as
+    a list of cities to spend a single evening in, with an arrival time."""
+    assert detect_relocation_request(question)["technique"] == technique
 
 
 @pytest.mark.parametrize("question", [
