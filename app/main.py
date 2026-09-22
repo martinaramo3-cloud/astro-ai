@@ -90,6 +90,7 @@ from app.conversation_service import (
     BUDGETS,
     DETAILED_BUDGET,
     EXPLANATION_BUDGET,
+    RELOCATION_BUDGET,
     apply_tier,
     attach_conversation,
     budget_for,
@@ -1027,11 +1028,28 @@ def _prepare_astrologer_call(
     if relocation:
         context, answer = prepare_relocation(relocation_question, data.birth_date, natal_data, relocation)
         context.update(question=data.question, answer_tier=4, conversation=state, history=normalized_history)
+        calculated = context["where_to_be"]["status"] in ("ok", "partial")
+        # Only the request that asks for the ranking has to deliver it. A
+        # follow-up — "do I have to move there?" — is answering something else
+        # about a ranking already on screen, and demanding the list again would
+        # reject every sensible reply to it.
+        if calculated and not relocation_followup:
+            # Zoli writes this one. Returning the rendered report instead was
+            # protecting the ranking from being talked over — but it shipped a
+            # spreadsheet: numbered rows, raw scores, ISO timestamps and IANA
+            # timezone names, in an app whose own rules say never to quote the
+            # arithmetic. The protection belongs in review, not in refusing to
+            # let it speak: naming the cities is now a requirement of the draft,
+            # so the ranking cannot quietly become a paragraph about transits.
+            state["must_mention"] = [city["place"] for city in context["where_to_be"]["best"][:3]]
         return {
             "user_id": user_id, "tier": 4, "tier_config": tier_config,
-            "max_output_tokens": 1600, "model": model, "effort": effort,
+            "max_output_tokens": RELOCATION_BUDGET[0], "model": model, "effort": effort,
             "images": None, "image_tokens": image_tokens, "question_type": "relocation",
-            "chat_context": context, **({} if relocation_followup and context["where_to_be"]["status"] in ("ok", "partial") else {"calculated_answer": answer}),
+            # A failed calculation still has something true to say, and no model
+            # should be asked to improvise around a missing one.
+            "chat_context": context,
+            **({"report_fallback": answer} if calculated else {"calculated_answer": answer}),
         }
 
     transit_planets = get_current_transit_positions()
@@ -1316,6 +1334,9 @@ def _answer_prepared(prep):
     return reviewed_answer(
         generate_astrologer_answer, build_ask_astrologer_user(prep["chat_context"]), prep["chat_context"],
         on_repair=lambda: check_model_allowance(prep["user_id"], get_user_tier(prep["user_id"]), model_key_for_id(prep["model"])),
+        # A city ranking never depends on the model getting it right: if the
+        # draft can't be fixed, the calculated report is served as written.
+        fallback=prep.get("report_fallback"),
         model=prep["model"], system=build_ask_astrologer_system(), effort=prep["effort"],
         images=prep["images"], user_id=prep["user_id"], max_output_tokens=prep["max_output_tokens"],
     )
@@ -1585,7 +1606,7 @@ def signup(data: SignupRequest):
         raise HTTPException(status_code=400, detail="Email already exists")
 
     # New accounts start unverified and are sent a confirmation link. This is
-    # soft — they can use Zodi right away; the email just confirms we can reach
+    # soft — they can use Zoli right away; the email just confirms we can reach
     # them, which is what makes a password reset trustworthy later.
     _send_verification_email(user["id"], user["email"], user["name"])
 
@@ -1616,7 +1637,7 @@ def forgot_password(data: ForgotPasswordRequest):
     """Email a reset link — but never reveal whether the address has an account.
 
     The response is identical whether or not the email is registered, so this
-    can't be used to discover who has a Zodi account.
+    can't be used to discover who has a Zoli account.
     """
     rate_limit("reset-email", data.email.casefold(), 1, 60)
     user_id = find_user_id_by_email(data.email)

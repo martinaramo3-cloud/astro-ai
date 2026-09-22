@@ -1,7 +1,7 @@
 /**
- * Zodi's definitions — the astrology words, explained.
+ * Zoli's definitions — the astrology words, explained.
  *
- * Zodi speaks like an astrologer because that is what makes it feel real, but
+ * Zoli speaks like an astrologer because that is what makes it feel real, but
  * "your Venus is square Saturn" means nothing to most people and nobody wants
  * to have to ask. So the words explain themselves on a tap, and the writing
  * never has to stop and define itself mid-sentence.

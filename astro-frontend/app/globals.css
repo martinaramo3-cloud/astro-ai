@@ -1,7 +1,7 @@
 @import "tailwindcss";
 
 /* ─────────────────────────────────────────────────────────────
-   Zodi design tokens. Day is the default; night is a variable
+   Zoli design tokens. Day is the default; night is a variable
    swap on [data-theme="night"] so the change reads as a dissolve.
    ───────────────────────────────────────────────────────────── */
 
@@ -612,18 +612,6 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   mask-image: radial-gradient(circle closest-side, #000 0 99%, transparent 100%);
 }
 
-/* Spinning the mark is the app's whole loading state, and at this size there
-   are no rays left to spin. Turning the medallion itself would stand the Z on
-   its head, so it breathes instead — still plainly "working", still upright. */
-.zodiMark[data-compact="true"][data-spin="true"] .zodiMark__core {
-  animation: zm-pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes zm-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50%      { opacity: 0.55; transform: scale(0.94); }
-}
-
 @keyframes zm-rot { to { transform: rotate(360deg); } }
 @keyframes zm-in {
   from { opacity: 0; transform: scale(0.965); }
@@ -695,7 +683,7 @@ input[type="date"], input[type="time"] { color-scheme: var(--color-scheme); }
   color: var(--ink-2);
 }
 
-/* The read-aloud control on a Zodi answer: present, not shouting. */
+/* The read-aloud control on a Zoli answer: present, not shouting. */
 .zo-speak {
   font-size: 11px;
   line-height: 1;

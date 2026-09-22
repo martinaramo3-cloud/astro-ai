@@ -46,7 +46,7 @@ export default function LegalPage({
             className="micro-label"
             style={{ letterSpacing: "0.2em", color: "var(--gold-deep)" }}
           >
-            &larr; Back to Zodi
+            &larr; Back to Zoli
           </Link>
         </p>
       </div>

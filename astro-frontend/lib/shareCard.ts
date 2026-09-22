@@ -3,8 +3,8 @@
  *
  * People already screenshot readings and put them on Stories. A screenshot
  * carries the app's chrome, the composer, someone's own name in the corner —
- * and none of the brand. This draws the answer properly instead: Zodi's
- * colours, Zodi's typeface, the mark at the foot, sized 1080x1920 so it drops
+ * and none of the brand. This draws the answer properly instead: Zoli's
+ * colours, Zoli's typeface, the mark at the foot, sized 1080x1920 so it drops
  * straight into a Story.
  *
  * Deliberately only the question and the answer. Not the birth details, not
@@ -126,7 +126,7 @@ export async function drawShareCard(
   ctx.fillStyle = t.ink2;
   ctx.font = '400 30px Jost, system-ui, sans-serif';
   ctx.letterSpacing = "9px";
-  ctx.fillText("ZODI", margin + 60, footY);
+  ctx.fillText("ZOLI", margin + 60, footY);
   ctx.letterSpacing = "0px";
 
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b), "image/png", 0.95));

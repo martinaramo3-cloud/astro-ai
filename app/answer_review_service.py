@@ -77,6 +77,15 @@ def review_issues(answer, state):
     if len([p for p in answer.split('\n\n') if p.strip()]) > state['max_paragraphs']: issues.append('too many paragraphs')
     if state['mode'] == 'everyday' and JARGON.search(answer): issues.append('technical astrology in an everyday reply')
     if STOCK.search(answer): issues.append('stock or poetic phrasing')
+    # Something was calculated that the answer is not allowed to lose. Used by
+    # the city ranking: the whole value of that answer is the places it names,
+    # and an answer that drifts into a paragraph about transits has thrown away
+    # a hundred and fifty-seven chart calculations.
+    required = state.get('must_mention') or []
+    if required and not any(
+        re.search(re.escape(name.split(',')[0].strip()), answer, re.I) for name in required
+    ):
+        issues.append('drops the calculated ranking it was asked to report')
     if HEDGE_MENU.search(answer):
         issues.append('offers a menu of possibilities instead of one reading')
     if BOTH_BRANCHES.search(answer):
@@ -132,7 +141,11 @@ def safe_reply(state):
     return "I don't have enough reliable information to be specific about that yet. Can you tell me a little more about the situation?"
 
 
-def reviewed_answer(generate, prompt, context, *, on_repair=None, **kwargs):
+def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None, **kwargs):
+    """`fallback` is a already-correct answer to serve if the draft can't be
+    fixed — a rendered calculation, say. Without one a failed repair falls back
+    to a generic apology, which for a ranking someone waited on is worse than a
+    plain report: the numbers were right, only the prose was wrong."""
     state=context.get('conversation') or conversation_state(context.get('question',''),context.get('history',[]))
     answer,tokens=generate(prompt,**kwargs)
     problems=review_issues(answer,state)
@@ -149,6 +162,6 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, **kwargs):
         revised,extra=generate(repair,**repair_kwargs)
     except Exception:
         # Do not serve an unsafe draft if a correction cannot be generated.
-        return safe_reply(state),tokens
+        return (fallback or safe_reply(state)),tokens
     tokens+=extra
-    return (revised if not review_issues(revised,state) else safe_reply(state)),tokens
+    return (revised if not review_issues(revised,state) else (fallback or safe_reply(state))),tokens

@@ -141,7 +141,9 @@ def test_full_financial_retest_question_returns_city_report_without_ai(client, a
     question = (Path(__file__).parent / 'fixtures' / 'relocation_financial_request.txt').read_text()
     monkeypatch.setattr(main, 'classify_answer_tier', lambda *a, **kw: pytest.fail('No model routing needed'))
     monkeypatch.setattr(main, 'extract_asked_date', lambda *a, **kw: pytest.fail('No model date extraction needed'))
-    monkeypatch.setattr(main, 'generate_astrologer_answer', lambda *a, **kw: pytest.fail('No model generation needed'))
+    # Zoli writes it; the rendered report is the fallback when the draft
+    # drops the cities, which this stub deliberately does.
+    monkeypatch.setattr(main, 'generate_astrologer_answer', lambda *a, **kw: ('A paragraph about transits.', 20))
     user, headers = account()
     response = client.post('/ask-astrologer', headers=headers, json={**BIRTH_INPUT,
         'user_id': user['id'], 'question': question, 'history': []})

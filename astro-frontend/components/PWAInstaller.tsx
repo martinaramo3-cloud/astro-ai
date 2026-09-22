@@ -93,7 +93,7 @@ export default function PWAInstaller() {
         <Image src="/icon-192.png" alt="" width={44} height={44} className="h-11 w-11 rounded-xl" />
         <div className="min-w-0 flex-1">
           <p className="font-reading" style={{ fontSize: 16 }}>
-            Add Zodi to your home screen
+            Add Zoli to your home screen
           </p>
           <p style={{ fontSize: 12, lineHeight: 1.5, color: "var(--ink-3)" }}>
             {showIOSHint ? (

@@ -275,8 +275,17 @@ def test_ordinary_questions_do_not_trigger_a_city_search(question):
 
 def test_the_search_reaches_the_reading(client, account, monkeypatch):
     import app.main as main
-    monkeypatch.setattr(main, "generate_astrologer_answer",
-                        lambda *args, **kw: pytest.fail("A city ranking must not depend on model generation"))
+    # Zoli writes this answer now — a numbered table of scores and ISO
+    # timestamps was not a reading. What must not depend on the model is the
+    # ranking itself: the cities are calculated, the draft is required to name
+    # them, and the rendered report is served verbatim if it fails to.
+    seen = {}
+
+    def generate(prompt, **kwargs):
+        seen["called"] = True
+        return "Vienna is the one I'd pick.", 20
+
+    monkeypatch.setattr(main, "generate_astrologer_answer", generate)
     user, headers = account()
     response = client.post("/ask-astrologer", json={
         "birth_date": "1999-03-02", "birth_time": "07:15",
@@ -291,7 +300,38 @@ def test_the_search_reaches_the_reading(client, account, monkeypatch):
     assert result["year"] == 2027
     assert result["region"] == "europe"
     assert len(result["best"]) == 7
+    assert seen.get("called"), "the reading should be written, not rendered"
+    # The draft named none of the calculated cities, so the report was served
+    # instead of a vague paragraph — the calculation is never silently lost.
     for city in result["best"]:
         assert city["place"] in data["answer"]
         assert city["be_there_at"] in data["answer"]
     assert data["context"]["natal_transits"]["included"] is False
+
+
+def test_a_reading_that_names_the_cities_is_kept(client, account, monkeypatch):
+    """The point of the fallback is that it is a fallback. When the draft does
+    name the ranking, the reader gets Zoli's words rather than the table."""
+    import re
+    import app.main as main
+    written = {}
+
+    def generate(prompt, **kwargs):
+        # Name the city the calculation actually chose, the way a real answer
+        # would — the ranking is in the prompt it was handed.
+        top = re.search(r'"place":\s*"([^"]+)"', prompt).group(1)
+        written["text"] = f"{top} is the one I'd pick, comfortably."
+        return written["text"], 20
+
+    monkeypatch.setattr(main, "generate_astrologer_answer", generate)
+    user, headers = account()
+    response = client.post("/ask-astrologer", json={
+        "birth_date": "1999-03-02", "birth_time": "07:15",
+        "birth_place": "Sofia, Bulgaria", "birth_time_known": True,
+        "question": "rank top 7 European cities for my 2027 solar return for money",
+        "history": [], "user_id": user["id"],
+    }, headers=headers)
+    assert response.status_code == 200
+    data = response.json()
+    assert data["answer"] == written["text"]
+    assert data["context"]["where_to_be"]["status"] == "ok"

@@ -183,7 +183,8 @@ _GREETINGS = {
     "hi", "hii", "hiii", "hey", "heyy", "hello", "yo", "sup", "morning",
     "good morning", "good evening", "goodnight", "good night", "night",
     "thanks", "thank you", "ty", "thx", "ok", "okay", "k", "cool", "nice",
-    "lol", "haha", "bye", "see you", "hi zodi", "hey zodi", "love you",
+    "lol", "haha", "bye", "see you", "hi zoli", "hey zoli", "love you",
+    "hi zodi", "hey zodi",  # the old name, still typed by anyone who used it before
 }
 
 # A follow-up is short and leans on what was just said.
@@ -262,7 +263,7 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
 
     # Short, leaning on the previous turn — keep the rhythm of the exchange
     # rather than resetting to full depth, even when the thread is heavy.
-    # Anywhere in the thread is enough: if Zodi has already spoken, this is a
+    # Anywhere in the thread is enough: if Zoli has already spoken, this is a
     # follow-up rather than an opening question.
     answered_before = any(
         (m.get("role") if isinstance(m, dict) else getattr(m, "role", None)) == "assistant"

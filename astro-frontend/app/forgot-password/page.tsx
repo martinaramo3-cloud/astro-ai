@@ -58,7 +58,7 @@ export default function ForgotPasswordPage() {
             <>
               <h1 className="font-display" style={{ fontSize: 26, marginBottom: 8 }}>Check your inbox</h1>
               <p className="font-reading" style={{ fontSize: 15, lineHeight: 1.6, color: "var(--ink-2)" }}>
-                If <strong>{email}</strong> has a Zodi account, a link to set a new
+                If <strong>{email}</strong> has a Zoli account, a link to set a new
                 password is on its way. It works for the next hour.
               </p>
               <p className="font-reading" style={{ fontSize: 14, lineHeight: 1.6, color: "var(--ink-3)", marginTop: 14 }}>

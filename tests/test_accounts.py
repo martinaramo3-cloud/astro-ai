@@ -28,7 +28,7 @@ def test_the_same_email_cannot_be_taken_twice(client, account):
 
 
 def test_asking_for_a_reset_never_says_who_has_an_account(client, account):
-    """Otherwise this is a way to find out who uses Zodi."""
+    """Otherwise this is a way to find out who uses Zoli."""
     account(email="real@example.com")
     known = client.post("/forgot-password", json={"email": "real@example.com"})
     unknown = client.post("/forgot-password", json={"email": "nobody@example.com"})

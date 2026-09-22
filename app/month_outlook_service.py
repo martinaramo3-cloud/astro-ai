@@ -1,6 +1,6 @@
 """A month read across a whole life, and split into the parts of it that differ.
 
-Asked what a month holds, Zodi picked the loudest transit, went deep on that
+Asked what a month holds, Zoli picked the loudest transit, went deep on that
 one area, and left the rest of the life unmentioned — so "what should I focus
 on this month" came back as a paragraph about relationships and nothing about
 work, money, health or anyone's friends. It also treated the month as one

@@ -57,7 +57,7 @@ function VerifyInner() {
           </p>
           <a href="/chat" className="auth-cta mt-4 block uppercase"
              style={{ background: "linear-gradient(135deg, var(--gold), var(--gold-deep))", color: "var(--on-gold)", fontSize: 12, letterSpacing: "0.2em", textDecoration: "none" }}>
-            Open Zodi
+            Open Zoli
           </a>
         </>
       )}
@@ -66,10 +66,10 @@ function VerifyInner() {
           <h1 className="font-display" style={{ fontSize: 24, marginBottom: 6 }}>Link expired</h1>
           <p className="font-reading" style={{ fontSize: 15, color: "var(--ink-2)" }}>
             This confirmation link is invalid or has expired. You can send a fresh
-            one from your account settings inside Zodi.
+            one from your account settings inside Zoli.
           </p>
           <a href="/chat" className="mt-4 block micro-label" style={{ color: "var(--ink-3)", textDecoration: "none" }}>
-            Open Zodi
+            Open Zoli
           </a>
         </>
       )}

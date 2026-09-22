@@ -12,7 +12,7 @@ export default function PrivacyPage() {
       </p>
 
       <p>
-        This explains what Zodi collects, why, and what you can do about it.{" "}
+        This explains what Zoli collects, why, and what you can do about it.{" "}
         <strong>[COMPANY NAME]</strong> is the data controller.
       </p>
 
@@ -27,7 +27,7 @@ export default function PrivacyPage() {
       <h3>To cast your chart</h3>
       <ul>
         <li>
-          Your <strong>date, time, and place of birth</strong>. Zodi cannot work
+          Your <strong>date, time, and place of birth</strong>. Zoli cannot work
           without these &mdash; they are what the whole reading is calculated from.
         </li>
       </ul>
@@ -39,11 +39,11 @@ export default function PrivacyPage() {
         </p>
       </div>
 
-      <h3>When you use Zodi</h3>
+      <h3>When you use Zoli</h3>
       <ul>
         <li>The questions you ask and the answers you receive</li>
         <li>
-          Birth details of anyone you choose to save as a saved person, so Zodi can
+          Birth details of anyone you choose to save as a saved person, so Zoli can
           compare charts
         </li>
         <li>How much of your plan&rsquo;s allowance you&rsquo;ve used</li>
@@ -81,7 +81,7 @@ export default function PrivacyPage() {
           account, casting your chart, answering your questions, taking payment
         </li>
         <li>
-          <strong>Our legitimate interests</strong> &mdash; keeping Zodi secure,
+          <strong>Our legitimate interests</strong> &mdash; keeping Zoli secure,
           preventing abuse, and fixing faults
         </li>
         <li>
@@ -189,7 +189,7 @@ export default function PrivacyPage() {
 
       <h2>Cookies and similar</h2>
       <p>
-        Zodi doesn&rsquo;t use advertising or tracking cookies. We store a small
+        Zoli doesn&rsquo;t use advertising or tracking cookies. We store a small
         amount of information in your browser to keep you signed in and remember
         preferences such as your theme. That&rsquo;s necessary for the app to work,
         so it doesn&rsquo;t require consent.
@@ -197,7 +197,7 @@ export default function PrivacyPage() {
 
       <h2>Children</h2>
       <p>
-        Zodi is for adults aged 18 and over. We don&rsquo;t knowingly collect data
+        Zoli is for adults aged 18 and over. We don&rsquo;t knowingly collect data
         from children. If you believe a child has given us information, email us and
         we&rsquo;ll delete it.
       </p>

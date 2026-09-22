@@ -5,7 +5,7 @@ place — which most people don't know off the top of their head for someone
 else. So instead of guessing, you send them a link and they fill it in.
 
 That is also the only growth loop the product gets for free: the link is a
-real reason to message someone, and the person who opens it meets Zodi while
+real reason to message someone, and the person who opens it meets Zoli while
 doing something useful rather than being advertised at.
 
 Tokens are random and stored only as a hash, like every other link the app

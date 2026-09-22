@@ -25,12 +25,12 @@ const jost = Jost({
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Zodi",
+  title: "Zoli",
   description: "The sky, in plain language. Astrology readings grounded in your real birth chart.",
   manifest: "/manifest.json",
   appleWebApp: {
     capable: true,
-    title: "Zodi",
+    title: "Zoli",
     statusBarStyle: "black-translucent",
   },
   icons: {

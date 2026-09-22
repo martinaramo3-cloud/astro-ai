@@ -1,10 +1,10 @@
-"""Sending the two transactional emails Zodi needs: a password reset and an
+"""Sending the two transactional emails Zoli needs: a password reset and an
 email verification, through Resend.
 
 Configured by two environment variables on the server:
   RESEND_API_KEY  — from resend.com; without it, sending is skipped (logged),
                     so the app runs fine before email is set up.
-  RESEND_FROM     — the verified sender, e.g. "Zodi <hello@yourdomain>". Until a
+  RESEND_FROM     — the verified sender, e.g. "Zoli <hello@yourdomain>". Until a
                     domain is verified, Resend's onboarding address works but
                     only delivers to your own account email.
 
@@ -19,7 +19,7 @@ from html import escape
 import requests
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
-DEFAULT_FROM = "Zodi <onboarding@resend.dev>"
+DEFAULT_FROM = "Zoli <onboarding@resend.dev>"
 
 
 def _from_address() -> str:
@@ -63,7 +63,7 @@ def _send(to: str, subject: str, html: str) -> bool:
         return False
 
 
-# A quiet, on-brand shell so both emails look like they belong to Zodi without
+# A quiet, on-brand shell so both emails look like they belong to Zoli without
 # pulling in a templating dependency.
 def _wrap(heading: str, body_html: str, button_label: str, url: str) -> str:
     url = escape(url, quote=True)
@@ -71,7 +71,7 @@ def _wrap(heading: str, body_html: str, button_label: str, url: str) -> str:
 <div style="font-family:Georgia,'Times New Roman',serif;max-width:480px;margin:0 auto;
             padding:32px 28px;color:#241f19;background:#faf6ec;border-radius:16px">
   <p style="font-family:'Jost',system-ui,sans-serif;font-size:12px;letter-spacing:.24em;
-            text-transform:uppercase;color:#9a7128;margin:0 0 18px">Zodi</p>
+            text-transform:uppercase;color:#9a7128;margin:0 0 18px">Zoli</p>
   <h1 style="font-size:26px;font-weight:400;margin:0 0 14px">{heading}</h1>
   <div style="font-size:16px;line-height:1.6;color:#5c5346">{body_html}</div>
   <p style="margin:26px 0">
@@ -90,11 +90,11 @@ def _wrap(heading: str, body_html: str, button_label: str, url: str) -> str:
 
 def send_password_reset(to: str, name: str, url: str) -> bool:
     body = (
-        f"Hi {escape(name or 'there')}, someone asked to reset your Zodi password. "
+        f"Hi {escape(name or 'there')}, someone asked to reset your Zoli password. "
         "Tap below to choose a new one — the link works for the next hour. "
         "If it wasn't you, you can ignore this; nothing has changed."
     )
-    return _send(to, "Reset your Zodi password", _wrap("Reset your password", body, "Set a new password", url))
+    return _send(to, "Reset your Zoli password", _wrap("Reset your password", body, "Set a new password", url))
 
 
 def send_verification(to: str, name: str, url: str) -> bool:
@@ -102,4 +102,4 @@ def send_verification(to: str, name: str, url: str) -> bool:
         f"Welcome, {escape(name or 'there')}. Confirm this is your email so we can keep "
         "your account safe and reach you if you ever need a password reset."
     )
-    return _send(to, "Confirm your email for Zodi", _wrap("One quick thing", body, "Confirm my email", url))
+    return _send(to, "Confirm your email for Zoli", _wrap("One quick thing", body, "Confirm my email", url))

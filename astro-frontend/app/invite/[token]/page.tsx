@@ -8,7 +8,7 @@ import ZodiMark from "../../../components/ZodiMark";
 import { ThemeToggle } from "../../../components/ThemeProvider";
 
 /**
- * Someone else's first meeting with Zodi.
+ * Someone else's first meeting with Zoli.
  *
  * They arrive because a friend asked for their birth details, not because they
  * wanted an app — so this asks for the four things and gets out of the way. The
@@ -111,7 +111,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 className="mt-4 block text-center micro-label"
                 style={{ color: "var(--gold-deep)", textDecoration: "none" }}
               >
-                What is Zodi?
+                What is Zoli?
               </Link>
             </>
           )}
@@ -126,7 +126,7 @@ export default function InvitePage({ params }: { params: Promise<{ token: string
                 charts together. Your details are used for nothing else.
               </p>
               <p className="font-reading" style={{ fontSize: 16, lineHeight: 1.65, color: "var(--ink-2)", marginTop: 14 }}>
-                Curious what your own chart says? It takes a minute, and Zodi is
+                Curious what your own chart says? It takes a minute, and Zoli is
                 free to try.
               </p>
               <Link

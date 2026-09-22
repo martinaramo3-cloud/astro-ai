@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * "Zodi" — an oversized Z beside widely tracked lowercase.
+ * "Zoli" — an oversized Z beside widely tracked lowercase.
  *
  * The Z's own letter-spacing supplies the gap before "odi". What used to open
  * that gap too wide was an additional text-indent on "odi", which pushed the

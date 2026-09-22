@@ -4,7 +4,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { TERM_PATTERN, lookup, type GlossaryEntry } from "../lib/glossary";
 
 /**
- * Zodi's answer, with the astrology words explained on a tap.
+ * Zoli's answer, with the astrology words explained on a tap.
  *
  * Only the first mention of each term lights up. An answer that bolds "Venus"
  * four times reads as a textbook, and the point is to be quietly available,

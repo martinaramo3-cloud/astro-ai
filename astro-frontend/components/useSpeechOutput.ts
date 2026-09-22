@@ -4,7 +4,7 @@ import { useBrowserReady } from "./useBrowserReady";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /**
- * Zodi read aloud, using the device's own voice.
+ * Zoli read aloud, using the device's own voice.
  *
  * Free, instant, and nothing leaves the phone. iOS has two habits worth
  * knowing: the voice list arrives asynchronously, and Safari cuts an utterance

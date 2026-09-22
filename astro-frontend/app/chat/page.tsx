@@ -618,7 +618,7 @@ export default function ChatPage() {
       setVerifyMsg(
         res.ok
           ? data.email_configured === false
-            ? "Email isn't switched on yet — ask the Zodi team."
+            ? "Email isn't switched on yet — ask the Zoli team."
             : "Sent — check your inbox."
           : "Couldn't send just now.",
       );
@@ -651,10 +651,10 @@ export default function ChatPage() {
         return;
       }
 
-      const text = `I'm reading our charts together on Zodi — it needs your birth details. Takes a minute: ${data.url}`;
+      const text = `I'm reading our charts together on Zoli — it needs your birth details. Takes a minute: ${data.url}`;
       if (navigator.share) {
         try {
-          await navigator.share({ title: "Zodi", text });
+          await navigator.share({ title: "Zoli", text });
           setInviteNote("Sent. Their details appear here once they fill it in.");
         } catch {
           setInviteNote("");   // they closed the share sheet; not an error
@@ -710,7 +710,7 @@ export default function ChatPage() {
       );
       const link = document.createElement("a");
       link.href = url;
-      link.download = `zodi-my-data-${new Date().toISOString().slice(0, 10)}.json`;
+      link.download = `zoli-my-data-${new Date().toISOString().slice(0, 10)}.json`;
       link.click();
       URL.revokeObjectURL(url);
     } catch {
@@ -752,7 +752,7 @@ export default function ChatPage() {
 
   useEffect(() => {
     // Where to land depends on what just arrived. After your own message (and
-    // while Zodi is thinking) the bottom is right — that's where the action is.
+    // while Zoli is thinking) the bottom is right — that's where the action is.
     // But a long reply is taller than the screen, so scrolling to the bottom
     // drops you at its last line with the whole answer above you, and you have
     // to scroll up to find the beginning. Put its FIRST line at the top
@@ -1190,7 +1190,7 @@ export default function ChatPage() {
             <p className="micro-label truncate" style={{ letterSpacing: "0.24em" }}>
               {selectedProfile
                 ? `You + ${selectedProfile.label}`
-                : `Talking with Zodi · ${night ? "Night" : "Day"} sky`}
+                : `Talking with Zoli · ${night ? "Night" : "Day"} sky`}
             </p>
             <p
               className="font-reading truncate"
@@ -1264,7 +1264,7 @@ export default function ChatPage() {
                     className="micro-label"
                     style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
                   >
-                    Zodi
+                    Zoli
                   </span>
                 </div>
                 <p
@@ -1394,7 +1394,7 @@ export default function ChatPage() {
                             className="micro-label"
                             style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
                           >
-                            Zodi
+                            Zoli
                           </span>
                           {canSpeak && (
                             <button
@@ -1453,7 +1453,7 @@ export default function ChatPage() {
                       className="micro-label"
                       style={{ color: "var(--gold-deep)", letterSpacing: "0.24em" }}
                     >
-                      Zodi
+                      Zoli
                     </span>
                   </div>
                   <p

@@ -7,28 +7,28 @@ export default function TermsPage() {
     <LegalPage title="Terms of Use" updated="31 August 2026">
       <p className="todo">
         Draft for legal review. Bracketed items need filling in once the company
-        exists, and a lawyer should read this before Zodi accepts payment.
+        exists, and a lawyer should read this before Zoli accepts payment.
       </p>
 
       <p>
         These terms are the agreement between you and <strong>[COMPANY NAME]</strong>{" "}
-        (&ldquo;we&rdquo;, &ldquo;us&rdquo;) about your use of Zodi. By creating an
-        account you accept them. If you don&rsquo;t, please don&rsquo;t use Zodi.
+        (&ldquo;we&rdquo;, &ldquo;us&rdquo;) about your use of Zoli. By creating an
+        account you accept them. If you don&rsquo;t, please don&rsquo;t use Zoli.
       </p>
 
-      <h2>What Zodi is &mdash; and what it isn&rsquo;t</h2>
+      <h2>What Zoli is &mdash; and what it isn&rsquo;t</h2>
 
       <div className="callout">
         <p>
-          <strong>Zodi is for entertainment and self-reflection.</strong> It is not
-          advice. Nothing Zodi says is medical, psychological, legal, financial, or
+          <strong>Zoli is for entertainment and self-reflection.</strong> It is not
+          advice. Nothing Zoli says is medical, psychological, legal, financial, or
           professional advice, and you should not treat it as such or rely on it to
           make decisions that matter.
         </p>
       </div>
 
       <p>
-        Zodi calculates real astronomical positions and interprets them. The
+        Zoli calculates real astronomical positions and interprets them. The
         calculations are accurate; the interpretations are a point of view about
         symbols, not statements of fact about your life, your future, or anybody
         else&rsquo;s.
@@ -42,16 +42,16 @@ export default function TermsPage() {
 
       <div className="callout">
         <p>
-          <strong>If you are struggling, please talk to someone real.</strong> Zodi
+          <strong>If you are struggling, please talk to someone real.</strong> Zoli
           is not a crisis service, a therapist, or a substitute for care. If you are
           in distress or thinking about harming yourself, contact your local
           emergency services or a crisis line in your country.
         </p>
       </div>
 
-      <h2>Who can use Zodi</h2>
+      <h2>Who can use Zoli</h2>
       <p>
-        You must be at least <strong>18</strong> to use Zodi. By creating an account
+        You must be at least <strong>18</strong> to use Zoli. By creating an account
         you confirm you are. We don&rsquo;t knowingly collect information from
         children, and we&rsquo;ll delete any account we find belongs to one.
       </p>
@@ -67,16 +67,16 @@ export default function TermsPage() {
         One account per person. Don&rsquo;t share or sell access.
       </p>
 
-      <h2>Using Zodi fairly</h2>
+      <h2>Using Zoli fairly</h2>
       <p>Please don&rsquo;t:</p>
       <ul>
-        <li>Use Zodi for anything unlawful, or to harass or harm anyone</li>
+        <li>Use Zoli for anything unlawful, or to harass or harm anyone</li>
         <li>
           Try to break, overload, scrape, or reverse-engineer the service, or get
           around usage limits
         </li>
         <li>
-          Resell Zodi&rsquo;s output as your own service, or use it to train another
+          Resell Zoli&rsquo;s output as your own service, or use it to train another
           model
         </li>
         <li>
@@ -101,7 +101,7 @@ export default function TermsPage() {
 
       <h2>Plans and payment</h2>
       <p>
-        Zodi has a free tier and paid plans. Paid plans are billed in advance and
+        Zoli has a free tier and paid plans. Paid plans are billed in advance and
         renew automatically until you cancel. Prices are shown before you pay, and
         include tax where it applies.
       </p>
@@ -137,22 +137,22 @@ export default function TermsPage() {
       <h2>Your content, and ours</h2>
       <p>
         <strong>What you write stays yours.</strong> You give us permission to
-        process it only so far as we need to run Zodi and answer you &mdash; including
+        process it only so far as we need to run Zoli and answer you &mdash; including
         sending it to the AI providers described in our{" "}
         <a href="/privacy">Privacy Policy</a>.
       </p>
       <p>
-        Readings Zodi produces for you are yours to keep, share, and screenshot.
+        Readings Zoli produces for you are yours to keep, share, and screenshot.
       </p>
       <p>
-        Zodi itself &mdash; the software, the astrological interpretation system, the
-        name and the design &mdash; belongs to us. Using Zodi doesn&rsquo;t give you
+        Zoli itself &mdash; the software, the astrological interpretation system, the
+        name and the design &mdash; belongs to us. Using Zoli doesn&rsquo;t give you
         any rights in it.
       </p>
 
       <h2>Availability</h2>
       <p>
-        We&rsquo;ll try to keep Zodi running, but we can&rsquo;t promise it will
+        We&rsquo;ll try to keep Zoli running, but we can&rsquo;t promise it will
         always be available or uninterrupted. We may change or discontinue features.
         If we discontinue a paid feature you&rsquo;ve paid for, we&rsquo;ll refund the
         unused part.
@@ -160,7 +160,7 @@ export default function TermsPage() {
 
       <h2>Liability</h2>
       <p>
-        Zodi is provided &ldquo;as is&rdquo;. To the extent the law allows, we
+        Zoli is provided &ldquo;as is&rdquo;. To the extent the law allows, we
         aren&rsquo;t liable for decisions you make based on a reading, for indirect or
         consequential loss, or for anything beyond the amount you paid us in the
         twelve months before the claim.
@@ -181,7 +181,7 @@ export default function TermsPage() {
       <h2>Changes to these terms</h2>
       <p>
         We may update these terms. If a change materially affects you we&rsquo;ll tell
-        you by email or in the app before it takes effect. Continuing to use Zodi
+        you by email or in the app before it takes effect. Continuing to use Zoli
         after that means you accept the new version.
       </p>
 

@@ -161,7 +161,7 @@ export default function AdminPage() {
       style={{ background: "var(--sky)", padding: "clamp(20px, 4vw, 48px)" }}
     >
       <div className="mx-auto flex w-full flex-col" style={{ maxWidth: 780 }}>
-        <p className="micro-label" style={{ letterSpacing: "0.26em" }}>Zodi · private</p>
+        <p className="micro-label" style={{ letterSpacing: "0.26em" }}>Zoli · private</p>
         <h1 className="font-display" style={{ fontSize: "clamp(28px, 5vw, 40px)", marginTop: 4 }}>
           Spending
         </h1>
