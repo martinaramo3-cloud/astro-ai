@@ -175,3 +175,23 @@ def test_relationship_ruler_window_survives_timeline_trimming(monkeypatch):
     first = result["active_now"][0]
     assert "Mercury" in first["transit"]
     assert first["natal_rules_houses"] == [7]
+
+
+@pytest.mark.parametrize("question, tier", [
+    ("should I buy the next size up?", 2),
+    ("should I book the trip next week?", 2),
+    ("is this coffee place expensive?", 2),
+    ("should we go out tonight?", 2),
+])
+def test_ex_does_not_match_inside_other_words(question, tier):
+    """"ex" is a former partner, not the letters in "next", "text", "exam" and
+    "expensive". Substring matching sent every one of these to the deepest and
+    most expensive tier."""
+    assert classify_tier(question, HISTORY) == tier
+
+
+@pytest.mark.parametrize("question", [
+    "should I text him tonight?", "should I reach out to my ex?", "am I crazy for feeling this",
+])
+def test_genuinely_heavy_questions_still_reach_tier_four(question):
+    assert classify_tier(question, HISTORY) == 4

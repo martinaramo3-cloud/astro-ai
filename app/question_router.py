@@ -212,6 +212,29 @@ _HEAVY = (
 )
 
 
+def _term_pattern(terms: tuple[str, ...]) -> "re.Pattern":
+    """Match these terms as words, not as letters found inside other words.
+
+    Plain substring matching sent "should I buy the next size up?" to the
+    deepest, most expensive tier, because "ex" is inside "next" — and inside
+    "text", "exam" and "expensive" too. Every one of those is a quick decision
+    that came back as a full reading.
+
+    Most entries are stems on purpose: "depress" has to reach "depressed", so
+    they anchor only at the start. Anything shorter than four letters is a
+    whole word ("ex" means a former partner) and anchors at both ends.
+    """
+    parts = [
+        rf"\b{re.escape(t)}\b" if len(t) < 4 else rf"\b{re.escape(t)}"
+        for t in terms
+    ]
+    return re.compile("|".join(parts), re.I)
+
+
+_HEAVY_RE = _term_pattern(_HEAVY)
+_LOW_STAKES_RE = _term_pattern(_LOW_STAKES)
+
+
 def classify_tier(question: str, history: list | None = None) -> int | None:
     """The tier when it can be known for certain, else None.
 
@@ -221,7 +244,7 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
     """
     q = (question or "").strip().lower().rstrip("?!.,")
     words = q.split()
-    heavy = any(term in q for term in _HEAVY)
+    heavy = bool(_HEAVY_RE.search(q))
 
     if conversational_cue(question):
         return TIER_GREETING
@@ -251,7 +274,7 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
     if heavy:
         return TIER_REAL
 
-    if any(term in q for term in _LOW_STAKES):
+    if _LOW_STAKES_RE.search(q):
         return TIER_QUICK
 
     if answered_before and len(words) <= 3:
