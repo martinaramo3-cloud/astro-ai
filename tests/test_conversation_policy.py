@@ -467,3 +467,41 @@ def test_the_prompt_says_not_to_lecture_or_reframe():
     assert "Never dispute what they say you said" in flat
     assert "Take the thing seriously first" in flat
     assert "said every turn it is a lecture" in flat
+
+
+# ── Who "him" is allowed to refer to ───────────────────────────────────────
+
+HIM = "Don't text him tonight. The pull is loudest when it's quiet, not when it matters."
+
+
+@pytest.mark.parametrize('said', [
+    'my bf', 'my gf', 'this guy', 'that girl', 'my dad', 'my mum',
+    'my brother', 'my sister', 'my son', 'my daughter',
+    'my husband', 'my ex boyfriend',
+])
+def test_the_user_naming_a_gender_licenses_the_pronoun(said):
+    state = conversation_state(f'should I text {said}', None, {'user': {'name': 'Ana'}})
+    assert review_issues(HIM, state) == []
+
+
+@pytest.mark.parametrize('said', ['my ex', 'my friend', 'my manager', 'my partner'])
+def test_a_neutral_word_licenses_nothing(said):
+    """"partner" is in here on purpose: it is gender-neutral, so treating it as
+    evidence would license a guess rather than support an answer."""
+    state = conversation_state(f'should I text {said}', None, {'user': {'name': 'Ana'}})
+    assert 'unsupported gendered pronouns' in review_issues(HIM, state)
+
+
+def test_a_saved_relationship_type_licenses_the_pronoun():
+    facts = {'user': {'name': 'Ana'},
+             'other_person': {'person_name': 'Luka', 'relationship_type': 'ex boyfriend'}}
+    assert review_issues(HIM, conversation_state('should I text my ex', None, facts)) == []
+
+
+def test_zoli_own_earlier_guess_is_not_evidence():
+    """Assistant text must never license the next assumption — otherwise one
+    guess becomes permission for every one after it."""
+    history = [{'role': 'user', 'content': 'should I text my ex'},
+               {'role': 'assistant', 'content': 'He is probably waiting for you to go first.'}]
+    state = conversation_state('and tomorrow?', history, {'user': {'name': 'Ana'}})
+    assert 'unsupported gendered pronouns' in review_issues(HIM, state)

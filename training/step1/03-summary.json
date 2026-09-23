@@ -1,0 +1,28 @@
+{
+  "model_that_would_be_used": "gpt-4.1-mini",
+  "answer_tier_chosen": 4,
+  "max_output_tokens_allowed": 550,
+  "system_half_characters": 17766,
+  "user_half_characters": 27801,
+  "ratio_data_to_instructions": 1.6,
+  "top_level_data_keys": [
+    "active_transits",
+    "answer_tier",
+    "ascendant",
+    "birth_time_known",
+    "chart_structure",
+    "conversation_cue",
+    "midheaven",
+    "past_conversations",
+    "personal_planets",
+    "prediction",
+    "predictive_timeline",
+    "question_type",
+    "relevant_aspects",
+    "relevant_planets",
+    "relevant_transits",
+    "requested_detail",
+    "sky_now",
+    "sources"
+  ]
+}
