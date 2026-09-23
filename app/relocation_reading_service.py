@@ -89,6 +89,40 @@ def _in_words(factors: list) -> str:
     return ""
 
 
+def _plain_city(city: dict) -> dict:
+    """One ranked place, with nothing in it that can't be said out loud.
+
+    Telling the model not to name a planet loses to a payload where every
+    factor is named after one: it repeats what it was given, review throws the
+    draft out for jargon, and the fallback report ships instead — on a question
+    whose ranking was right the whole time. So in everyday mode it simply isn't
+    given them. The glosses carry the meaning; the placements carry none of it.
+    """
+    return {
+        "place": city["place"],
+        "rank": city["rank"],
+        "strongest_areas": city.get("strongest_areas"),
+        "weakest_area": city.get("weakest_area"),
+        "good_for": [g for g in (_gloss(a) for a in city.get("advantages") or []) if g][:3],
+        "costs": [g for g in (_gloss(t) for t in city.get("tradeoffs") or []) if g][:2],
+        "by_area": city.get("by_area"),
+    }
+
+
+# A ruler factor reads "ruler of the 2nd (Jupiter) in the 11th", so the bracket
+# holds a planet rather than a meaning. Those are dropped rather than repeated.
+_PLANETS = {"sun", "moon", "mercury", "venus", "mars", "jupiter", "saturn",
+            "uranus", "neptune", "pluto", "chiron", "north node"}
+
+
+def _gloss(factor: str) -> str:
+    match = re.search(r'\(([^)]+)\)', factor or "")
+    if not match:
+        return ""
+    inside = match.group(1).strip()
+    return "" if inside.casefold() in _PLANETS else inside
+
+
 def prepare_relocation(question: str, birth_date: str, natal: dict, request: dict) -> tuple[dict, str]:
     natal_context = {'source': 'natal', 'house_system': 'Placidus', 'rulership_system': 'traditional',
                      'house_rulers': get_house_rulers(natal['houses'], natal['planet_positions'])}
@@ -116,7 +150,14 @@ def prepare_relocation(question: str, birth_date: str, natal: dict, request: dic
         except Exception as exc:
             print('Relocation search failed:', type(exc).__name__)
             result = {'source': 'relocated_natal', 'status': 'failed', 'best': [], 'message': FAILURE}
-        context = {'where_to_live': result, 'natal': natal_context,
+        # Everyday mode gets the ranking in words; only an explicit request for
+        # the astrology gets the placements behind it.
+        from app.conversation_service import astrology_requested
+        shown = dict(result)
+        if result['status'] in ('ok', 'partial') and not astrology_requested(question):
+            shown['best'] = [_plain_city(c) for c in result['best']]
+            shown.pop('worst', None)
+        context = {'where_to_live': shown, 'natal': natal_context,
                    'techniques': {'relocated_natal': 'the birth chart seen from another place: same planets, different houses and angles'},
                    'natal_transits': {'source': 'transit_to_natal', 'included': False,
                                       'reason': 'Not substituted for a relocation ranking.'}}

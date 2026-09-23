@@ -418,3 +418,44 @@ def test_the_plain_report_says_reasons_not_placements():
     state["must_mention"] = [c["place"] for c in result["best"][:3]]
     state["max_words"] = 690
     assert review_issues(text, state) == []
+
+
+def test_everyday_relocation_context_contains_nothing_it_cannot_say():
+    """Telling the model not to name a planet loses to a payload where every
+    factor is named after one. In everyday mode it isn't given them at all, so
+    the draft can't repeat one, get thrown out for jargon, and fall back to a
+    bare report on a question whose ranking was correct all along."""
+    import json
+    from types import SimpleNamespace
+    from app.main import build_natal_chart_data
+    from app.question_router import detect_relocation_request
+    from app.relocation_reading_service import prepare_relocation
+
+    birth = SimpleNamespace(birth_date="1999-03-02", birth_time="07:15",
+                            birth_place="Sofia, Bulgaria", birth_time_known=True)
+    natal = build_natal_chart_data(birth)
+    question = "where should i live"
+    context, _ = prepare_relocation(question, birth.birth_date, natal,
+                                    detect_relocation_request(question))
+    payload = json.dumps(context["where_to_live"])
+    for word in ("Jupiter", "Venus", "Saturn", "Mercury", "Pluto", "Chiron",
+                 "Ascendant", "Midheaven"):
+        assert word not in payload, f"{word} reached an everyday relocation prompt"
+    first = context["where_to_live"]["best"][0]
+    assert first["good_for"] and first["strongest_areas"]
+
+
+def test_asking_for_the_astrology_still_gets_the_placements():
+    from types import SimpleNamespace
+    import json
+    from app.main import build_natal_chart_data
+    from app.question_router import detect_relocation_request
+    from app.relocation_reading_service import prepare_relocation
+
+    birth = SimpleNamespace(birth_date="1999-03-02", birth_time="07:15",
+                            birth_place="Sofia, Bulgaria", birth_time_known=True)
+    natal = build_natal_chart_data(birth)
+    question = "where should i live, and what in my chart shows that?"
+    context, _ = prepare_relocation(question, birth.birth_date, natal,
+                                    detect_relocation_request(question))
+    assert "advantages" in json.dumps(context["where_to_live"])
