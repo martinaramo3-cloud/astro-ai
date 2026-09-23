@@ -58,7 +58,10 @@ def render_places_to_live(result: dict) -> str:
         f"you lived there — an astrological comparison, not a forecast of how life would go."
     ]
     for city in best:
-        strongest = max(city['pathway_scores'], key=city['pathway_scores'].get)
+        # Under an overall ranking the areas are the useful thing to name; a
+        # single-purpose ranking has only its own sub-pathways.
+        strongest = (" and ".join(city['strongest_areas']) if city.get('strongest_areas')
+                     else max(city['pathway_scores'], key=city['pathway_scores'].get))
         reason = (city['advantages'] or ['No single standout factor.'])[0]
         lines.append(f"#{city['rank']} {city['place']} — strongest for {strongest}. {reason}")
     return '\n\n'.join(lines)

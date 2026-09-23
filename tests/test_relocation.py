@@ -348,3 +348,48 @@ def test_a_reading_that_names_the_cities_is_kept(client, account, monkeypatch):
     data = response.json()
     assert data["answer"] == written["text"]
     assert data["context"]["where_to_be"]["status"] == "ok"
+
+
+# ── An unqualified question gets the whole chart ───────────────────────────
+
+def test_where_should_i_live_scores_every_area_not_one():
+    """"live" used to be a home-and-family keyword, so "where should I live?"
+    ranked cities on the fourth house alone — answering a narrower question
+    than the one asked, without ever saying so."""
+    from app.question_router import detect_relocation_request
+    assert detect_relocation_request("where should i live")["purpose"] == "overall"
+    assert detect_relocation_request("what city am i most aligned with")["purpose"] == "overall"
+    # Naming an area still selects it.
+    assert detect_relocation_request("where should i live with my family")["purpose"] == "home and family"
+    assert detect_relocation_request("best city for my career")["purpose"] == "career"
+
+
+def test_every_area_gets_an_equal_vote():
+    """Area tables are not on a shared scale, so a raw sum would rank cities by
+    whichever table is most generous rather than by fit."""
+    from app.relocation_scoring import combine_area_scores
+    cities = [
+        {"place": "Generous", "by_area": {"money": 100.0, "love": 1.0}},
+        {"place": "Balanced", "by_area": {"money": 50.0, "love": 10.0}},
+    ]
+    combine_area_scores(cities)
+    # Balanced wins: it takes half the money field and all of the love field,
+    # where a raw sum would have handed it to the bigger money number.
+    assert cities[1]["score"] > cities[0]["score"]
+    assert cities[0]["strongest_areas"][0] == "money"
+    assert cities[1]["weakest_area"] == "money"
+
+
+def test_an_overall_ranking_reports_what_each_place_is_for():
+    from datetime import datetime
+    import pytz
+    from app.relocation_service import rank_places_to_live
+    from app.european_cities import as_places
+    result = rank_places_to_live(
+        datetime(2004, 11, 11, 6, 15, tzinfo=pytz.utc), purpose="overall",
+        places=as_places("europe")[:12], top=3)
+    assert result["status"] == "ok"
+    for city in result["best"]:
+        assert len(city["strongest_areas"]) == 2
+        assert set(city["by_area"]) == {"career", "home and family", "love",
+                                        "money", "social life", "study", "visibility"}

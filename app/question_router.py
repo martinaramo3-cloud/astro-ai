@@ -312,8 +312,17 @@ _PURPOSE_WORDS = {
     "social life": ("friends", "social", "people", "community", "network"),
     "study": ("study", "studying", "university", "degree", "course", "learn",
               "research", "phd", "masters"),
-    "home and family": ("home", "family", "settle", "roots", "house", "live"),
+    # "live" and "settle" are not in here on purpose. They say someone is
+    # asking about moving, not what they want out of it — and while they were,
+    # "where should I live?" scored the fourth house alone and answered a
+    # question about a whole life as though it were only about family.
+    "home and family": ("home", "family", "roots", "house", "domestic"),
 }
+
+# Nothing in the question says what it is for. Score every area and rank on the
+# combination, rather than picking one and quietly answering a narrower
+# question than the one asked.
+PURPOSE_OVERALL = "overall"
 
 
 def detect_relocation_request(question: str) -> dict | None:
@@ -334,7 +343,7 @@ def detect_relocation_request(question: str) -> dict | None:
 
     # Most specific wins: "where should I be for my career" is career even
     # though it also mentions money, if it does.
-    purpose = "money"
+    purpose = PURPOSE_OVERALL
     best = 0
     for name, words in _PURPOSE_WORDS.items():
         hits = sum(1 for word in words if word in lowered)

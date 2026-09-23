@@ -429,3 +429,44 @@ def score_chart(chart: dict, purpose: str = "money") -> dict:
         "tradeoffs": [r for r in reasons if " -" in r],
         "why": reasons,
     }
+
+
+# When the question doesn't say what it's for.
+OVERALL = "overall"
+
+
+def score_every_purpose(chart: dict) -> dict:
+    """Every area scored for one chart, keyed by purpose.
+
+    Asked "where should I live?", the app used to pick a single area and rank
+    on that alone — which answers a narrower question than the one asked, and
+    the person never finds out a narrower one was answered.
+    """
+    return {purpose: score_chart(chart, purpose) for purpose in PURPOSES}
+
+
+def combine_area_scores(per_city: list[dict]) -> None:
+    """Turn each city's per-area scores into one comparable number, in place.
+
+    The area tables aren't on a shared scale — money can reach numbers love
+    never will — so summing them raw would rank every city by whichever table
+    happens to be most generous. Each area is normalised against the best city
+    in that area first, so every area gets an equal vote, and `by_area` keeps
+    the real numbers for the reading to talk about.
+    """
+    if not per_city:
+        return
+    areas = list(per_city[0]["by_area"])
+    peak = {
+        area: max((abs(city["by_area"][area]) for city in per_city), default=0.0) or 1.0
+        for area in areas
+    }
+    for city in per_city:
+        shares = {area: city["by_area"][area] / peak[area] for area in areas}
+        # ×10 so the combined figure sits in the same rough range as a single
+        # area's score, rather than reading as a fraction.
+        city["score"] = round(sum(shares.values()) / len(areas) * 10, 2)
+        city["strongest_areas"] = [
+            area for area, _ in sorted(shares.items(), key=lambda kv: -kv[1])[:2]
+        ]
+        city["weakest_area"] = min(shares, key=shares.get)

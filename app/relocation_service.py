@@ -192,8 +192,9 @@ def rank_places_for(
     because they tie under a finite scoring model. Failed candidates are reported.
     """
     from app.european_cities import as_places
-    from app.relocation_scoring import PURPOSES, score_chart
-    if purpose not in PURPOSES:
+    from app.relocation_scoring import (
+        OVERALL, PURPOSES, combine_area_scores, score_chart, score_every_purpose)
+    if purpose != OVERALL and purpose not in PURPOSES:
         raise ValueError("No scoring method for the requested purpose")
     if not 1 <= top <= 10:
         raise ValueError("Request between one and ten ranked cities")
@@ -209,7 +210,13 @@ def rank_places_for(
             zone = pytz.timezone(place["timezone"])
             local = moment.astimezone(zone)
             chart["natal_planets"] = natal_planets or []
-            result = score_chart(chart, purpose)
+            if purpose == OVERALL:
+                every = score_every_purpose(chart)
+                by_area = {area: every[area]["score"] for area in every}
+                result = every[max(by_area, key=by_area.get)]
+            else:
+                by_area = None
+                result = score_chart(chart, purpose)
             rulers = chart["house_rulers"]
             conditions = []
             for name in ("Jupiter", "Venus", "Saturn"):
@@ -229,6 +236,7 @@ def rank_places_for(
                         for aspect in get_aspects([angle, {**natal, "planet": "natal " + natal["planet"]}]):
                             natal_contacts.append({**aspect, "source": "relocated_solar_return_to_natal"})
             scored.append({
+                **({"by_area": by_area} if by_area is not None else {}),
                 "source": "relocated_solar_return", "place": place["label"],
                 "latitude": place["latitude"], "longitude": place["longitude"],
                 "house_system": "Placidus", "rulership_system": "traditional",
@@ -249,6 +257,8 @@ def rank_places_for(
         return {"source": "relocated_solar_return", "status": "failed", "searched": len(candidates),
                 "calculated": 0, "failed_candidates": failed, "best": [],
                 "message": "The city calculation failed. I cannot rank locations from natal transits instead."}
+    if purpose == OVERALL:
+        combine_area_scores(scored)
     scored.sort(key=lambda p: (-p["score"], p["place"]))
     # Ties get the same rank but retain independent coordinates, houses and times.
     rank = 0
@@ -257,10 +267,14 @@ def rank_places_for(
             rank = index + 1
         candidate["rank"] = rank
     spread = round(scored[0]["score"] - scored[-1]["score"], 2)
+    # Only money reports its sub-pathways, and only money can: under an overall
+    # ranking each city's breakdown comes from whichever area it scored best
+    # in, so the keys differ from one city to the next.
     winners = {}
-    for pathway in scored[0]["pathway_scores"]:
-        best_score = max(p["pathway_scores"][pathway] for p in scored)
-        winners[pathway] = {"score": best_score, "places": [p["place"] for p in scored if p["pathway_scores"][pathway] == best_score]}
+    if purpose == "money":
+        for pathway in scored[0]["pathway_scores"]:
+            best_score = max(p["pathway_scores"][pathway] for p in scored)
+            winners[pathway] = {"score": best_score, "places": [p["place"] for p in scored if p["pathway_scores"][pathway] == best_score]}
     return {
         "source": "relocated_solar_return", "status": "partial" if failed else "ok",
         "purpose": purpose, "year": year, "region": region,
@@ -298,9 +312,10 @@ def rank_places_to_live(
     cities to be in for a single evening, complete with an arrival time.
     """
     from app.european_cities import as_places
-    from app.relocation_scoring import PURPOSES, score_chart
+    from app.relocation_scoring import (
+        OVERALL, PURPOSES, combine_area_scores, score_chart, score_every_purpose)
 
-    if purpose not in PURPOSES:
+    if purpose != OVERALL and purpose not in PURPOSES:
         raise ValueError("No scoring method for the requested purpose")
     if not 1 <= top <= 10:
         raise ValueError("Request between one and ten ranked cities")
@@ -314,8 +329,18 @@ def rank_places_to_live(
         try:
             chart = chart_for(birth_moment, place["latitude"], place["longitude"], planets=planets)
             chart["natal_planets"] = natal_planets or []
-            result = score_chart(chart, purpose)
+            if purpose == OVERALL:
+                # Every area, so an unqualified question gets a whole answer.
+                # The combined figure needs the full field to normalise
+                # against, so it is filled in after the loop.
+                every = score_every_purpose(chart)
+                by_area = {area: every[area]["score"] for area in every}
+                result = every[max(by_area, key=by_area.get)]
+            else:
+                by_area = None
+                result = score_chart(chart, purpose)
             scored.append({
+                **({"by_area": by_area} if by_area is not None else {}),
                 "source": "relocated_natal", "place": place["label"],
                 "latitude": place["latitude"], "longitude": place["longitude"],
                 "timezone": place.get("timezone"),
@@ -337,6 +362,8 @@ def rank_places_to_live(
                 "calculated": 0, "failed_candidates": failed, "best": [],
                 "message": "The relocation calculation failed. I cannot rank places from natal transits instead."}
 
+    if purpose == OVERALL:
+        combine_area_scores(scored)
     scored.sort(key=lambda p: (-p["score"], p["place"]))
     rank = 0
     for index, candidate in enumerate(scored):
@@ -353,6 +380,14 @@ def rank_places_to_live(
         "scoring_reviewed_by_astrologer": False,
         "score_unit": "heuristic points, not /100 and not a probability",
         "note": (
+            ("Nothing in the question said what it was for, so every area was "
+             "scored and the ranking is the combination — each area normalised "
+             "so none outvotes the others by having a bigger table. "
+             "'by_area' holds the real per-area figures and 'strongest_areas' "
+             "the two each city leads on: say what a place is good FOR, not "
+             "just that it ranked. A city can top the list and still be the "
+             "weakest of them for one thing, and that is worth saying. "
+             if purpose == "overall" else "") +
             "How each city's relocated birth chart scores for this purpose — a "
             "place to live in, not a birthday to travel for. The planets and the "
             "aspects between them are identical everywhere; only the houses and "
