@@ -1536,7 +1536,11 @@ def ask_compatibility(
             facts["other_person"] = {k: saved[k] for k in ("person_name", "birth_date", "relationship_type", "label") if saved.get(k)}
     attach_conversation(context, data.question, data.history, facts)
     state = context["conversation"]
-    context["answer_tier"] = 3 if state["kind"] == "follow_up" else 4
+    # Judged on what was asked, like everywhere else. Hard-coding 3 for every
+    # follow-up meant a compatibility thread shrank to eighty words a turn
+    # however much the second message actually carried.
+    context["answer_tier"] = classify_tier(data.question, data.history) or (
+        3 if state["kind"] == "follow_up" else 4)
     prompt = build_ask_compatibility_prompt(context)
     answer, tokens = reviewed_answer(
         generate_compatibility_answer, prompt, context, model=model, user_id=user_id,

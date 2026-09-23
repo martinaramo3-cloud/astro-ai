@@ -44,13 +44,14 @@ function whenLabel(daysAway: number) {
   return `in ${Math.round(daysAway)} days`;
 }
 
-function hitLabel(event: CosmicEvent) {
-  const hit = event.natal_hits.find((h) => h.personal) ?? event.natal_hits[0];
-  if (!hit) return null;
-  const verb =
-    hit.aspect === "conjunction" ? "sits on" :
-    hit.aspect === "opposition" ? "opposes" : "squares";
-  return `${verb} your ${hit.natal_point}`;
+/** Whether this event touches their chart at all — not how.
+ *
+ * This used to return "squares your Mercury", which was appended to the
+ * question the button sends. That put chart jargon into the user's own
+ * message, and the answer came back speaking it. The fact that an event is
+ * personal is worth showing; the aspect and the planet are not. */
+function touchesTheirChart(event: CosmicEvent) {
+  return event.natal_hits.length > 0;
 }
 
 export default function CosmicAlert({
@@ -96,10 +97,15 @@ export default function CosmicAlert({
     setDismissed(true);
   };
 
-  const hit = hitLabel(event);
+  const hit = touchesTheirChart(event);
+  // The question deliberately carries no placement. It used to append "that
+  // squares your Rising", which put chart jargon into the user's own message —
+  // so the answer came back in the same vocabulary, on a tap the app itself
+  // offered. What the event touches is shown on the card instead, where it is
+  // a caption rather than something the person is made to say.
   const question = `There's a ${event.name} in ${event.sign} ${whenLabel(
     event.days_away,
-  )}${hit ? ` that ${hit}` : ""}. What does it mean for me?`;
+  )}. What does it mean for me?`;
 
   return (
     <div
@@ -127,7 +133,7 @@ export default function CosmicAlert({
               className="font-reading mt-1"
               style={{ fontSize: 15, lineHeight: 1.6, color: "var(--ink-2)" }}
             >
-              It {hit} — this one lands close to home.
+              This one lands close to home.
             </p>
           )}
           {onAsk && (

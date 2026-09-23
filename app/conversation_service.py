@@ -18,22 +18,33 @@ def normalize_history(history, question):
 
 
 def astrology_requested(question: str) -> bool:
-    q = question.casefold().replace('’', "'").strip()
+    """Has this person actually asked for the astrology behind the answer?
+
+    Naming a sky event is not asking. "There's a Full Moon in Aries in 3 days.
+    What does it mean for me?" is a question about their life, and it used to
+    come back full of houses and squares — because two of these patterns fired
+    on a planet's name sitting near the word "mean". The app generates that
+    exact sentence on its own banner, so every person who tapped it got the
+    technical version of an answer they never asked for.
+
+    So the test is the request, not the vocabulary: asking about the chart,
+    asking to have it explained, or saying "astrologically". A full moon, a
+    retrograde or a sign on its own keeps the plain answer.
+    """
+    q = question.casefold().replace('\u2019', "'").strip()
     if re.search(r"\b(?:no astrology|without (?:the )?(?:astrology|jargon)|plain (?:english|language)|simpler|non.technical)\b", q):
         return False
     if re.fullmatch(r'(?:but |and |ok,? |okay,? )?why[?!. ]*', q):
         return True
     return bool(re.search(
         r"\b(?:explain (?:the )?astrology|astrological (?:reasoning|reason|explanation)|"
+        r"astrologically|in astrology terms|technically speaking|"
         r"what in (?:my|their|our|his|her|the) chart|which (?:planets?|transits?|aspects?|houses?)|"
-        # "what does his chart say" is as explicit a request for the astrology
-        # as any, and it was being answered as ordinary conversation.
+        # "what does his chart say" is as explicit a request as any.
         r"(?:what|how)(?:'s| is| does| do)?.{0,25}\b(?:my|their|our|his|her|the|its) chart\b|"
         r"\b(?:read|look at|check)\b.{0,25}\bchart\b|"
-        r"(?:why|how).{0,45}(?:chart|transit|planet|aspect)|"
-        r"(?:explain|show|tell|interpret|analy[sz]e|analysis|focus).{0,65}(?:chart|planet|transit|aspect|houses?|jupiter|venus|saturn)|"
-        r"(?:what|how).{0,35}(?:saturn|venus|mars|moon|jupiter|mercury|chiron|pluto|neptune|uranus|retrograde)|"
-        r"(?:saturn|venus|mars|moon|jupiter|mercury|chiron|pluto|neptune|uranus).{0,35}(?:mean|affect|square|trine|opposition|conjunct)|"
+        r"(?:why|how).{0,45}(?:chart|transit|placement|aspect)|"
+        r"(?:explain|show|interpret|analy[sz]e|analysis).{0,65}(?:chart|placement|transit|aspect|houses?)|"
         r"technical (?:reading|analysis|explanation))\b", q, re.S))
 
 

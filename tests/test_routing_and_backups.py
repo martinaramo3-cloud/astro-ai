@@ -145,3 +145,55 @@ def test_a_place_question_never_gets_the_two_person_fallback():
     ]
     state = conversation_state("remember I told you i live in new york, but idk if its the right choice", history)
     assert "what they intend" not in safe_reply(state)
+
+
+# ── A sky event is not a request for the astrology ─────────────────────────
+
+@pytest.mark.parametrize("question", [
+    "There's a Full Moon in Aries in 3 days. What does it mean for me?",
+    "There's a Full Moon in Aries in 3 days that squares your Rising. What does it mean for me?",
+    "what does the full moon mean for me",
+    "what does venus mean",
+    "how does saturn affect me",
+    "Mercury retrograde starts tomorrow, what does it mean",
+])
+def test_naming_a_sky_event_stays_in_plain_language(question):
+    """The app generates the first of these on its own banner. Every person who
+    tapped it got houses and squares back, because a planet's name sitting near
+    the word "mean" was treated as a request for the technical version."""
+    from app.conversation_service import astrology_requested
+    assert astrology_requested(question) is False
+
+
+@pytest.mark.parametrize("question", [
+    "what in my chart shows that", "explain the astrology", "why astrologically",
+    "which planet is doing this", "can you read his chart", "what's in her chart",
+    "why?", "give me the technical reading", "in astrology terms what is this",
+])
+def test_actually_asking_for_it_still_works(question):
+    from app.conversation_service import astrology_requested
+    assert astrology_requested(question) is True
+
+
+# ── Stakes decide the size, not position in the thread ─────────────────────
+
+THREAD = [{"role": "user", "content": "should I text my ex boyfriend"},
+          {"role": "assistant", "content": "Not tonight. Wait until Thursday."}]
+
+
+def test_a_short_follow_up_with_real_news_is_not_a_one_liner():
+    from app.question_router import classify_tier
+    assert classify_tier("wait he cheated??", THREAD) == 4
+
+
+@pytest.mark.parametrize("question", ["so yes??", "wait really", "and the boots", "ok but"])
+def test_quick_replies_stay_quick(question):
+    from app.question_router import classify_tier
+    assert classify_tier(question, THREAD) == 3
+
+
+def test_a_short_question_with_stakes_goes_to_the_classifier():
+    """"is he serious?" is three words and was forced to Tier 3 on length
+    alone. It now falls through to be judged on content."""
+    from app.question_router import classify_tier
+    assert classify_tier("is he serious?", THREAD) is None
