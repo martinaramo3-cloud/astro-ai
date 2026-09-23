@@ -375,3 +375,33 @@ def test_asking_about_a_chart_is_an_astrology_request(question):
     assert state['mode'] == 'astrology_on_request'
     tokens, _ = budget_for(question, 3, state)
     assert tokens >= main.ANSWER_CEILING[4]
+
+
+@pytest.mark.parametrize('draft', [
+    "I don't have memory of a storyline between chats — but I hear you right now.",
+    "As an AI, I can't know what he's thinking.",
+    "I can't see your other conversations, so tell me again.",
+])
+def test_it_never_narrates_its_own_limits(draft):
+    """Announcing what it cannot recall is both worse product and untrue: it is
+    handed the title, opening question and subject of every other conversation.
+    Nobody asked what it can't do."""
+    assert 'narrates its own limits instead of answering' in review_issues(
+        draft, conversation_state('why do i keep doing this?'))
+
+
+@pytest.mark.parametrize('draft', [
+    'That urgency is real, but it is the peak, not the answer.',
+    'I can see this has been building since September. What changed last week?',
+])
+def test_answering_from_what_it_has_still_passes(draft):
+    assert review_issues(draft, conversation_state('why do i keep doing this?')) == []
+
+
+def test_other_conversations_reach_the_prompt():
+    """The wiring was removed and the guidance with it, so the app told people
+    outright that it had no memory of anything they had said before."""
+    from app.ai_context_service import build_ask_astrologer_system
+    prompt = build_ask_astrologer_system()
+    assert 'past_conversations' in prompt
+    assert 'Never narrate your own machinery' in prompt

@@ -14,6 +14,7 @@ from app.profile_service import (
     update_profile,
 )
 from app.chat_service import (
+    summarize_recent_sessions,
     create_chat_session,
     get_chat_session_by_id,
     list_chat_sessions,
@@ -1146,7 +1147,13 @@ def _prepare_astrologer_call(
                             "house_system": "Placidus", "rulership_system": "traditional"},
         "prediction": build_prediction(natal_data, active_transits, question_type),
         # Titles only, so a question can be picked back up across sessions.
-
+        # Without this the app told people outright that it had no memory of
+        # anything they had said before, which is both a worse product and
+        # untrue — it has the shape of every other conversation, just not the
+        # contents.
+        "past_conversations": summarize_recent_sessions(
+            user_id, exclude_session_id=data.session_id
+        ),
     }
 
     if image_context:

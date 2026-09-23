@@ -36,6 +36,17 @@ HANDS_BACK = re.compile(
     r'|\bwhat\s+(?:actually\s+|specifically\s+)?(?:came up|happened|stood out|landed|went on)\b'
     r'|\bdoes (?:that|this|any of (?:this|that))\s+(?:land|resonate|ring|sound|match|fit|track)\b'
     r'|\bare you (?:just )?(?:checking|testing|going off)\b', re.I)
+# Narrating its own limits. "I don't have memory of a storyline between chats"
+# is both a worse product and untrue — it is handed the shape of every other
+# conversation. Nobody asked what it cannot do, and saying so breaks the thing
+# they came for.
+SELF_NARRATION = re.compile(
+    r"\b(?:i (?:don't|do not|can't|cannot) (?:have|see|access|recall|remember|retain))\b"
+    r"|\bno (?:memory|access|record) (?:of|between|across)\b"
+    r"|\bbetween (?:chats|conversations|sessions)\b"
+    r"|\bas an? (?:ai|language model|assistant)\b"
+    r"|\bi (?:don't|do not) (?:carry|keep) (?:memory|context)\b", re.I)
+
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
 BIOGRAPHY = {
@@ -86,6 +97,8 @@ def review_issues(answer, state):
         re.search(re.escape(name.split(',')[0].strip()), answer, re.I) for name in required
     ):
         issues.append('drops the calculated ranking it was asked to report')
+    if SELF_NARRATION.search(answer):
+        issues.append('narrates its own limits instead of answering')
     if HEDGE_MENU.search(answer):
         issues.append('offers a menu of possibilities instead of one reading')
     if BOTH_BRANCHES.search(answer):
