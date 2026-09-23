@@ -218,3 +218,32 @@ def test_the_timeline_reaches_two_years_for_the_questions_that_need_it():
     from app.transit_timing_service import HORIZON_MONTHS
     assert HORIZON_MONTHS["relationship"] >= 24
     assert HORIZON_MONTHS["career"] >= 24
+
+
+@pytest.mark.parametrize("statement", [
+    "I feel so close to new york and the US overall ever since I was younger",
+    "we faught and honestly im done",
+    "i tend to confuse not chasing with being mean lol",
+    "im so good with my ex right now its weird",
+    "I was updating him about my day and he ignored me",
+])
+def test_telling_it_about_yourself_gets_a_real_answer(statement):
+    """Almost none of these arrive with a question mark, so nothing in the text
+    asks for an answer — and they were getting eighty words of agreement. This
+    is how the conversations the app exists for actually open."""
+    assert classify_tier(statement, HISTORY) == 4
+
+
+@pytest.mark.parametrize("small", [
+    ("i want the black boots tonight", 2),
+    ("is this jacket a mistake?", 2),
+    ("so yes??", 3),
+    ("and the boots", 3),
+    ("hi", 1),
+    ("thanks", 1),
+])
+def test_small_things_stay_small(small):
+    """A first-person sentence about an outfit is still an outfit. The rule sits
+    after the low-stakes check for exactly this reason."""
+    question, tier = small
+    assert classify_tier(question, HISTORY) == tier

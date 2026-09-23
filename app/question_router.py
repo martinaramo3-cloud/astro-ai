@@ -201,6 +201,21 @@ _LOW_STAKES = (
     "trip", "watch", "cook", "gym", "workout",
 )
 
+# A sentence about themselves. Matched on the subject rather than on emotional
+# vocabulary: "I feel so close to New York" is as much a confidence as "I feel
+# awful", and the topic does not have to sound emotional for the sentence to be
+# one. Listing feeling-words missed most of how people actually write — "we
+# fought and honestly im done" has no feeling word in it at all.
+_FIRST_PERSON = re.compile(r"\b(?:i|i'?m|i'?ve|i'?d|i'?ll|me|my|myself)\b", re.I)
+
+# Plenty of questions arrive without a question mark — "is he thinking about
+# me", "do you think he likes me", "what's going on with me". They contain a
+# first person and are not confidences, so the opening word decides.
+_ASKS = re.compile(
+    r"^(?:but |and |so |ok,? |okay,? )*"
+    r"(?:what|why|how|when|where|who|which|is|are|was|were|do|does|did|can|could|"
+    r"will|would|should|shall|am|has|have|had|tell me|does he|does she)\b", re.I)
+
 # Things that are never small, whatever they look like.
 _HEAVY = (
     "ex", "love", "heartbreak", "heart broken", "broke up", "breakup",
@@ -272,11 +287,27 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
     if answered_before and len(words) <= 5 and q.startswith(_FOLLOWUP_STARTS):
         return TIER_FOLLOWUP
 
+    # Someone telling you how they feel has not asked a question, so nothing in
+    # the text asks for an answer — and they were getting eighty words of
+    # agreement. "I feel so close to New York", "I'm so done with this", "I
+    # keep pulling away": these are the openings of the conversations this app
+    # exists for, and they arrive as statements almost every time.
     if heavy:
         return TIER_REAL
 
     if _LOW_STAKES_RE.search(q):
         return TIER_QUICK
+
+    # Someone telling you about themselves has not asked a question, so nothing
+    # in the text asks for an answer — and it was getting eighty words of
+    # agreement. "I feel so close to New York", "we fought and honestly im
+    # done", "I tend to confuse not chasing with being mean": this is how the
+    # conversations this app exists for actually open, and almost none of them
+    # arrive with a question mark. Checked after the small decisions, so "I
+    # want the black boots tonight" stays a small decision.
+    if (len(words) >= 5 and "?" not in (question or "")
+            and not _ASKS.match(q) and _FIRST_PERSON.search(q)):
+        return TIER_REAL
 
     if answered_before and len(words) <= 3:
         return TIER_FOLLOWUP
