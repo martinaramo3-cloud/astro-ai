@@ -195,3 +195,26 @@ def test_ex_does_not_match_inside_other_words(question, tier):
 ])
 def test_genuinely_heavy_questions_still_reach_tier_four(question):
     assert classify_tier(question, HISTORY) == 4
+
+
+def test_the_prompt_still_explains_how_to_answer_when():
+    """The timing engine searches two years ahead and returns real windows with
+    exact dates. It was still being sent to the model after a prompt rewrite
+    removed every instruction about what it was — so the data arrived and the
+    answers went back to having no dates in them at all. The engine being wired
+    up is not the same as the model knowing what to do with it."""
+    from app.ai_context_service import build_ask_astrologer_system
+    prompt = build_ask_astrologer_system()
+    for key in ("predictive_timeline", "active_now", "starting_soon",
+                "major_ahead", "moon_triggers", "transits_on_asked_date"):
+        assert key in prompt, f"nothing tells the model what {key} is"
+    # Collapsed, because the prompt is hard-wrapped and the phrase spans lines.
+    flat = " ".join(prompt.lower().split())
+    assert "sometime in the autumn" in flat, "the rule against softening a date is gone"
+    assert "importance" in flat
+
+
+def test_the_timeline_reaches_two_years_for_the_questions_that_need_it():
+    from app.transit_timing_service import HORIZON_MONTHS
+    assert HORIZON_MONTHS["relationship"] >= 24
+    assert HORIZON_MONTHS["career"] >= 24
