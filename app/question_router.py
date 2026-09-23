@@ -37,14 +37,18 @@ def requested_detail(question: str) -> str | None:
 def classify_question(question: str) -> str:
     q = question.lower()
 
+    # Plurals are listed because the match is whole-word: "relationships" was
+    # not a relationship question, which is most of how anyone phrases one.
     relationship_keywords = [
-        "love", "relationship", "dating", "partner", "boyfriend", "girlfriend",
-        "crush", "romantic", "marriage", "breakup", "ex", "attraction"
+        "love", "relationship", "relationships", "dating", "partner", "partners",
+        "boyfriend", "girlfriend", "crush", "crushes", "romantic", "marriage",
+        "breakup", "breakups", "ex", "exes", "attraction", "situationship",
     ]
 
     emotional_keywords = [
-        "emotional", "emotion", "feel", "feeling", "sad", "anxious", "overwhelmed",
-        "mood", "crying", "sensitive", "inner", "intensive","mental health"
+        "emotional", "emotion", "emotions", "feel", "feels", "felt", "feeling",
+        "feelings", "sad", "anxious", "overwhelmed", "mood", "crying",
+        "sensitive", "inner", "intensive", "mental health",
     ]
 
     career_keywords = [
@@ -53,9 +57,16 @@ def classify_question(question: str) -> str:
         "business", "revenue", "profit", "profitable", "financial", "studio"
     ]
 
+    # "us" is not in here, and must not go back in: it matches the United
+    # States. One mention of the US classified a whole thread as a two-person
+    # compatibility reading, so "I live in New York, but idk if it's the right
+    # choice" was answered with "what have they actually said or done?".
+    # The phrases below carry the same meaning without the collision.
     compatibility_keywords = [
-        "compatible", "compatibility", "us", "together", "between us", "connection",
-        "relationship with", "long term", "chemistry"
+        "compatible", "compatibility", "together", "between us", "connection",
+        "relationship with", "long term", "chemistry", "about us", "us two",
+        "the two of us", "me and him", "me and her", "me and them",
+        "him and me", "her and me", "we two",
     ]
 
     if _contains(q, compatibility_keywords):

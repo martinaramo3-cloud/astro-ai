@@ -96,3 +96,52 @@ def test_a_backup_can_be_downloaded(client, admin, account):
     response = client.get(f"/admin/backups/{name}", headers=admin)
     assert response.status_code == 200
     assert response.content[:15] == b"SQLite format 3", "the download is not a database"
+
+
+# ── "US" is a country, not "us" ────────────────────────────────────────────
+
+@pytest.mark.parametrize("question", [
+    "i have always felt this pull to the US ever since I was younger",
+    "moving to the US",
+    "should i get a US visa",
+    "the US and New York",
+])
+def test_the_united_states_is_not_a_relationship(question):
+    """"us" used to be a compatibility keyword, so one mention of the US made a
+    whole thread a two-person reading — and "I live in New York, but idk if
+    it's the right choice" was answered with "what have they actually said or
+    done?"."""
+    from app.question_router import classify_question
+    assert classify_question(question) != "compatibility"
+
+
+@pytest.mark.parametrize("question", [
+    "tell me about us", "the two of us", "what's the chemistry between us",
+    "me and him", "are we long term",
+])
+def test_actual_two_person_questions_still_read_that_way(question):
+    from app.question_router import classify_question
+    assert classify_question(question) == "compatibility"
+
+
+@pytest.mark.parametrize("question, topic", [
+    ("why do i pull away in relationships", "relationship"),
+    ("my exes all do the same thing", "relationship"),
+    ("my feelings are all over the place", "emotional"),
+])
+def test_plurals_are_matched(question, topic):
+    """The match is whole-word, so "relationships" was not a relationship
+    question — which is most of how anyone phrases one."""
+    from app.question_router import classify_question
+    assert classify_question(question) == topic
+
+
+def test_a_place_question_never_gets_the_two_person_fallback():
+    from app.conversation_service import conversation_state
+    from app.answer_review_service import safe_reply
+    history = [
+        {"role": "user", "content": "i have always felt this pull to the US ever since I was younger"},
+        {"role": "assistant", "content": "That pull is real, not nostalgia dressed up as destiny."},
+    ]
+    state = conversation_state("remember I told you i live in new york, but idk if its the right choice", history)
+    assert "what they intend" not in safe_reply(state)
