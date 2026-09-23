@@ -54,6 +54,14 @@ SELF_NARRATION = re.compile(
     r"(?:memory|context|conversations|chats)\b"
     r"|\bi (?:don't|do not|can't|cannot) (?:have )?access\b", re.I)
 
+# Correcting them about what it said. It does not have its own previous
+# answers outside the open thread, so it is not in a position to, and the trade
+# is bad even when it is right: it wins a point and loses the conversation.
+LITIGATES = re.compile(
+    r"\bi (?:never|didn'?t|did not) (?:say|said|tell|told|claim|promise)\b"
+    r"|\bthat'?s not what i (?:said|meant)\b"
+    r"|\bi said .{0,30}\bnot\b", re.I)
+
 # Which problems are bad enough to replace the answer entirely. Everything else
 # — length, jargon, a stock phrase, a hedge — is a quality problem worth one
 # rewrite, and after that a flawed answer still beats "I don't have enough
@@ -121,6 +129,8 @@ def review_issues(answer, state):
         issues.append('drops the calculated ranking it was asked to report')
     if SELF_NARRATION.search(answer):
         issues.append('narrates its own limits instead of answering')
+    if LITIGATES.search(answer):
+        issues.append('argues about what it said instead of answering')
     if HEDGE_MENU.search(answer):
         issues.append('offers a menu of possibilities instead of one reading')
     if BOTH_BRANCHES.search(answer):

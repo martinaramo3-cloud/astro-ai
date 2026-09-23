@@ -439,3 +439,31 @@ def test_an_answer_that_invents_a_life_is_still_replaced():
         lambda *a, **k: ('Their children need attention right now.', 10),
         'prompt', {'conversation': state})
     assert 'children' not in answer
+
+
+@pytest.mark.parametrize('draft', [
+    "I never said late October guarantees anything with him specifically.",
+    "That's not what I said — the window is about you, not him.",
+    "I didn't tell you he would text.",
+])
+def test_it_does_not_argue_about_what_it_said(draft):
+    """It has the open thread and the titles of the others, so it is not in a
+    position to correct someone's memory of it — and the trade is bad even when
+    it is right. It wins the point and loses the conversation."""
+    assert 'argues about what it said instead of answering' in review_issues(
+        draft, conversation_state('but you told me that late october something might happen'))
+
+
+def test_taking_what_they_remember_and_moving_on_passes():
+    good = ("Late October is real: the 24th through the 9th. It sharpens old feelings "
+            "rather than bringing anyone back, so watch it, don't plan around it.")
+    assert review_issues(good, conversation_state(
+        'but you told me that late october something might happen')) == []
+
+
+def test_the_prompt_says_not_to_lecture_or_reframe():
+    from app.ai_context_service import build_ask_astrologer_system
+    flat = " ".join(build_ask_astrologer_system().split())
+    assert "Never dispute what they say you said" in flat
+    assert "Take the thing seriously first" in flat
+    assert "said every turn it is a lecture" in flat
