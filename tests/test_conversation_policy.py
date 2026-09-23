@@ -405,3 +405,37 @@ def test_other_conversations_reach_the_prompt():
     prompt = build_ask_astrologer_system()
     assert 'past_conversations' in prompt
     assert 'Never narrate your own machinery' in prompt
+
+
+@pytest.mark.parametrize('draft', [
+    "I don't have a date for that yet, but the shape of it is clear.",
+    "I can't see a fixed answer here, but here's what's building.",
+    "I don't have your birth time, so the houses are out — what time were you born?",
+])
+def test_ordinary_i_dont_have_is_not_self_narration(draft):
+    """The first version of this rule matched any "I don't have…", rejected
+    perfectly good answers, and pushed them all the way to the stock apology."""
+    assert review_issues(draft, conversation_state('where do you see me building a future')) == []
+
+
+def test_a_flawed_answer_beats_a_stock_apology():
+    """safe_reply used to replace the answer whenever a rewrite still had any
+    problem at all — including a stylistic one. Someone asking where they'd
+    build a future got "I don't have enough reliable information to be specific
+    about that yet", which is worse than an imperfect reading in every way."""
+    state = conversation_state('where do you see me building a future')
+    drafts = iter([
+        ('The chart shows a long reach toward somewhere far from home.', 10),   # stock phrasing
+        ('Your reach runs a long way from home — the chart shows it.', 10),      # still stock
+    ])
+    answer, _ = reviewed_answer(lambda *a, **k: next(drafts), 'prompt', {'conversation': state})
+    assert 'reliable information' not in answer
+    assert 'reach' in answer
+
+
+def test_an_answer_that_invents_a_life_is_still_replaced():
+    state = conversation_state('my friend is 22, why are they distant?')
+    answer, _ = reviewed_answer(
+        lambda *a, **k: ('Their children need attention right now.', 10),
+        'prompt', {'conversation': state})
+    assert 'children' not in answer

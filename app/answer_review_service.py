@@ -40,12 +40,34 @@ HANDS_BACK = re.compile(
 # is both a worse product and untrue — it is handed the shape of every other
 # conversation. Nobody asked what it cannot do, and saying so breaks the thing
 # they came for.
+# Narrow on purpose. The first version matched any "I don't have…", which
+# rejected "I don't have a date for that yet, but the shape of it is clear" —
+# a good answer — and pushed it all the way to the stock apology. This catches
+# talk about the machinery: memory, chats, access, being a model.
 SELF_NARRATION = re.compile(
-    r"\b(?:i (?:don't|do not|can't|cannot) (?:have|see|access|recall|remember|retain))\b"
-    r"|\bno (?:memory|access|record) (?:of|between|across)\b"
+    r"\b(?:memory|memories) (?:of|between|across|from)\b"
+    r"|\bno (?:memory|record|access)\b"
     r"|\bbetween (?:chats|conversations|sessions)\b"
+    r"|\byour other (?:chats|conversations)\b"
     r"|\bas an? (?:ai|language model|assistant)\b"
-    r"|\bi (?:don't|do not) (?:carry|keep) (?:memory|context)\b", re.I)
+    r"|\bi (?:don't|do not|can't|cannot) (?:carry|retain|store|keep) "
+    r"(?:memory|context|conversations|chats)\b"
+    r"|\bi (?:don't|do not|can't|cannot) (?:have )?access\b", re.I)
+
+# Which problems are bad enough to replace the answer entirely. Everything else
+# — length, jargon, a stock phrase, a hedge — is a quality problem worth one
+# rewrite, and after that a flawed answer still beats "I don't have enough
+# reliable information to be specific about that yet", which is what the person
+# actually received. These are the ones that are wrong about someone's life.
+SERIOUS = ("empty answer", "unsupported personal fact", "unsupported age",
+           "unqualified claim about another person", "unsupported gendered pronouns",
+           # A sentence that stops halfway is unservable whatever it says, and
+           # the rewrite already gets double the tokens to finish it.
+           "provider stopped before", "answer ends mid-sentence")
+
+
+def _serious(issues) -> list:
+    return [i for i in issues if i.startswith(SERIOUS)]
 
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
@@ -177,4 +199,11 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
         # Do not serve an unsafe draft if a correction cannot be generated.
         return (fallback or safe_reply(state)),tokens
     tokens+=extra
-    return (revised if not review_issues(revised,state) else (fallback or safe_reply(state))),tokens
+    remaining = review_issues(revised, state)
+    if not remaining:
+        return revised, tokens
+    # Only step in front of the answer when what's left could mislead them
+    # about their own life. A clumsy reading is still a reading.
+    if _serious(remaining) or fallback:
+        return (fallback or safe_reply(state)), tokens
+    return revised, tokens

@@ -298,6 +298,14 @@ _RELOCATION_PHRASES = (
     "relocat", "solar return", "solar-return", "best place", "best city", "best country",
     "which city", "which country", "spend my birthday", "travel for my birthday",
     "move to", "where would be best", "rank cities", "rank the cities",
+    # Asking where a life goes is asking the same question without the word
+    # "city" in it. "Where do you see me building a future" got answered as a
+    # vague feeling, with a ranking of 157 places sitting right there unused.
+    "where do you see me", "where do i belong", "where would i belong",
+    "where would i thrive", "where do i thrive", "where would i be happiest",
+    "where should i end up", "where do i end up", "where will i end up",
+    "building a future", "build a future", "build my life", "start over",
+    "where would i be happier", "where am i meant to be",
 )
 
 # The purposes there are scoring tables for, and the words that ask for each.
