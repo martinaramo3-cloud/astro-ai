@@ -393,3 +393,28 @@ def test_an_overall_ranking_reports_what_each_place_is_for():
         assert len(city["strongest_areas"]) == 2
         assert set(city["by_area"]) == {"career", "home and family", "love",
                                         "money", "social life", "study", "visibility"}
+
+
+def test_the_plain_report_says_reasons_not_placements():
+    """It is served when the written answer can't be salvaged, so a real person
+    reads it. "Jupiter in the 11th (gains, network) +5" is a working note."""
+    from datetime import datetime
+    import pytz
+    from app.relocation_service import rank_places_to_live
+    from app.relocation_reading_service import render_places_to_live
+    from app.answer_review_service import review_issues
+    from app.conversation_service import conversation_state
+    from app.european_cities import as_places
+
+    result = rank_places_to_live(
+        datetime(2004, 11, 11, 6, 15, tzinfo=pytz.utc), purpose="overall",
+        places=as_places("europe")[:14], top=3)
+    text = render_places_to_live(result)
+
+    for placement in ("Jupiter", "Venus", "Saturn", "Mercury", "10th", "11th", "+5", "+3"):
+        assert placement not in text, f"the report still says {placement!r}"
+
+    state = conversation_state("where should i live")
+    state["must_mention"] = [c["place"] for c in result["best"][:3]]
+    state["max_words"] = 690
+    assert review_issues(text, state) == []

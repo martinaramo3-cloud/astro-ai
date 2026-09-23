@@ -388,6 +388,11 @@ def rank_places_to_live(
              "just that it ranked. A city can top the list and still be the "
              "weakest of them for one thing, and that is worth saying. "
              if purpose == "overall" else "") +
+            "Every scored factor reads like 'Jupiter in the 11th (gains, network "
+            "and business growth) +5'. The words in brackets are the only part to "
+            "say out loud: give the reason, never the placement or the number. "
+            "Naming the planet or the house here is the one thing that gets a "
+            "whole city ranking thrown away and replaced with a plain report. "
             "How each city's relocated birth chart scores for this purpose — a "
             "place to live in, not a birthday to travel for. The planets and the "
             "aspects between them are identical everywhere; only the houses and "

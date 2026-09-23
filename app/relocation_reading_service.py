@@ -46,25 +46,47 @@ def render_relocation(result: dict, technical: bool = False) -> str:
 
 
 def render_places_to_live(result: dict) -> str:
+    """The plain report, served only when the written answer can't be fixed.
+
+    It still reaches a reader, so it says things in words rather than in
+    placements: the scoring already carries a plain gloss for every factor in
+    brackets, and that gloss is the only part of it anyone wants.
+    """
     if result['status'] not in ('ok', 'partial'):
         return result.get('message', FAILURE)
     best = result['best']
     first = best[0]
     tied = sum(c['score'] == first['score'] for c in best) > 1
+    overall = result['purpose'] == 'overall'
+    subject = 'across every area of life' if overall else f"for {result['purpose']}"
     lines = [
-        f"{first['place']} {'ties for first' if tied else 'comes out first'} of the "
-        f"{result['calculated']} places compared for living, on a {result['purpose']} reading. "
-        f"{result['does_location_matter']}. This is how each city's chart sits for you if "
-        f"you lived there — an astrological comparison, not a forecast of how life would go."
+        f"Out of {result['calculated']} places, {first['place']} "
+        f"{'ties for first' if tied else 'comes out first'} {subject}. "
+        f"{result['does_location_matter'].split(' — ')[-1].capitalize()}. "
+        "This is how each place's chart sits for you if you lived there, "
+        "not a forecast of how life would go."
     ]
     for city in best:
-        # Under an overall ranking the areas are the useful thing to name; a
-        # single-purpose ranking has only its own sub-pathways.
         strongest = (" and ".join(city['strongest_areas']) if city.get('strongest_areas')
                      else max(city['pathway_scores'], key=city['pathway_scores'].get))
-        reason = (city['advantages'] or ['No single standout factor.'])[0]
-        lines.append(f"#{city['rank']} {city['place']} — strongest for {strongest}. {reason}")
+        reason = _in_words(city['advantages'])
+        lines.append(f"{city['place']} — strongest for {strongest}"
+                     + (f", mostly {reason}." if reason else "."))
     return '\n\n'.join(lines)
+
+
+def _in_words(factors: list) -> str:
+    """The bracketed gloss from a scored factor, without the placement.
+
+    "Jupiter in the 11th (gains, network and business growth) +5" is a working
+    note, not something to say to somebody. The part in brackets is the part
+    that means anything outside an ephemeris.
+    """
+    for factor in factors or []:
+        gloss = re.search(r'\(([^)]+)\)', factor)
+        if gloss:
+            return gloss.group(1)
+    return ""
 
 
 def prepare_relocation(question: str, birth_date: str, natal: dict, request: dict) -> tuple[dict, str]:
