@@ -8,7 +8,16 @@ import re
 from difflib import SequenceMatcher
 from app.conversation_service import conversation_state
 
-JARGON = re.compile(r'\b(?:saturn|jupiter|venus|mars|mercury|neptune|uranus|pluto|chiron|ascendant|midheaven|natal|synastry|retrograde|conjunction|sextile|trine|opposition|chart ruler|\d+(?:st|nd|rd|th) house|moon|sun)\b', re.I)
+# Houses are written in words at least as often as in digits — "your first
+# house" sailed through a pattern that only knew "1st house", in the very
+# answer that was reported for being full of jargon.
+JARGON = re.compile(
+    r'\b(?:saturn|jupiter|venus|mars|mercury|neptune|uranus|pluto|chiron|'
+    r'ascendant|midheaven|natal|synastry|retrograde|conjunction|sextile|trine|'
+    r'opposition|chart ruler|'
+    r'(?:\d+(?:st|nd|rd|th)|first|second|third|fourth|fifth|sixth|seventh|'
+    r'eighth|ninth|tenth|eleventh|twelfth)\s+house|'
+    r'moon|sun)\b', re.I)
 STOCK = re.compile(r'\b(?:(?:the|your) chart (?:shows|says|suggests)|the energy is|emotional weather|the universe is|this is not a guarantee|what you(?:\'re| are) (?:actually|really) asking)\b', re.I)
 
 # Three ways an answer says nothing while sounding thorough. None of them trip
@@ -213,8 +222,15 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
     problems=review_issues(answer,state)
     if not problems:
         return answer,tokens
+    # Naming the exact words is the difference between a rewrite that works and
+    # one that fails the same check twice. "Technical astrology in an everyday
+    # reply" does not say which phrase to cut; a list does.
+    offending=sorted({m.group(0) for pattern in (JARGON,STOCK,SELF_NARRATION,LITIGATES,
+                                                 HEDGE_MENU,BOTH_BRANCHES)
+                      for m in pattern.finditer(answer)})
     repair=prompt+'\n\nDRAFT REVIEW — revise once, return only the replacement answer.\n'+json.dumps({
         'problems':problems,'draft':answer,
+        **({'remove_these_exact_words':offending} if offending else {}),
         'instruction':'Write a complete replacement, not a continuation. Finish every sentence. Answer the latest message. Remove repetitions and unsupported claims. Use only reported facts for biography, neutral wording for unknowns, and the requested presentation mode. Do not add new personal facts or new chart data.'},ensure_ascii=False)
     try:
         if on_repair: on_repair()

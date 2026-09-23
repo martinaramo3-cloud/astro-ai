@@ -505,3 +505,33 @@ def test_zoli_own_earlier_guess_is_not_evidence():
                {'role': 'assistant', 'content': 'He is probably waiting for you to go first.'}]
     state = conversation_state('and tomorrow?', history, {'user': {'name': 'Ana'}})
     assert 'unsupported gendered pronouns' in review_issues(HIM, state)
+
+
+@pytest.mark.parametrize('spelled', [
+    'This lands right on your first house.',
+    'It sits in your seventh house, which is partnership.',
+    'Your twelfth house is doing the work here.',
+])
+def test_houses_written_in_words_are_jargon_too(spelled):
+    """"your first house" went out in the answer that was reported for jargon,
+    because the pattern only knew "1st house"."""
+    assert 'technical astrology in an everyday reply' in review_issues(
+        spelled, conversation_state("There's a Full Moon in Aries. What does it mean for me?"))
+
+
+def test_the_repair_is_told_which_words_to_cut():
+    """A rewrite that is only told "technical astrology" fails the same check
+    twice. Naming the phrases is what makes the second attempt land."""
+    prompts = []
+
+    def generate(prompt, **kwargs):
+        prompts.append(prompt)
+        return ('Clean answer with nothing to object to.', 10) if len(prompts) > 1 \
+            else ('This lands on your first house. The energy is asking for more.', 10)
+
+    state = conversation_state("There's a Full Moon in Aries. What does it mean for me?")
+    answer, _ = reviewed_answer(generate, 'prompt', {'conversation': state})
+    assert answer == 'Clean answer with nothing to object to.'
+    assert 'remove_these_exact_words' in prompts[1]
+    assert 'first house' in prompts[1]
+    assert 'The energy is' in prompts[1]
