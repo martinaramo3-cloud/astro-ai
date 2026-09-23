@@ -77,6 +77,23 @@ SERIOUS = ("empty answer", "unsupported personal fact", "unsupported age",
 def _serious(issues) -> list:
     return [i for i in issues if i.startswith(SERIOUS)]
 
+# Words that establish how to refer to someone, found in the user's own
+# messages or in a saved person's label and relationship type. "ex boyfriend"
+# licenses "him"; "my ex", "my friend" and "my manager" license nothing,
+# because none of them says a gender.
+#
+# "partner" is deliberately absent: it is gender-neutral and would license a
+# guess rather than evidence an answer.
+#
+# Assistant text is never part of the evidence. Its own earlier guess must not
+# become the licence for the next one.
+GENDERED_EVIDENCE = re.compile(
+    r"\b(?:she|her|hers|he|him|his|"
+    r"boyfriend|girlfriend|bf|gf|husband|wife|fianc[e\u00e9]|fianc[e\u00e9]e|"
+    r"man|woman|guy|girl|dude|lad|bloke|"
+    r"dad|father|mum|mom|mother|brother|sister|son|daughter|"
+    r"uncle|aunt|grandad|grandpa|grandma|granny|nephew|niece)\b", re.I)
+
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
 BIOGRAPHY = {
@@ -163,7 +180,7 @@ def review_issues(answer, state):
     if re.search(r"\b(?:he|she|they)['’](?:s|re) (?:coming back|going to|in love)",answer,re.I) and not re.search(r"\b(?:may|might|could|possible|said|told)\b", answer,re.I):
         issues.append('unqualified claim about another person')
     # Pronouns in quoted user reports can establish usage; names and charts cannot.
-    if re.search(r'\b(?:she|her|he|him|his)\b',answer,re.I) and not re.search(r'\b(?:she|her|he|him|his|boyfriend|girlfriend|husband|wife|man|woman)\b',pronoun_evidence,re.I):
+    if re.search(r'\b(?:she|her|he|him|his)\b',answer,re.I) and not GENDERED_EVIDENCE.search(pronoun_evidence):
         issues.append('unsupported gendered pronouns')
     if state['kind']=='follow_up' and not state['recap_requested']:
         old=[s for text in state['previous_assistant_responses'] for s in _sentences(text) if len(s.split())>=6]
