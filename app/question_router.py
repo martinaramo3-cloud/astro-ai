@@ -295,16 +295,20 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
         (m.get("role") if isinstance(m, dict) else getattr(m, "role", None)) == "assistant"
         for m in (history or [])
     )
-    if answered_before and len(words) <= 5 and q.startswith(_FOLLOWUP_STARTS):
-        return TIER_FOLLOWUP
 
     # Someone telling you how they feel has not asked a question, so nothing in
     # the text asks for an answer — and they were getting eighty words of
     # agreement. "I feel so close to New York", "I'm so done with this", "I
     # keep pulling away": these are the openings of the conversations this app
     # exists for, and they arrive as statements almost every time.
+    # Stakes beat position. A follow-up is not automatically small: "wait he
+    # cheated??" is three words, arrives mid-thread, and is not a one-liner.
+    # This sits above the follow-up rules so that content always wins.
     if heavy:
         return TIER_REAL
+
+    if answered_before and len(words) <= 5 and q.startswith(_FOLLOWUP_STARTS):
+        return TIER_FOLLOWUP
 
     if _LOW_STAKES_RE.search(q):
         return TIER_QUICK
@@ -320,7 +324,9 @@ def classify_tier(question: str, history: list | None = None) -> int | None:
             and not _ASKS.match(q) and _FIRST_PERSON.search(q)):
         return TIER_REAL
 
-    if answered_before and len(words) <= 3:
+    # Short AND leaning on the last turn. Length alone was enough before, which
+    # made "is he serious?" a one-liner because it happens to be three words.
+    if answered_before and len(words) <= 3 and q.startswith(_FOLLOWUP_STARTS):
         return TIER_FOLLOWUP
 
     # Everything else is genuinely ambiguous. Guessing it from length is what
