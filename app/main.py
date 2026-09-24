@@ -1227,6 +1227,7 @@ def _prepare_astrologer_call(
     apply_tier(state, tier, requested_detail(data.question))
     if asks_for_timing(data.question) and _has_windows(chat_context.get("predictive_timeline")):
         state["expects_a_date"] = True
+        state["dates_available"] = _datable_windows(chat_context.get("predictive_timeline"))
     if tier == 1 and not image_context:
         # A social turn needs the exchange, not astrological evidence to fill
         # the silence. Keep history so laughter or a symbol is read in context.
@@ -1341,10 +1342,25 @@ def fill_invite(token: str, data: InviteFillRequest):
 
 def _has_windows(timeline) -> bool:
     """Whether a timeline actually holds a dated window to cite."""
+    return bool(_datable_windows(timeline))
+
+
+def _datable_windows(timeline, limit: int = 6) -> list[str]:
+    """The exact days in a timeline, most important first.
+
+    Telling a rewrite "you left the date out" did not produce a date twice
+    running. Handing it the actual days does — the same lesson as naming the
+    exact jargon to cut rather than saying "too technical".
+    """
     if not timeline:
-        return False
-    return any(timeline.get(bucket) for bucket in
-               ("active_now", "starting_soon", "major_ahead"))
+        return []
+    found = []
+    for bucket in ("active_now", "starting_soon", "major_ahead"):
+        for window in timeline.get(bucket) or []:
+            for a_pass in window.get("passes") or []:
+                if a_pass.get("exact"):
+                    found.append(f"{a_pass['exact']} — {window.get('transit', '')}".strip(" —"))
+    return found[:limit]
 
 
 def _answer_prepared(prep):
@@ -1568,6 +1584,7 @@ def ask_compatibility(
     # the prompt asks for and repeatedly did not get.
     if asks_for_timing(data.question) and _has_windows(relationship_timeline):
         state["expects_a_date"] = True
+        state["dates_available"] = _datable_windows(relationship_timeline)
     context["answer_tier"] = classify_tier(data.question, data.history) or (
         3 if state["kind"] == "follow_up" else 4)
     prompt = build_ask_compatibility_prompt(context)
