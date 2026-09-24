@@ -6,6 +6,7 @@ import { apiFetch, clearAuth, errorMessage, saveAuth } from "../../lib/api";
 import PlaceAutocomplete from "../../components/PlaceAutocomplete";
 import GlossaryText, { hasGlossaryTerms } from "../../components/GlossaryText";
 import ReportBug from "../../components/ReportBug";
+import MemoryPanel from "../../components/MemoryPanel";
 import ChartWheel, { type NatalChart } from "../../components/ChartWheel";
 import BirthDetailsEditor from "../../components/BirthDetailsEditor";
 import AttachedImages from "../../components/AttachedImages";
@@ -1876,6 +1877,8 @@ export default function ChatPage() {
                 Your account, saved people and every conversation, as a file.
               </span>
             </button>
+
+            <MemoryPanel />
 
             <div
               className="mt-3"
