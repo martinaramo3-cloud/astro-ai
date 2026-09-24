@@ -100,7 +100,7 @@ from app.conversation_service import (
     relevant_history_question,
 )
 from app.answer_review_service import reviewed_answer
-from app.transit_timing_service import build_predictive_timeline
+from app.transit_timing_service import build_predictive_timeline, build_relationship_timeline
 from app.transit_service import (
     annotate_house_rulership,
     get_current_transit_positions,
@@ -1528,6 +1528,19 @@ def ask_compatibility(
         relationship_type=described_as,
     )
     context["timing"] = timing
+    # When the thing between them actually moves. The eight-week per-person
+    # lists above say what is live; this says when, over two years, and marks
+    # the windows landing where the two charts already touch. Named
+    # "predictive_timeline" on purpose: the WHEN section of the prompt explains
+    # that field by name, and a saved-person chat never used to have one — so
+    # the instructions on how to answer "when" pointed at nothing.
+    relationship_timeline = build_relationship_timeline(
+        person_1_chart["planet_positions"] + person_1_chart.get("angles", []),
+        person_2_chart["planet_positions"] + person_2_chart.get("angles", []),
+        synastry_aspects,
+    )
+    if relationship_timeline:
+        context["predictive_timeline"] = relationship_timeline
     context["requested_detail"] = requested_detail(data.question)
     facts = {"user": {k: current_user[k] for k in ("name", "birth_date") if current_user.get(k)}}
     if profile_id is not None:
