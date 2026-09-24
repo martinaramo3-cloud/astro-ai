@@ -64,6 +64,7 @@ from app.question_router import (
     classify_question,
     classify_tier,
     detect_relocation_request,
+    asks_for_timing,
     predictive_topic_for,
     filter_chart_context_by_question_type,
     get_focus_planets,
@@ -1224,6 +1225,8 @@ def _prepare_astrologer_call(
     # Now the tier is settled, let it set the size the draft is reviewed
     # against, so the ceiling and the review agree about how long this is.
     apply_tier(state, tier, requested_detail(data.question))
+    if asks_for_timing(data.question) and _has_windows(chat_context.get("predictive_timeline")):
+        state["expects_a_date"] = True
     if tier == 1 and not image_context:
         # A social turn needs the exchange, not astrological evidence to fill
         # the silence. Keep history so laughter or a symbol is read in context.
@@ -1334,6 +1337,14 @@ def fill_invite(token: str, data: InviteFillRequest):
     validate_birth_input(data)
     accept_invite(token, data.model_dump())
     return {"message": "Thank you — your details are saved."}
+
+
+def _has_windows(timeline) -> bool:
+    """Whether a timeline actually holds a dated window to cite."""
+    if not timeline:
+        return False
+    return any(timeline.get(bucket) for bucket in
+               ("active_now", "starting_soon", "major_ahead"))
 
 
 def _answer_prepared(prep):
@@ -1552,6 +1563,11 @@ def ask_compatibility(
     # Judged on what was asked, like everywhere else. Hard-coding 3 for every
     # follow-up meant a compatibility thread shrank to eighty words a turn
     # however much the second message actually carried.
+    # They asked when — in those words or not — and there are dated windows in
+    # the request. Review will reject an answer that names none of them, which
+    # the prompt asks for and repeatedly did not get.
+    if asks_for_timing(data.question) and _has_windows(relationship_timeline):
+        state["expects_a_date"] = True
     context["answer_tier"] = classify_tier(data.question, data.history) or (
         3 if state["kind"] == "follow_up" else 4)
     prompt = build_ask_compatibility_prompt(context)

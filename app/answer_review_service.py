@@ -103,6 +103,17 @@ GENDERED_EVIDENCE = re.compile(
     r"dad|father|mum|mom|mother|brother|sister|son|daughter|"
     r"uncle|aunt|grandad|grandpa|grandma|granny|nephew|niece)\b", re.I)
 
+# Anything a reader could put in a diary. Deliberately loose about the form —
+# "around the 17th", "late October", "mid-December", "2026-10-17" all count.
+DATE_MENTIONED = re.compile(
+    r"\b(?:january|february|march|april|may|june|july|august|september|october|"
+    r"november|december)\b"
+    r"|\b\d{1,2}(?:st|nd|rd|th)\b"
+    r"|\b\d{4}-\d{2}-\d{2}\b"
+    r"|\b(?:next|this|late|early|mid)[- ](?:week|month|year|spring|summer|autumn|fall|winter)\b"
+    r"|\bin (?:a|two|three|four|six) (?:days?|weeks?|months?)\b"
+    r"|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
+
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
 BIOGRAPHY = {
@@ -157,6 +168,10 @@ def review_issues(answer, state):
         issues.append('narrates its own limits instead of answering')
     if LITIGATES.search(answer):
         issues.append('argues about what it said instead of answering')
+    # They asked when, and there are calculated windows sitting in the request.
+    # An answer with no date in it has left the only checkable thing out.
+    if state.get('expects_a_date') and not DATE_MENTIONED.search(answer):
+        issues.append('a timing question answered without a date')
     if HEDGE_MENU.search(answer):
         issues.append('offers a menu of possibilities instead of one reading')
     if BOTH_BRANCHES.search(answer):
