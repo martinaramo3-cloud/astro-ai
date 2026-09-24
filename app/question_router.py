@@ -381,6 +381,22 @@ _PURPOSE_WORDS = {
 PURPOSE_OVERALL = "overall"
 
 
+# Questions that want a date, including the ones that never say "when".
+# "Will something happen between us" is a timing question; answering the
+# chemistry and leaving the timing out answers half of it.
+_ASKS_WHEN = re.compile(
+    r"\bwhen\b|\bhow (?:long|soon)\b|\bwhat (?:date|month|week)\b|"
+    r"\b(?:will|is|are|does|do|could|might) .{0,40}\b(?:happen|come back|come of|"
+    r"work out|change|end|start|reach out|text|call|move|settle)\b|"
+    r"\bany(?:thing) (?:going to|gonna) come\b|\bdo we have a chance\b|"
+    r"\bcome to a head\b|\bgoing anywhere\b", re.I)
+
+
+def asks_for_timing(question: str) -> bool:
+    """Does this want a date, whether or not it says "when"?"""
+    return bool(_ASKS_WHEN.search(question or ""))
+
+
 def detect_relocation_request(question: str) -> dict | None:
     """What a "where should I be" question is asking for, or None.
 

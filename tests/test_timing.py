@@ -319,3 +319,60 @@ def test_the_payload_stays_small():
     total = len(t["active_now"]) + len(t["starting_soon"]) + len(t["major_ahead"])
     assert total <= 7, total
     assert len(json.dumps(t)) < 6000, len(json.dumps(t))
+
+
+# ── Asking when, without saying "when" ─────────────────────────────────────
+
+@pytest.mark.parametrize("question", [
+    "will something happen between us", "is anything going to come of this",
+    "do we have a chance", "when is this coming to a head", "will he come back",
+])
+def test_these_are_timing_questions(question):
+    from app.question_router import asks_for_timing
+    assert asks_for_timing(question)
+
+
+@pytest.mark.parametrize("question", [
+    "why do i pull away in relationships", "should i text him",
+    "what does the full moon mean for me", "is he serious",
+])
+def test_these_are_not(question):
+    from app.question_router import asks_for_timing
+    assert not asks_for_timing(question)
+
+
+def test_a_timing_answer_with_no_date_is_rejected():
+    """The windows were in the request, dated, and the answer described the
+    chemistry and named none of them. The prompt asks for a date; asking was
+    not enough, the same way it was not enough for the tiers."""
+    from app.answer_review_service import review_issues
+    from app.conversation_service import conversation_state
+    state = conversation_state("will something happen between us")
+    state["expects_a_date"] = True
+    state["max_words"] = 420
+    vague = "There is real heat here but it is unstable. Let it be what it is."
+    assert 'a timing question answered without a date' in review_issues(vague, state)
+
+
+@pytest.mark.parametrize("answer", [
+    "The window opens around 17 October — that is when this stops being theoretical.",
+    "Mid-December is where it turns.",
+    "Nothing until next spring, and then it moves quickly.",
+    "Thursday is the one to watch.",
+])
+def test_any_form_of_a_date_satisfies_it(answer):
+    from app.answer_review_service import review_issues
+    from app.conversation_service import conversation_state
+    state = conversation_state("will something happen between us")
+    state["expects_a_date"] = True
+    state["max_words"] = 420
+    assert review_issues(answer, state) == []
+
+
+def test_no_windows_means_no_requirement():
+    """When the sky genuinely holds nothing, demanding a date would invent one."""
+    import app.main as main
+    assert main._has_windows(None) is False
+    assert main._has_windows({}) is False
+    assert main._has_windows({"active_now": [], "starting_soon": [], "major_ahead": []}) is False
+    assert main._has_windows({"active_now": [{"transit": "x"}]}) is True
