@@ -1,0 +1,60 @@
+{
+  "pairs": 1000,
+  "indices": {
+    "attraction": {
+      "min": 8.0,
+      "p10": 23.0,
+      "p25": 30.0,
+      "median": 38.5,
+      "p75": 48.0,
+      "p90": 57.5,
+      "p95": 62.0,
+      "p99": 75.0,
+      "max": 86.0,
+      "mean": 39.2
+    },
+    "emotional": {
+      "min": -19.0,
+      "p10": -0.5,
+      "p25": 6.0,
+      "median": 12.5,
+      "p75": 20.5,
+      "p90": 27.2,
+      "p95": 31.5,
+      "p99": 38.5,
+      "max": 47.0,
+      "mean": 13.1
+    },
+    "long_term": {
+      "min": -22.0,
+      "p10": -3.0,
+      "p25": 3.0,
+      "median": 10.0,
+      "p75": 16.2,
+      "p90": 23.0,
+      "p95": 26.5,
+      "p99": 38.8,
+      "max": 44.0,
+      "mean": 9.9
+    },
+    "toxicity": {
+      "min": 0.0,
+      "p10": 18.5,
+      "p25": 26.5,
+      "median": 36.2,
+      "p75": 49.0,
+      "p90": 61.0,
+      "p95": 67.8,
+      "p99": 83.8,
+      "max": 113.5,
+      "mean": 38.5
+    }
+  },
+  "classifier_counts": {
+    "nothing that stands out either way": 819,
+    "steady, with little spark": 63,
+    "strong relationship potential": 62,
+    "high pull with high friction": 47,
+    "volatile, with little to hold it": 34
+  }
+}

@@ -1,5 +1,10 @@
 {
-  "interpretation_layers": ["planet", "house", "sign", "aspect"],
+  "interpretation_layers": [
+    "planet",
+    "house",
+    "sign",
+    "aspect"
+  ],
   "interpretation_priority": [
     "house_overlays",
     "aspects",
@@ -13,10 +18,26 @@
     "luminary_max": 10,
     "outer_planet_max": 3,
     "strength_bands": [
-      { "max_orb": 2, "label": "extreme", "multiplier": 1.5 },
-      { "max_orb": 4, "label": "very_strong", "multiplier": 1.25 },
-      { "max_orb": 6, "label": "moderate", "multiplier": 1.0 },
-      { "max_orb": 8, "label": "weak", "multiplier": 0.5 }
+      {
+        "max_orb": 2,
+        "label": "extreme",
+        "multiplier": 1.5
+      },
+      {
+        "max_orb": 4,
+        "label": "very_strong",
+        "multiplier": 1.25
+      },
+      {
+        "max_orb": 6,
+        "label": "moderate",
+        "multiplier": 1.0
+      },
+      {
+        "max_orb": 8,
+        "label": "weak",
+        "multiplier": 0.5
+      }
     ]
   },
   "planet_weights": {
@@ -34,33 +55,68 @@
   "house_overlay_rules": {
     "1": {
       "tier": 2,
-      "keywords": ["physical attraction", "strong presence"],
-      "scores": { "attraction": 3 }
+      "keywords": [
+        "physical attraction",
+        "strong presence"
+      ],
+      "scores": {
+        "attraction": 3
+      }
     },
     "4": {
       "tier": 2,
-      "keywords": ["emotional bonding", "family feeling"],
-      "scores": { "emotional": 4 }
+      "keywords": [
+        "emotional bonding",
+        "family feeling"
+      ],
+      "scores": {
+        "emotional": 4
+      }
     },
     "5": {
       "tier": 1,
-      "keywords": ["romance", "flirting", "dating energy"],
-      "scores": { "attraction": 4 }
+      "keywords": [
+        "romance",
+        "flirting",
+        "dating energy"
+      ],
+      "scores": {
+        "attraction": 4
+      }
     },
     "7": {
       "tier": 1,
-      "keywords": ["partnership", "relationship potential"],
-      "scores": { "long_term": 4, "emotional": 2 }
+      "keywords": [
+        "partnership",
+        "relationship potential"
+      ],
+      "scores": {
+        "long_term": 4,
+        "emotional": 2
+      }
     },
     "8": {
       "tier": 1,
-      "keywords": ["sexual chemistry", "obsession", "intensity"],
-      "scores": { "attraction": 6, "toxicity": 3 }
+      "keywords": [
+        "sexual chemistry",
+        "obsession",
+        "intensity"
+      ],
+      "scores": {
+        "attraction": 6,
+        "toxicity": 3
+      }
     },
     "12": {
       "tier": 1,
-      "keywords": ["hidden feelings", "confusion", "karmic pull"],
-      "scores": { "toxicity": 6 }
+      "keywords": [
+        "hidden feelings",
+        "confusion",
+        "karmic pull"
+      ],
+      "scores": {
+        "toxicity": 6
+      }
     }
   },
   "aspect_base_scores": {
@@ -72,109 +128,240 @@
   },
   "pair_rules": [
     {
-      "planets": ["Venus", "Mars"],
-      "effects": { "attraction": 5 },
+      "planets": [
+        "Venus",
+        "Mars"
+      ],
+      "effects": {
+        "attraction": 5
+      },
       "label": "sexual chemistry"
     },
     {
-      "planets": ["Sun", "Moon"],
-      "effects": { "emotional": 4, "long_term": 2 },
+      "planets": [
+        "Sun",
+        "Moon"
+      ],
+      "effects": {
+        "emotional": 4,
+        "long_term": 2
+      },
       "label": "core compatibility"
     },
     {
-      "planets": ["Venus", "Venus"],
-      "effects": { "attraction": 3 },
+      "planets": [
+        "Venus",
+        "Venus"
+      ],
+      "effects": {
+        "attraction": 3
+      },
       "label": "similar love style"
     },
     {
-      "planets": ["Moon", "Moon"],
-      "allowed_aspects": ["trine", "sextile", "conjunction"],
-      "effects": { "emotional": 6 },
+      "planets": [
+        "Moon",
+        "Moon"
+      ],
+      "allowed_aspects": [
+        "trine",
+        "sextile",
+        "conjunction"
+      ],
+      "effects": {
+        "emotional": 6
+      },
       "label": "emotional harmony"
     },
     {
-      "planets": ["Moon", "Venus"],
-      "effects": { "emotional": 5 },
+      "planets": [
+        "Moon",
+        "Venus"
+      ],
+      "effects": {
+        "emotional": 5
+      },
       "label": "affectionate bonding"
     },
     {
-      "planets": ["Moon", "Saturn"],
-      "effects": { "emotional": -5, "long_term": 5 },
+      "planets": [
+        "Moon",
+        "Saturn"
+      ],
+      "effects": {
+        "emotional": -5,
+        "long_term": 5
+      },
       "label": "heavy emotional commitment"
     },
     {
-      "planets": ["Saturn", "Venus"],
-      "effects": { "long_term": 6 },
+      "planets": [
+        "Saturn",
+        "Venus"
+      ],
+      "effects": {
+        "long_term": 6
+      },
       "label": "commitment potential"
     },
     {
-      "planets": ["Jupiter", "Venus"],
-      "effects": { "long_term": 4, "attraction": 2 },
+      "planets": [
+        "Jupiter",
+        "Venus"
+      ],
+      "effects": {
+        "long_term": 4,
+        "attraction": 2
+      },
       "label": "joy and ease"
     },
     {
-      "planets": ["Moon", "Uranus"],
-      "effects": { "emotional": -4, "toxicity": 5 },
+      "planets": [
+        "Moon",
+        "Uranus"
+      ],
+      "effects": {
+        "emotional": -4,
+        "toxicity": 5
+      },
       "label": "instability"
     },
     {
-      "planets": ["Moon", "Neptune"],
-      "effects": { "emotional": -6, "toxicity": 6 },
+      "planets": [
+        "Moon",
+        "Neptune"
+      ],
+      "effects": {
+        "emotional": -6,
+        "toxicity": 6
+      },
       "label": "confusion or illusion"
     },
     {
-      "planets": ["Venus", "Pluto"],
-      "effects": { "attraction": 8, "toxicity": 4 },
+      "planets": [
+        "Venus",
+        "Pluto"
+      ],
+      "effects": {
+        "attraction": 8,
+        "toxicity": 4
+      },
       "label": "obsessive magnetism"
     },
     {
-      "planets": ["Mars", "Pluto"],
-      "effects": { "attraction": 6, "toxicity": 4 },
+      "planets": [
+        "Mars",
+        "Pluto"
+      ],
+      "effects": {
+        "attraction": 6,
+        "toxicity": 4
+      },
       "label": "intense sexual force"
     }
   ],
   "index_thresholds": {
     "attraction": [
-      { "max": 5, "label": "weak" },
-      { "max": 12, "label": "moderate" },
-      { "max": 20, "label": "strong" },
-      { "max": 999, "label": "obsessive" }
+      {
+        "max": 30.0,
+        "label": "low"
+      },
+      {
+        "max": 48.0,
+        "label": "typical"
+      },
+      {
+        "max": 57.5,
+        "label": "high"
+      },
+      {
+        "max": 9999,
+        "label": "exceptional"
+      }
+    ],
+    "emotional": [
+      {
+        "max": 6.0,
+        "label": "low"
+      },
+      {
+        "max": 20.5,
+        "label": "typical"
+      },
+      {
+        "max": 27.2,
+        "label": "high"
+      },
+      {
+        "max": 9999,
+        "label": "exceptional"
+      }
+    ],
+    "long_term": [
+      {
+        "max": 3.0,
+        "label": "low"
+      },
+      {
+        "max": 16.2,
+        "label": "typical"
+      },
+      {
+        "max": 23.0,
+        "label": "high"
+      },
+      {
+        "max": 9999,
+        "label": "exceptional"
+      }
     ],
     "toxicity": [
-      { "max": 5, "label": "safe" },
-      { "max": 12, "label": "unstable" },
-      { "max": 999, "label": "toxic" }
+      {
+        "max": 26.5,
+        "label": "low"
+      },
+      {
+        "max": 49.0,
+        "label": "typical"
+      },
+      {
+        "max": 61.0,
+        "label": "high"
+      },
+      {
+        "max": 9999,
+        "label": "exceptional"
+      }
     ]
   },
   "classifiers": {
     "strong_relationship": {
       "conditions": {
-        "attraction_min": 13,
-        "long_term_min": 10,
-        "toxicity_max": 12
+        "attraction_min": 48.0,
+        "long_term_min": 16.2
       },
       "label": "strong relationship potential"
     },
     "toxic_attraction": {
       "conditions": {
-        "attraction_min": 13,
-        "toxicity_min": 13
+        "attraction_min": 48.0,
+        "toxicity_min": 61.0
       },
-      "label": "toxic attraction"
+      "label": "high pull with high friction"
     },
     "stable_but_low_chemistry": {
       "conditions": {
-        "attraction_max": 5,
-        "long_term_min": 10
+        "attraction_max": 30.0,
+        "long_term_min": 16.2
       },
-      "label": "stable but low-chemistry"
+      "label": "steady, with little spark"
     },
     "chaotic_on_off": {
       "conditions": {
-        "toxicity_min": 13,
-        "long_term_max": 5
+        "toxicity_min": 61.0,
+        "long_term_max": 3.0
       },
-      "label": "chaotic / on-off"
+      "label": "volatile, with little to hold it"
     }
   },
   "green_flags": [
@@ -188,5 +375,9 @@
     "Neptune hard aspects",
     "Pluto hard aspects",
     "harsh Saturn contacts"
+  ],
+  "threshold_basis": "Percentiles of 1,000 randomly generated fictional pairs: low is below the 25th, typical spans the middle half, high is above the 75th, exceptional above the 90th. Labels describe where a pair sits among pairs in general, not a verdict on the people.",
+  "neutral_markers": [
+    "8th house overlays \u2014 depth and exposure, good or bad depending on everything else"
   ]
 }

@@ -325,7 +325,14 @@ def _build_trajectory(indices: dict) -> dict:
     }
 
 
-def _classify_relationship(indices: dict) -> str:
+def _classify_relationship(indices: dict) -> list[str]:
+    """Every description that fits, not the first one in the file.
+
+    A pair can genuinely have strong long-term potential *and* high friction.
+    Returning whichever happened to be listed first threw away half the
+    reading and made the answer depend on dictionary order.
+    """
+    matched = []
     for classifier in RULES["classifiers"].values():
         conditions = classifier["conditions"]
         if "attraction_min" in conditions and indices["attraction"] < conditions["attraction_min"]:
@@ -340,9 +347,9 @@ def _classify_relationship(indices: dict) -> str:
             continue
         if "toxicity_max" in conditions and indices["toxicity"] > conditions["toxicity_max"]:
             continue
-        return classifier["label"]
+        matched.append(classifier["label"])
 
-    return "mixed compatibility"
+    return matched or ["nothing that stands out either way"]
 
 
 def build_synastry_engine(person_1_chart: dict, person_2_chart: dict, synastry_aspects: list | None = None):
@@ -359,6 +366,7 @@ def build_synastry_engine(person_1_chart: dict, person_2_chart: dict, synastry_a
     }
     red_flags = set()
     green_flags = set()
+    neutral_markers = set()
 
     for overlay in overlays:
         _sum_effects(indices, overlay["scores"])
@@ -367,7 +375,11 @@ def build_synastry_engine(person_1_chart: dict, person_2_chart: dict, synastry_a
         if overlay["house"] == 12:
             red_flags.add("12th house overlay")
         if overlay["house"] == 8:
-            green_flags.add("8th house intensity")
+            # Not a point in its favour. Intensity describes how deep an
+            # exchange goes, not whether it is enjoyable, mutual or
+            # sustainable — and counting it as good is how a difficult
+            # entanglement gets read back to someone as a strength.
+            neutral_markers.add("8th house depth — read it by the rest of the chart")
 
     scored_aspects = []
     for aspect in aspects:
@@ -414,8 +426,13 @@ def build_synastry_engine(person_1_chart: dict, person_2_chart: dict, synastry_a
         "top_aspects": scored_aspects[:10],
         "indices": {
             **indices,
-            "attraction_band": _bucketize_index("attraction", indices["attraction"]),
-            "toxicity_band": _bucketize_index("toxicity", indices["toxicity"]),
+            # All four are banded now. Bands say where a pair sits among pairs
+            # in general — low, typical, high, exceptional — cut from the
+            # percentiles of a thousand fictional pairs rather than from
+            # numbers nobody had checked against real output.
+            **{f"{name}_band": _bucketize_index(name, indices[name])
+               for name in ("attraction", "emotional", "long_term", "toxicity")},
+            "band_meaning": "where this pair sits among pairs in general, not a verdict on the people",
             "net_score": net_score
         },
         "double_whammies": double_whammies,
@@ -424,5 +441,6 @@ def build_synastry_engine(person_1_chart: dict, person_2_chart: dict, synastry_a
         "trajectory": trajectory,
         "relationship_classifier": _classify_relationship(indices),
         "green_flags": sorted(green_flags),
-        "red_flags": sorted(red_flags)
+        "red_flags": sorted(red_flags),
+        "neutral_markers": sorted(neutral_markers)
     }
