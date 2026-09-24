@@ -375,4 +375,31 @@ def test_no_windows_means_no_requirement():
     assert main._has_windows(None) is False
     assert main._has_windows({}) is False
     assert main._has_windows({"active_now": [], "starting_soon": [], "major_ahead": []}) is False
-    assert main._has_windows({"active_now": [{"transit": "x"}]}) is True
+    # A window with no exact day is not datable, so it does not count.
+    assert main._has_windows({"active_now": [{"transit": "x", "passes": []}]}) is False
+    dated = {"active_now": [{"transit": "Saturn conjunction your Venus",
+                             "passes": [{"exact": "2026-10-17"}]}]}
+    assert main._has_windows(dated) is True
+    assert main._datable_windows(dated) == ["2026-10-17 — Saturn conjunction your Venus"]
+
+
+def test_the_rewrite_is_handed_the_actual_days():
+    """"You left the date out" produced no date twice running. The days
+    themselves are what makes the second attempt land."""
+    from app.answer_review_service import reviewed_answer
+    from app.conversation_service import conversation_state
+    prompts = []
+
+    def generate(prompt, **kwargs):
+        prompts.append(prompt)
+        return ("It opens around 17 October.", 10) if len(prompts) > 1 else \
+               ("There is real heat here, but it is unstable.", 10)
+
+    state = conversation_state("will something happen between us")
+    state["expects_a_date"] = True
+    state["max_words"] = 420
+    state["dates_available"] = ["2026-10-17 — Saturn conjunction your Venus"]
+    answer, _ = reviewed_answer(generate, "prompt", {"conversation": state})
+    assert answer == "It opens around 17 October."
+    assert "cite_one_of_these_dates" in prompts[1]
+    assert "2026-10-17" in prompts[1]

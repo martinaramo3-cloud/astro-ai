@@ -246,6 +246,11 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
     repair=prompt+'\n\nDRAFT REVIEW — revise once, return only the replacement answer.\n'+json.dumps({
         'problems':problems,'draft':answer,
         **({'remove_these_exact_words':offending} if offending else {}),
+        # The calculated days, handed over rather than described. "You left the
+        # date out" produced no date twice; the days themselves do.
+        **({'cite_one_of_these_dates':state['dates_available']}
+           if state.get('dates_available') and
+           any('without a date' in p for p in problems) else {}),
         'instruction':'Write a complete replacement, not a continuation. Finish every sentence. Answer the latest message. Remove repetitions and unsupported claims. Use only reported facts for biography, neutral wording for unknowns, and the requested presentation mode. Do not add new personal facts or new chart data.'},ensure_ascii=False)
     try:
         if on_repair: on_repair()
