@@ -485,3 +485,120 @@ def _for_prompt(cycle: dict) -> dict:
         ],
         "cycle_note": cycle["note"],
     }
+
+
+# Which of each person's points a relationship question actually turns on.
+RELATIONSHIP_POINTS = {"Sun", "Moon", "Mercury", "Venus", "Mars",
+                       "Jupiter", "Saturn", "Pluto", "Ascendant", "Descendant"}
+
+
+def build_relationship_timeline(
+    your_planets: list[dict],
+    their_planets: list[dict],
+    synastry_aspects: list[dict] | None = None,
+    now: datetime | None = None,
+    limit: int = 6,
+) -> dict:
+    """When the thing between two people actually moves.
+
+    A saved-person chat used to receive each person's transits as two separate
+    eight-week lists, and the one piece the code itself calls the strongest
+    evidence for timing — a transit landing where the two charts already touch
+    — carried no date at all. It said a contact was lit today and stopped
+    there. So "will something happen between us" had nothing datable behind it
+    and came back vague.
+
+    This scans both charts' relationship points over two years, the same way a
+    solo question is scanned, and marks the windows that land on a degree where
+    the charts meet. Those are the ones worth naming a date for: a transit to
+    one person's Venus is their week, a transit to the exact degree where their
+    Venus meets the other's Mars is the two of them.
+
+    Kept deliberately small. Everything live now, then the most important of
+    what is coming — six or so in total, not a two-year scan, because this
+    travels alongside two full charts and a synastry engine.
+    """
+    start = now or datetime.now(pytz.utc)
+
+    # Labelled by owner, so a window reads "your Venus" or "their Mars" rather
+    # than arriving as two indistinguishable lists.
+    points = (
+        [{"planet": f"your {p['planet']}", "degree": p["degree"]}
+         for p in your_planets if p["planet"] in RELATIONSHIP_POINTS]
+        + [{"planet": f"their {p['planet']}", "degree": p["degree"]}
+           for p in their_planets if p["planet"] in RELATIONSHIP_POINTS]
+    )
+    if not points:
+        return {}
+
+    cycles = find_transit_cycles(points, months_ahead=24, now=start)
+    if not cycles:
+        return {}
+
+    # Which points are one end of a contact between the charts. A transit here
+    # is doing something to the connection, not to one person's week.
+    contacts: dict[str, str] = {}
+    for contact in (synastry_aspects or [])[:12]:
+        p1, p2 = contact.get("person_1_planet"), contact.get("person_2_planet")
+        if not p1 or not p2:
+            continue
+        described = f"your {p1} {contact.get('aspect', 'contact')} their {p2}"
+        contacts.setdefault(f"your {p1}", described)
+        contacts.setdefault(f"their {p2}", described)
+
+    for cycle in cycles:
+        cycle["lights_contact"] = contacts.get(cycle["natal_point"])
+
+    today = start.date().isoformat()
+    soon = (start + timedelta(days=NEAR_TERM_MONTHS * 30)).date().isoformat()
+
+    def live(cycle):
+        return any(w["starts"] <= today <= w["ends"] for w in cycle["passes"])
+
+    def soon_(cycle):
+        return any(today <= w["starts"] <= soon for w in cycle["passes"])
+
+    # A window on a shared degree outranks a bigger one on a single chart:
+    # it is the only kind that answers "between us" rather than "to me".
+    def weight(cycle):
+        return (-(1 if cycle["lights_contact"] else 0), -cycle["importance"])
+
+    # Each bucket gets its own reserved space. Letting "live" take the whole
+    # budget filled it six deep and left nothing under "what's coming" — which
+    # is the half that answers "will something happen", and the half someone
+    # needs when they tell you he is visiting next month.
+    active = sorted([c for c in cycles if live(c)], key=weight)[: max(1, limit // 2)]
+    coming = sorted([c for c in cycles if soon_(c) and c not in active],
+                    key=weight)[: max(1, limit // 3)]
+    ahead = sorted([c for c in cycles if c not in active and c not in coming],
+                   key=weight)[: max(0, limit - len(active) - len(coming))]
+
+    return {
+        "note": (
+            "Calculated windows for the two of you, searched two years ahead. Each "
+            "pass has its own dates and its own exact day — cite them. A window with "
+            "'lights_contact' is a transit landing where the two charts already "
+            "touch: that is the strongest thing here and the one to date, because it "
+            "is about the connection rather than one person's week. 'importance' is "
+            "how much a transit matters, separate from how exact it is."
+        ),
+        "searched_months_ahead": 24,
+        "active_now": [_for_two(c) for c in active],
+        "starting_soon": [_for_two(c) for c in coming],
+        "major_ahead": [_for_two(c) for c in ahead],
+    }
+
+
+def _for_two(cycle: dict) -> dict:
+    """Like _for_prompt, but the point already says whose it is."""
+    return {
+        "transit": f"{cycle['transit_planet']} {cycle['aspect']} {cycle['natal_point']}",
+        **({"lights_contact": cycle["lights_contact"]} if cycle.get("lights_contact") else {}),
+        "importance": cycle["importance"],
+        "passes": [
+            {"pass": f"{w['pass']} of {w['of']}", "window": f"{w['starts']} to {w['ends']}",
+             "exact": w["exact"], "strength": w["strength"], "retrograde": w["retrograde"]}
+            for w in cycle["passes"]
+        ],
+        "cycle_note": cycle["note"],
+    }

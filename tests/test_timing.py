@@ -247,3 +247,75 @@ def test_a_transit_exact_outside_the_month_is_flagged_as_ongoing(points):
         for hit in area["transits"]:
             if not hit["ongoing"]:
                 assert hit["exact"].startswith("2026-10")
+
+
+# ── When the thing between two people actually moves ───────────────────────
+
+def _two_charts():
+    from tests.conftest import SOFIA, MILAN
+    from types import SimpleNamespace
+    import app.main as main
+    one = main.build_natal_chart_data(SimpleNamespace(**SOFIA, birth_time_known=True))
+    two = main.build_natal_chart_data(SimpleNamespace(**MILAN, birth_time_known=True))
+    return one, two, main.get_synastry_aspects(one["planet_positions"], two["planet_positions"])
+
+
+def test_a_relationship_window_carries_a_date():
+    """A saved-person chat used to get each person's transits as two separate
+    eight-week lists, and the one thing the code calls the strongest evidence
+    for timing — a transit landing where the charts touch — had no date at all.
+    So "will something happen between us" had nothing datable behind it."""
+    from app.transit_timing_service import build_relationship_timeline
+    one, two, syn = _two_charts()
+    timeline = build_relationship_timeline(
+        one["planet_positions"] + one.get("angles", []),
+        two["planet_positions"] + two.get("angles", []), syn)
+
+    windows = timeline["active_now"] + timeline["starting_soon"] + timeline["major_ahead"]
+    assert windows
+    for window in windows:
+        assert window["passes"][0]["exact"], "a window with no exact day is not an answer to when"
+    assert timeline["searched_months_ahead"] == 24
+
+
+def test_it_says_whose_point_is_being_hit():
+    from app.transit_timing_service import build_relationship_timeline
+    one, two, syn = _two_charts()
+    timeline = build_relationship_timeline(
+        one["planet_positions"], two["planet_positions"], syn)
+    described = [w["transit"] for w in timeline["active_now"] + timeline["starting_soon"]]
+    assert any(t.startswith(("your", "their")) or " your " in t or " their " in t
+               for t in described), described
+
+
+def test_contacts_between_the_charts_are_marked_and_ranked_first():
+    """A transit to one person's Venus is their week. A transit to the degree
+    where their Venus meets the other's Mars is the two of them."""
+    from app.transit_timing_service import build_relationship_timeline
+    one, two, syn = _two_charts()
+    timeline = build_relationship_timeline(
+        one["planet_positions"], two["planet_positions"], syn)
+    active = timeline["active_now"]
+    if any(w.get("lights_contact") for w in active):
+        assert active[0].get("lights_contact"), "a shared-degree window should sort first"
+
+
+def test_something_is_always_reserved_for_what_is_coming():
+    """Live windows filling the whole budget left nothing under "what's
+    coming" — the half that answers "will something happen"."""
+    from app.transit_timing_service import build_relationship_timeline
+    one, two, syn = _two_charts()
+    t = build_relationship_timeline(one["planet_positions"], two["planet_positions"], syn)
+    assert len(t["active_now"]) <= 3
+    assert t["starting_soon"] or t["major_ahead"]
+
+
+def test_the_payload_stays_small():
+    """It travels beside two full charts and a synastry engine."""
+    import json
+    from app.transit_timing_service import build_relationship_timeline
+    one, two, syn = _two_charts()
+    t = build_relationship_timeline(one["planet_positions"], two["planet_positions"], syn)
+    total = len(t["active_now"]) + len(t["starting_soon"]) + len(t["major_ahead"])
+    assert total <= 7, total
+    assert len(json.dumps(t)) < 6000, len(json.dumps(t))
