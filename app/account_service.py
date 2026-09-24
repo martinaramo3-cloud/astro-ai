@@ -89,6 +89,8 @@ def delete_user_account(user_id: int) -> bool:
             _remove_file(user_id, row['stored_name'])
         for table in ("attachments", "chat_sessions", "profiles", "invites"):
             conn.execute(f"DELETE FROM {table} WHERE owner_user_id=?", (user_id,))
+        conn.execute("DELETE FROM memories WHERE owner_user_id=?", (user_id,))
+        conn.execute("DELETE FROM summarised_sessions WHERE owner_user_id=?", (user_id,))
         for table in ("sessions", "auth_tokens", "bug_reports", "error_events", "usage_events"):
             conn.execute(f"DELETE FROM {table} WHERE user_id=?", (user_id,))
         conn.execute("DELETE FROM users WHERE id=?", (user_id,))

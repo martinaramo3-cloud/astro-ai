@@ -13,6 +13,17 @@ from app.profile_service import (
     delete_profile_by_id,
     update_profile,
 )
+from app.memory_service import (
+    LIFETIME_DAYS,
+    forget,
+    forget_all,
+    list_memories,
+    update_text,
+    note_mentioned,
+    pick_check_in,
+    relevant_memories,
+)
+from app.memory_maintenance import catch_up_on_finished_chats
 from app.chat_service import (
     summarize_recent_sessions,
     create_chat_session,
@@ -1156,6 +1167,29 @@ def _prepare_astrologer_call(
             user_id, exclude_session_id=data.session_id
         ),
     }
+
+    # What they have told Zoli before, when any of it could change this answer.
+    # Off unless they turned it on. The check-in question is only offered when
+    # there is room for a question at all — never on a greeting, never in the
+    # middle of something emotional.
+    if current_user.get("memory_enabled"):
+        catch_up_on_finished_chats(user_id)
+        memories = relevant_memories(
+            user_id, question_type,
+            is_relocation=bool(detect_relocation_request(data.question)))
+        if memories:
+            chat_context["what_they_told_you"] = [
+                {"kind": m["kind"], "said_on": m["said_on"], "note": m["text"]}
+                for m in memories
+            ]
+            may_ask = tier == 4 and state["topic"] != "emotional" and not image_context
+            check_in = pick_check_in(memories, topic=question_type, allowed=may_ask)
+            if check_in:
+                chat_context["ask_about_this_once"] = {
+                    "id": check_in["id"], "said_on": check_in["said_on"],
+                    "note": check_in["text"],
+                }
+                note_mentioned(user_id, check_in["id"], asked=True)
 
     if image_context:
         chat_context["attached_image"] = image_context
@@ -2330,6 +2364,61 @@ def admin_resolve_bug(
     conn.commit()
     conn.close()
     return {"message": "Marked as done."}
+
+
+class MemoryTextRequest(BaseModel):
+    text: str
+
+
+class MemorySettingRequest(BaseModel):
+    enabled: bool
+
+
+@app.get("/me/memory")
+def my_memory(current_user: dict = Depends(get_current_user)):
+    """Everything Zoli is holding, and whether it is holding anything at all."""
+    return {
+        "enabled": bool(current_user.get("memory_enabled")),
+        "asked": bool(current_user.get("memory_asked")),
+        "memories": list_memories(current_user["id"]),
+        "kept_for_days": LIFETIME_DAYS,
+    }
+
+
+@app.patch("/me/memory")
+def set_memory(data: MemorySettingRequest, current_user: dict = Depends(get_current_user)):
+    """Turn it on or off. Turning it off forgets everything, rather than
+    quietly keeping it in case they change their mind."""
+    conn = get_db_connection()
+    conn.execute("UPDATE users SET memory_enabled=?, memory_asked=1 WHERE id=?",
+                 (1 if data.enabled else 0, current_user["id"]))
+    conn.commit()
+    conn.close()
+    removed = 0 if data.enabled else forget_all(current_user["id"])
+    return {"enabled": data.enabled, "forgotten": removed}
+
+
+@app.patch("/me/memory/{memory_id}")
+def edit_memory(memory_id: int, data: MemoryTextRequest,
+                current_user: dict = Depends(get_current_user)):
+    """Correct what was written down, rather than only being able to delete it."""
+    if not data.text.strip():
+        raise HTTPException(status_code=400, detail="Give it some words, or delete it instead.")
+    if not update_text(current_user["id"], memory_id, data.text):
+        raise HTTPException(status_code=404, detail="Not found.")
+    return {"message": "Updated."}
+
+
+@app.delete("/me/memory/{memory_id}")
+def delete_memory(memory_id: int, current_user: dict = Depends(get_current_user)):
+    if not forget(current_user["id"], memory_id):
+        raise HTTPException(status_code=404, detail="Not found.")
+    return {"message": "Forgotten."}
+
+
+@app.delete("/me/memory")
+def delete_all_memory(current_user: dict = Depends(get_current_user)):
+    return {"forgotten": forget_all(current_user["id"])}
 
 
 @app.get("/admin/errors")

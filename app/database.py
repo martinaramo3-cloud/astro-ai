@@ -33,6 +33,11 @@ def _ensure_user_columns(cursor):
         # Existing accounts default to 1 — they predate verification and
         # shouldn't be retroactively told to verify.
         "email_verified": "ALTER TABLE users ADD COLUMN email_verified INTEGER NOT NULL DEFAULT 1",
+        # Off until asked. Nobody's conversations get remembered because a
+        # deploy happened — the app asks first, in plain words.
+        "memory_enabled": "ALTER TABLE users ADD COLUMN memory_enabled INTEGER NOT NULL DEFAULT 0",
+        # 1 once they have answered the question either way, so it is asked once.
+        "memory_asked": "ALTER TABLE users ADD COLUMN memory_asked INTEGER NOT NULL DEFAULT 0",
     })
 
 
@@ -135,6 +140,42 @@ def init_db():
     cursor.execute(
         "CREATE INDEX IF NOT EXISTS idx_invites_hash ON invites(token_hash)"
     )
+
+    # What Zoli is allowed to carry between conversations. Facts someone
+    # stated, plans they mentioned, and readings Zoli gave — never anything
+    # sensitive, and every row dated with the day it was said so an old plan
+    # can be spoken about as possibly changed rather than asserted.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS memories (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        owner_user_id INTEGER NOT NULL,
+        kind TEXT NOT NULL,                 -- fact | plan | conclusion
+        text TEXT NOT NULL,
+        topic TEXT NOT NULL DEFAULT 'general',
+        said_on TEXT NOT NULL,              -- the day they said it
+        created_at TEXT NOT NULL,
+        expires_at TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'active',   -- active | needs_check_in
+        check_in_asked_on TEXT,
+        last_mentioned_on TEXT,
+        session_id INTEGER,
+        profile_id INTEGER,
+        derived_from INTEGER,               -- the plan a reading was built on
+        FOREIGN KEY (owner_user_id) REFERENCES users(id)
+    )
+    """)
+    cursor.execute(
+        "CREATE INDEX IF NOT EXISTS idx_memories_owner ON memories(owner_user_id, status)"
+    )
+    # Which conversations have already been summarised, so a chat is never
+    # read twice and an open one is never read at all.
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS summarised_sessions (
+        session_id INTEGER PRIMARY KEY,
+        owner_user_id INTEGER NOT NULL,
+        summarised_at TEXT NOT NULL
+    )
+    """)
 
     # What someone tells us is wrong, in their words. The error log catches
     # what crashes; this catches what is merely broken — an answer that made no
