@@ -1176,26 +1176,41 @@ def _prepare_astrologer_call(
         catch_up_on_finished_chats(user_id)
         memories = relevant_memories(
             user_id, question_type,
-            is_relocation=bool(detect_relocation_request(data.question)))
+            is_relocation=bool(detect_relocation_request(data.question)),
+            continued_in=data.question)
         if memories:
-            chat_context["what_they_told_you"] = [
-                {"kind": m["kind"], "said_on": m["said_on"], "note": m["text"]}
-                for m in memories
-            ]
+            may_ask = tier == 4 and state["topic"] != "emotional" and not image_context
+            check_in = pick_check_in(memories, topic=question_type, allowed=may_ask)
+            # ONE memory reaches the answer, and only one. Three were being
+            # sent, and the model used all three — the same facts turned up in
+            # three consecutive answers about work, none of which had asked
+            # about them. If there is a plan worth checking in on, that is the
+            # one; otherwise the most relevant, which is what the ordering in
+            # relevant_memories already means.
+            surfaced = check_in or memories[0]
+            chat_context["what_they_told_you"] = [{
+                "kind": surfaced["kind"], "said_on": surfaced["said_on"],
+                "note": surfaced["text"],
+                "note_to_self": ("The only thing from an earlier conversation in "
+                                 "this answer. One clause at most unless they ask."),
+            }]
             # Draft review has to count these as things they told us. Without
             # it, an answer resting on something said three weeks ago reads as
             # invented biography and gets rejected for it — and the money and
             # qualification rules need the same evidence to know whether a
-            # figure or a credential was theirs to begin with.
+            # figure or a credential was theirs to begin with. Review sees all
+            # of them; only one is offered to the model.
             state["reported_facts"]["remembered"] = [m["text"] for m in memories]
-            may_ask = tier == 4 and state["topic"] != "emotional" and not image_context
-            check_in = pick_check_in(memories, topic=question_type, allowed=may_ask)
             if check_in:
                 chat_context["ask_about_this_once"] = {
                     "id": check_in["id"], "said_on": check_in["said_on"],
                     "note": check_in["text"],
                 }
-                note_mentioned(user_id, check_in["id"], asked=True)
+            # Record that it surfaced, so it cannot surface again tomorrow
+            # unless they raise it. This was only ever recorded for check-ins,
+            # which is why the back-to-back rule had nothing to act on and a
+            # memory could repeat indefinitely.
+            note_mentioned(user_id, surfaced["id"], asked=bool(check_in))
 
     if image_context:
         chat_context["attached_image"] = image_context
@@ -1638,20 +1653,26 @@ def ask_compatibility(
     if current_user.get("memory_enabled"):
         catch_up_on_finished_chats(user_id)
         remembered = relevant_memories(
-            user_id, state["topic"], profile_id=profile_id)
+            user_id, state["topic"], profile_id=profile_id,
+            continued_in=data.question)
         if remembered:
-            context["what_they_told_you"] = [
-                {"kind": m["kind"], "said_on": m["said_on"], "note": m["text"]}
-                for m in remembered
-            ]
             may_ask = state["kind"] != "follow_up" and state["topic"] != "emotional"
             check_in = pick_check_in(remembered, topic=state["topic"], allowed=may_ask)
+            # One memory, same as the ordinary chat path.
+            surfaced = check_in or remembered[0]
+            context["what_they_told_you"] = [{
+                "kind": surfaced["kind"], "said_on": surfaced["said_on"],
+                "note": surfaced["text"],
+                "note_to_self": ("The only thing from an earlier conversation in "
+                                 "this answer. One clause at most unless they ask."),
+            }]
+            state["reported_facts"]["remembered"] = [m["text"] for m in remembered]
             if check_in:
                 context["ask_about_this_once"] = {
                     "id": check_in["id"], "said_on": check_in["said_on"],
                     "note": check_in["text"],
                 }
-                note_mentioned(user_id, check_in["id"], asked=True)
+            note_mentioned(user_id, surfaced["id"], asked=bool(check_in))
 
     if asks_for_timing(data.question) and _has_windows(relationship_timeline):
         state["expects_a_date"] = True

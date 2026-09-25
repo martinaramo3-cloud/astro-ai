@@ -221,6 +221,60 @@ INVESTMENT_INSTRUCTION = re.compile(
     r"the market|markets|commodities)\b"
     r"|\bbuy(?:ing)?\s+(?:stocks?|shares|equities|gold|bonds)\b", re.I)
 
+# Managing their money, which is not the same ban as naming an investment and
+# was the hole left by only writing the first one. "Keep your savings liquid
+# through that window" names no fund and promises nothing, and is still the
+# chart telling someone what to do with their savings.
+#
+# Declining is not enough on its own — the answer has to go somewhere. The
+# prompt sends it to where the effort goes instead.
+MONEY_MANAGEMENT = re.compile(
+    r"\bkeep\b[^.!?]{0,30}\b(?:savings|cash|money|funds?|capital)\b[^.!?]{0,20}\bliquid\b"
+    r"|\b(?:stay|staying|sit|sitting|remain|remaining)\s+liquid\b"
+    r"|\bliquid(?:ity)?\s+(?:through|during|until|over|across)\b"
+    r"|\b(?:build|keep|hold|grow)\b[^.!?]{0,25}"
+    r"\b(?:cash buffer|buffer|reserve|cushion|emergency fund|rainy.?day fund|runway)\b"
+    r"|\b(?:avoid|don'?t|do not|hold off on|postpone|delay)\b[^.!?]{0,25}"
+    r"\b(?:big|large|major|significant)\s+(?:purchases?|buys?|spending|"
+    r"financial (?:decisions?|commitments?))\b"
+    r"|\b(?:pay(?:ing)? (?:off|down)|clear(?:ing)?)\b[^.!?]{0,20}"
+    r"\b(?:debt|debts|loans?|credit card|mortgage)\b"
+    r"|\b(?:save|set aside|put aside|hold back|squirrel away)\b[^.!?]{0,20}"
+    r"\b(?:more|money|cash|savings|a bit|some of)\b"
+    r"|\b(?:tighten|cut back on|rein in)\b[^.!?]{0,20}"
+    r"\b(?:spending|costs|outgoings|budget|expenses)\b", re.I)
+
+# Work named as a job title rather than as a route. "Consulting, advising,
+# teaching, curating" is the list the whole section exists to avoid: it names
+# four professions and says nothing about what is offered, who buys it, or how
+# the money moves — which is the part somebody can act on.
+OCCUPATION = re.compile(
+    r"\b(?:consult(?:ing|ancy)|advis(?:ing|ory)|coach(?:ing)?|mentor(?:ing|ship)|"
+    r"teach(?:ing)?|lectur(?:ing|e)|tutor(?:ing)?|train(?:ing)?|"
+    r"curat(?:ing|ion)|writ(?:ing)?|speak(?:ing)?|"
+    r"design(?:ing)?|build(?:ing)?|manag(?:ing|ement)|"
+    r"strategy|facilitat(?:ing|ion)|produc(?:ing|tion)|"
+    r"freelanc(?:ing|e)|contract(?:ing)?|brand(?:ing)?)\b", re.I)
+# Three or more of them in a run, which is the list itself rather than a
+# sentence that happens to use two of the words.
+OCCUPATION_LIST = re.compile(
+    r"\b\w*(?:consult|advis|coach|mentor|teach|lectur|tutor|train|curat|writ|"
+    r"speak|design|manag|facilitat|produc|freelanc|manag)\w*\b"
+    r"(?:\s*(?:,|/|, and|, or| and | or )\s*"
+    r"\b\w*(?:consult|advis|coach|mentor|teach|lectur|tutor|train|curat|writ|"
+    r"speak|design|manag|facilitat|produc|freelanc|brand)\w*\b){2,}", re.I)
+# The two halves that turn a job title into a route somebody can act on.
+WHO_PAYS = re.compile(
+    r"\b(?:pays?|paid|paying|buys?|buying|hires?|hiring|commissions?|retains?|"
+    r"retained|who (?:pays|buys|hires)|customers?|the buyer)\b", re.I)
+HOW_CHARGED = re.compile(
+    r"\bper (?:project|engagement|session|day|seat|head|report|case|piece)\b"
+    r"|\bretainer\b|\bday rate\b|\bflat fee\b|\bby the (?:hour|day|project)\b"
+    r"|\b(?:a )?(?:percentage|share|cut|slice) of\b|\bcommission\b|\broyalt(?:y|ies)\b"
+    r"|\bsubscription\b|\blicen[cs]e fee\b|\bup ?front\b|\bon delivery\b"
+    r"|\bcharge(?:s|d)? (?:for|by|per)\b|\bprice(?:d|s)? (?:by|per|as)\b"
+    r"|\bsalar(?:y|ied)\b|\bwage\b|\bequity\b|\bstake in\b", re.I)
+
 # Money promised rather than read. A window is a stretch of time in which
 # something is more available; it is not an event with a payout attached.
 PROMISED_WEALTH = re.compile(
@@ -269,6 +323,13 @@ def _stated(state) -> str:
     facts = state['reported_facts']
     said = [c for text in facts['user_statements'] for c in _licensing_clauses(text)]
     said += [c for text in (facts.get('remembered') or []) for c in _licensing_clauses(text)]
+    # "Should I leave my job?" is a question, so no clause of it survives the
+    # filter above — and the answer then got flagged for inventing a job they
+    # had just said they had. A possessive is a claim of possession wherever
+    # it appears. "my" only, never "I have": "do I have kids?" must keep
+    # licensing nothing, which is what the filter exists for.
+    everything = ' '.join(facts['user_statements'] + list(facts.get('remembered') or []))
+    said += re.findall(r"\bmy\b[\w\s'’-]{0,30}", everything, re.I)
     return ' '.join(said) + ' ' + json.dumps(facts['saved_profile'], ensure_ascii=False)
 
 
@@ -324,7 +385,8 @@ def career_offenders(answer, state) -> list:
     """The exact words to name in a repair, since naming them is what works."""
     words = money_figures_not_theirs(answer, state) + qualifications_not_theirs(answer, state)
     for pattern in (INVESTMENT_VEHICLE, INVESTMENT_VEHICLE_CASED,
-                    INVESTMENT_INSTRUCTION, PROMISED_WEALTH):
+                    INVESTMENT_INSTRUCTION, PROMISED_WEALTH, MONEY_MANAGEMENT,
+                    OCCUPATION_LIST):
         words += [m.group(0) for m in pattern.finditer(answer)]
     return sorted(set(words))
 
@@ -335,12 +397,47 @@ BIOGRAPHY = {
     'children': r'children|kids|son|daughter|baby|parenthood',
     'marriage': r'husband|wife|spouse|married|marriage',
     'pregnancy': r'pregnant|pregnancy',
-    'employment': r'job|boss|employer|career|workplace|unemployed',
+    # "career" is deliberately absent. It is the name of a topic, not a fact
+    # about anyone — "the career that suits you", on a question that asked
+    # exactly that, was being rejected as invented biography.
+    'employment': r'job|boss|employer|workplace|unemployed',
     'finances': r'debt|salary|income|financial struggles|financial problems',
     'housing': r'roommate|flatmate|living alone|live alone|living with',
     'health': r'depression|bipolar|adhd|autism|diagnosis|trauma|ptsd|anxiety disorder',
     'orientation': r'gay|lesbian|bisexual|straight|sexual orientation',
 }
+
+
+# Words too common to say anything about what an answer is ABOUT. Everything
+# else of four letters or more counts as ground covered.
+_COMMON = frozenset("""the a an and or but of to in on at for with from by as is are was
+were be been being it its this that these those you your yours i me my we our they them
+their he she his her not no so if then there here what when where which who whom how why
+all any both each few more most other some such only own same too very can will just
+should now about into through during before after above below up down out off over under
+again further once does did do done has have had having would could may might must shall
+need want get gets got way ways thing things much many make makes made take takes new one
+two three because while whose said say says like also still even yet ever never always
+often sometimes than something anything nothing really quite rather instead already""".split())
+
+
+def _ground(text) -> set:
+    """The distinctive words in a piece of text — what it is actually about."""
+    return {w for w in re.findall(r"[a-z]+", text.lower())
+            if len(w) >= 4 and w not in _COMMON}
+
+
+# How much of a follow-up may be ground the thread has already covered.
+#
+# Measured rather than picked. Across realistic career threads, an answer that
+# re-argues points already made recycles 71–77% of its distinctive content;
+# one that references a point in a clause and then moves on recycles 14%, and
+# one that opens genuinely new ground recycles 4–11%. Nothing lands between
+# 25% and 71%, so the line sits in the middle of the gap.
+REPEATED_GROUND = 0.5
+# Below this there is not enough content to measure, and a short leaning
+# follow-up — "advising, not teaching" — is supposed to reuse the words.
+ENOUGH_TO_MEASURE = 12
 
 
 def _sentences(text):
@@ -418,6 +515,25 @@ def review_issues(answer, state):
         issues.append('tells them where to invest their money')
     if PROMISED_WEALTH.search(answer):
         issues.append('promises money as certain rather than reading a chart')
+    if MONEY_MANAGEMENT.search(answer):
+        # Not in SERIOUS. It is out of scope rather than wrong about their
+        # life, and replacing a good money answer with the stock apology over
+        # one clause costs the person more than the clause does.
+        issues.append('tells them how to manage their savings, which no chart knows')
+    # Work named rather than routed. Only where routes are actually being
+    # given: a question about risk is not required to say who pays.
+    if state['topic'] == 'career':
+        named = {m.group(0).lower() for m in OCCUPATION.finditer(answer)}
+        if OCCUPATION_LIST.search(answer):
+            issues.append('lists job titles instead of routes: '
+                          + OCCUPATION_LIST.search(answer).group(0))
+        # Long enough to actually be giving routes. "Advising, not teaching" is
+        # a leaning answer to a narrow follow-up and is supposed to be three
+        # words; demanding a payment model from it is how a good short reply
+        # gets turned into a bad long one.
+        elif (len(answer.split()) >= 40 and len(named) >= 2
+                and not (WHO_PAYS.search(answer) and HOW_CHARGED.search(answer))):
+            issues.append('names kinds of work without saying who pays or how it is charged')
     for sentence in _sentences(answer):
         if not _asserted(sentence): continue
         for category,terms in BIOGRAPHY.items():
@@ -444,6 +560,20 @@ def review_issues(answer, state):
             current=_normal(sentence)
             if any(SequenceMatcher(None,current,_normal(prior)).ratio() >= .77 for prior in old):
                 issues.append('repeats a previous assistant sentence or conclusion'); break
+        # The check above only ever caught near-copy-paste. A point re-argued
+        # in fresh words — the same three conclusions restated across three
+        # answers of a thread — scored 0.46 to 0.72 against its own earlier
+        # version and sailed through every time, because nothing compared what
+        # the answers were ABOUT, only how they were worded.
+        covered=set().union(*[_ground(t) for t in state['previous_assistant_responses']]) \
+            if state['previous_assistant_responses'] else set()
+        fresh=_ground(answer)
+        if covered and len(fresh) >= ENOUGH_TO_MEASURE:
+            recycled=len(fresh & covered)/len(fresh)
+            if recycled >= REPEATED_GROUND:
+                issues.append(
+                    f'covers ground already given in this thread ({recycled:.0%} of it) '
+                    'instead of adding new')
     return list(dict.fromkeys(issues))
 
 

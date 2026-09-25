@@ -215,6 +215,10 @@ def test_the_prompt_explains_the_new_fields_and_the_timeline_check():
     as a move, to someone who had said she graduates in May."""
     from app.ai_context_service import build_ask_astrologer_system
     flat = " ".join(build_ask_astrologer_system().split())
+    # "at most one" is now a guarantee the code keeps, not a request the prompt
+    # makes — three were being sent while this line asked for one, and the
+    # model used all three. The prompt still says it, because the model should
+    # know the memory it has is the only one it is getting.
     for phrase in ("what_they_told_you", "ask_about_this_once", "Never invent a memory",
-                   "graduate in May", "at most one per answer"):
+                   "graduate in May", "at most one"):
         assert phrase.lower() in flat.lower(), phrase

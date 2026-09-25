@@ -152,6 +152,102 @@ def test_a_full_good_answer_survives_intact():
 
 
 # --------------------------------------------------------------------------
+# A route, not a job title
+# --------------------------------------------------------------------------
+
+def test_a_list_of_professions_is_not_an_answer():
+    """"Consulting, advising, teaching, curating" names four professions and
+    says nothing about what is sold, to whom, or how the money moves."""
+    draft = ("Consulting, advising, teaching, curating — any of these would "
+             "suit the chart, and you would do well at all of them.")
+    issues = review_issues(draft, state_for("What career suits me?"))
+    assert any("job titles" in i for i in issues), issues
+
+
+def test_naming_work_without_a_buyer_or_a_price():
+    draft = ("The shapes that suit you are advising and teaching, and to a "
+             "lesser degree curating. Each of them lets you work from judgement "
+             "rather than from process, which is where you are strongest. You "
+             "would find all three comfortable and the chart supports every one "
+             "of them without much friction, so pick whichever appeals most.")
+    issues = review_issues(draft, state_for("What career suits me?"))
+    assert any("who pays" in i for i in issues), issues
+
+
+def test_a_real_route_passes():
+    draft = ("Advising beats teaching for you, for one reason: you are paid "
+             "for a decision, not for hours in a room. Charge per engagement. "
+             "The buyers are founders and heads of department, who pay when "
+             "the cost of being wrong is high. Your risk is agreeing to build "
+             "what you should have been retained to specify.")
+    assert review_issues(draft, state_for("What career suits me?")) == []
+
+
+def test_a_short_leaning_answer_is_not_asked_for_a_payment_model():
+    """Demanding a buyer and a price from "advising, not teaching" is how a
+    good short reply becomes a bad long one."""
+    assert review_issues("Advising, not teaching.",
+                         state_for("so which of those?")) == []
+
+
+def test_other_topics_are_not_asked_who_pays():
+    state = state_for("why do I keep leaving relationships?")
+    assert review_issues("You are drawn to writing and to teaching people, and "
+                         "both of those are where you go when the other thing "
+                         "gets hard. That is the pattern worth watching here.",
+                         state) == []
+
+
+# --------------------------------------------------------------------------
+# Declining investment advice is not a cue to give savings advice
+# --------------------------------------------------------------------------
+
+@pytest.mark.parametrize("draft", [
+    "Keep your savings liquid through that window and you will be fine.",
+    "Build a cash buffer before October.",
+    "Hold off on any major purchases until spring.",
+    "Pay down the debt before that window opens.",
+    "Set aside more than usual through those months.",
+    "Tighten your spending until the pressure passes.",
+])
+def test_the_chart_does_not_manage_their_money(draft):
+    issues = review_issues(draft, state_for(MONEY_QUESTION))
+    assert any("manage their savings" in i for i in issues), issues
+
+
+def test_it_is_a_rewrite_not_a_replacement():
+    """Out of scope rather than wrong about their life. Replacing a good money
+    answer with the stock apology over one clause costs more than the clause."""
+    from app.answer_review_service import _serious
+    issues = review_issues("Keep your savings liquid through that window.",
+                           state_for(MONEY_QUESTION))
+    assert issues and not _serious(issues)
+
+
+@pytest.mark.parametrize("draft", [
+    # Where the effort goes is the redirect, and must survive.
+    "Put the effort into the two clients who already pay on time, and say no "
+    "to the third.",
+    "Price the specification separately from the build, and charge for it first.",
+    "The work to hold back from is the build you were never retained to do.",
+])
+def test_where_the_effort_goes_still_gets_through(draft):
+    assert review_issues(draft, state_for(MONEY_QUESTION)) == []
+
+
+def test_the_prompt_says_redirect_rather_than_substitute():
+    prompt = main.build_ask_astrologer_system()
+    assert "Redirect, do not substitute" in prompt
+    assert "A transit is not a forecast of their bank balance" in prompt
+
+
+def test_the_prompt_says_what_a_route_is():
+    prompt = main.build_ask_astrologer_system()
+    assert '"Consulting" is a word' in prompt
+    assert "Name the buyer as specifically as you can" in prompt
+
+
+# --------------------------------------------------------------------------
 # Memory counts as something they told us
 # --------------------------------------------------------------------------
 

@@ -6,6 +6,20 @@ Things found while working, deliberately left for later. Newest first.
 
 ## Waiting on the co-founder (24 September 2026)
 
+- **The career data audit.** `training/area3/CAREER-DATA-AUDIT.md` — what the
+  engine calculates and sends for a career question, what it leaves out, and
+  two columns for her to mark what is worth adding and in what order. Every
+  claim in it was checked against the running code.
+
+  The three that look most consequential to us, for her to argue with:
+  **aspects to the Midheaven are not calculated at all** (aspects are computed
+  between planets only, so a square to the career point is invisible);
+  **profections are scaffolded but never computed** (the prediction engine
+  already boosts a transit landing on the profected house and understands a
+  time lord — both are dead code because nothing works out the profected house
+  from a birth date, so the boost has never once applied to a real person);
+  and nothing ranks earning patterns, which is the item below.
+
 - **Which earning patterns she would name, and how she would weight them.**
   `app/earning_profile_service.py` scores a chart on five spectrums — the named
   person or the one behind it; a few clients or many buyers; their own money or

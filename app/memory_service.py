@@ -27,6 +27,7 @@ Three rules shape everything here:
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timedelta, timezone
 
 from app.database import get_db_connection
@@ -175,13 +176,36 @@ TOPIC_REACH = {
 }
 
 
+# Words too ordinary to say what a memory is about, so "still" or "thinking"
+# in a question never counts as continuing its subject.
+_ORDINARY = frozenset("""the a an and or but of to in on at for with from by as is are was
+were be been being it its this that these those you your i me my we our they them their not
+no so if then there here what when where which who how why all any both each few more most
+other some such only own same too very can will just should now about into through during
+before after over under again once does did do done has have had would could may might must
+need want get got make made take new one two three because while said say like also still
+even yet ever never always often sometimes than thinking going doing""".split())
+
+
+def _subject_of(text: str) -> set:
+    """The distinctive words in a memory — what it is actually about."""
+    return {w for w in re.findall(r"[a-z]+", (text or "").lower())
+            if len(w) >= 4 and w not in _ORDINARY}
+
+
 def relevant_memories(owner_user_id: int, topic: str, *, is_relocation: bool = False,
-                      profile_id: int | None = None, limit: int = 3) -> list[dict]:
+                      profile_id: int | None = None, limit: int = 3,
+                      continued_in: str | None = None) -> list[dict]:
     """The few memories that could change what Zoli says to this question.
 
     Deliberately narrow. A memory that merely *could* be mentioned will be
     mentioned, and an app that works your hometown into a question about a
     crush is not attentive, it is odd.
+
+    `continued_in` is the person's own message. A memory mentioned in the last
+    answer comes back only if they themselves brought the subject up again —
+    which is the difference between Zoli following a thread and Zoli having
+    one thing it keeps saying.
     """
     age_memories(owner_user_id)
     reach = TOPIC_REACH.get(topic, {"general"})
@@ -212,9 +236,17 @@ def relevant_memories(owner_user_id: int, topic: str, *, is_relocation: bool = F
         # A memory about a saved person belongs only in that person's chat.
         if memory["profile_id"] and memory["profile_id"] != profile_id:
             continue
-        # Not two answers running, unless they are still on that subject.
-        if memory["last_mentioned_on"] in (today, yesterday) and memory["topic"] != topic:
-            continue
+        # Not two answers running, unless THEY brought the subject back.
+        #
+        # This used to let a memory through whenever its topic matched the
+        # question's, which is nearly always — a "general" memory reaches
+        # every career question by design. So the same fact could be raised in
+        # answer after answer, and was: one memory turned up in three
+        # consecutive answers about work, having never been asked about once.
+        if memory["last_mentioned_on"] in (today, yesterday):
+            asked_about = _subject_of(continued_in) if continued_in else set()
+            if not (_subject_of(memory["text"]) & asked_about):
+                continue
         chosen.append(memory)
         if len(chosen) >= limit:
             break
