@@ -1616,6 +1616,10 @@ def ask_compatibility(
             facts["other_person"] = {k: saved[k] for k in ("person_name", "birth_date", "relationship_type", "label") if saved.get(k)}
     attach_conversation(context, data.question, data.history, facts)
     state = context["conversation"]
+    # So a rejected pronoun can be rewritten as a name rather than collapsing
+    # the whole reading into an apology.
+    if data.person_2_name:
+        state["their_name"] = data.person_2_name
     # Judged on what was asked, like everywhere else. Hard-coding 3 for every
     # follow-up meant a compatibility thread shrank to eighty words a turn
     # however much the second message actually carried.
