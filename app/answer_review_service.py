@@ -176,23 +176,50 @@ MONEY_FIGURE = re.compile(
 # "architecture" — because studying something is not being it. A memory that
 # says "studies law" must never license "as a lawyer" or "you already have the
 # credential", and it cannot, because neither word appears in it.
-QUALIFICATION_TERM = (
-    r"lawyer|attorney|solicitor|barrister|"
-    r"doctor|physician|surgeon|nurse|dentist|pharmacist|veterinarian|"
-    r"engineer|architect|accountant|auditor|actuary|"
-    r"psychologist|psychiatrist|therapist|counsellor|counselor|"
-    r"teacher|professor|lecturer|"
+# Split in two, because they are two different claims and only one of them is
+# a lie. Saying somebody HOLDS a credential they never mentioned is inventing
+# biography. Saying a chart points at teaching is the answer to "what career
+# suits me" — and once the career engine went live, the themes payload put the
+# words therapy, teaching, law and publishing in front of the model on every
+# such question. One rule could not tell the two apart, it was marked serious,
+# and "what career suits me" started returning the stock apology in production.
+CREDENTIAL_TERM = (
     r"licen[cs]ed|certified|accredited|chartered|board.certified|"
     r"qualified|credentials?|credentialled|credentialed|"
     r"degree|diploma|doctorate|masters|"
     r"bar (?:exam|admission)|called to the bar|"
     r"mba|jd|phd|cpa|cfa|acca"
 )
+# A profession is a claim only when it is asserted as a present fact. "You
+# would make a good therapist" is a suggestion and is the whole point of the
+# feature.
+PROFESSION_TERM = (
+    r"lawyer|attorney|solicitor|barrister|"
+    r"doctor|physician|surgeon|nurse|dentist|pharmacist|veterinarian|"
+    r"engineer|architect|accountant|auditor|actuary|"
+    r"psychologist|psychiatrist|therapist|counsellor|counselor|"
+    r"teacher|professor|lecturer"
+)
+QUALIFICATION_TERM = CREDENTIAL_TERM + r"|" + PROFESSION_TERM
 _QUALIFICATION_TERM_RE = re.compile(r"\b(?:" + QUALIFICATION_TERM + r")\b", re.I)
+_CREDENTIAL_RE = re.compile(r"\b(?:" + CREDENTIAL_TERM + r")\b", re.I)
+# Words that turn a profession into a suggestion. A chart may suggest work all
+# day long; what it may not do is tell someone they already hold a job.
+SUGGESTED = re.compile(
+    r"\b(?:would|could|might|may|'d\b|suits?|suited|fit|fits|natural|"
+    r"think about|consider|look at|towards|toward|leans?|points?|"
+    r"the kind of|something like|closer to|along the lines)\b", re.I)
 # The claim, not the word. "A qualified yes" is ordinary English and stays;
 # "you are qualified" is a statement about their life and needs evidence.
+# The frame has to tolerate a modal, because "you would already have the
+# credential" is the same claim as "you already have the credential" and the
+# first version matched only the second. Professions inside a modal frame are
+# suggestions and are let through further down; credentials never are.
 QUALIFIED_CLAIM = re.compile(
-    r"\b(?:as an?|your|you(?:'re| are| have| already have|'ve)(?:\s+(?:an?|the))?)"
+    r"\b(?:as an?|your|you\b(?:'re|'ve|"
+    r"(?:\s+(?:would|will|could|should|might|do|already))*"
+    r"(?:\s+(?:are|have|be|been|had))*)"
+    r"(?:\s+(?:an?|the))?)"
     r"\s+(?:\w+[\s-]){0,2}(?:" + QUALIFICATION_TERM + r")\b", re.I)
 
 # Where to put money. Naming one of these in an astrology answer is investment
@@ -442,10 +469,15 @@ def qualifications_not_theirs(answer, state) -> list:
             continue
         for match in QUALIFIED_CLAIM.finditer(sentence):
             term = _QUALIFICATION_TERM_RE.search(match.group(0))
-            if term and not re.search(
-                r"\b" + re.escape(term.group(0)) + r"\b", stated, re.I
-            ):
-                found.append(match.group(0))
+            if not term:
+                continue
+            if re.search(r"\b" + re.escape(term.group(0)) + r"\b", stated, re.I):
+                continue
+            # A profession offered as a suggestion is not a claim about their
+            # life. A credential is, however it is phrased.
+            if not _CREDENTIAL_RE.search(term.group(0)) and SUGGESTED.search(sentence):
+                continue
+            found.append(match.group(0))
     return found
 
 
@@ -528,6 +560,19 @@ REPEATED_GROUND = 0.5
 # Below this there is not enough content to measure, and a short leaning
 # follow-up — "advising, not teaching" — is supposed to reuse the words.
 ENOUGH_TO_MEASURE = 12
+
+
+def _asks_how_they_earn(question) -> bool:
+    """Is the money half what was asked, or the work half?
+
+    Shares the classifier the career engine uses, so the review layer and the
+    reading can never disagree about what kind of question this is.
+    """
+    try:
+        from app.career_reading_service import classify_career_question
+        return classify_career_question(question or "") == "how_they_earn"
+    except Exception:  # noqa: BLE001
+        return True
 
 
 def _sentences(text):
@@ -623,10 +668,12 @@ def review_issues(answer, state):
         # life, and replacing a good money answer with the stock apology over
         # one clause costs the person more than the clause does.
         issues.append('tells them how to manage their savings, which no chart knows')
-    # Work named rather than routed. Only where routes are actually being
-    # given: a question about risk is not required to say who pays.
+    # Work named rather than routed. Only on a question about MONEY: "what
+    # career suits me" is answered with what the work is, where a buyer and a
+    # price are not the point and demanding them rewrites a correct answer.
     if state['topic'] == 'career':
         named = {m.group(0).lower() for m in OCCUPATION.finditer(answer)}
+        # A run of job titles says nothing whichever half was asked about.
         if OCCUPATION_LIST.search(answer):
             issues.append('lists job titles instead of routes: '
                           + OCCUPATION_LIST.search(answer).group(0))
@@ -634,7 +681,8 @@ def review_issues(answer, state):
         # a leaning answer to a narrow follow-up and is supposed to be three
         # words; demanding a payment model from it is how a good short reply
         # gets turned into a bad long one.
-        elif (len(answer.split()) >= 40 and len(named) >= 2
+        elif (_asks_how_they_earn(state['latest_message'])
+                and len(answer.split()) >= 40 and len(named) >= 2
                 and not (WHO_PAYS.search(answer) and HOW_CHARGED.search(answer))):
             issues.append('names kinds of work without saying who pays or how it is charged')
     for sentence in _sentences(answer):
@@ -701,12 +749,59 @@ def review_issues(answer, state):
     return list(dict.fromkeys(issues))
 
 
+def _without_offending(answer, state, limit: int = 2):
+    """Drop the sentences that carry the violation and keep the rest.
+
+    A chart question always has a chart behind it, so "I don't have enough
+    reliable information" is never true — and it is what someone got for
+    asking what career suited them. One bad sentence should cost that
+    sentence, not the answer.
+
+    Drops the sentence whose removal helps most, up to `limit` of them, and
+    returns nothing unless what is left is clean and still a real answer.
+    """
+    sentences = _sentences(answer)
+    if len(sentences) < 3:
+        return None
+    keep = list(sentences)
+    for _ in range(limit):
+        issues = review_issues(" ".join(keep), state)
+        if not issues:
+            break
+        scored = []
+        for index in range(len(keep)):
+            without = keep[:index] + keep[index + 1:]
+            if not without:
+                continue
+            scored.append((len(review_issues(" ".join(without), state)), index))
+        if not scored:
+            return None
+        fewest, index = min(scored)
+        if fewest >= len(issues):
+            return None            # nothing to remove would help
+        keep = keep[:index] + keep[index + 1:]
+    trimmed = " ".join(keep)
+    # Only if it came out clean and still says something.
+    if review_issues(trimmed, state):
+        return None
+    if len(trimmed.split()) < max(25, len(answer.split()) * 0.45):
+        return None
+    return trimmed
+
+
 def safe_reply(state):
     q=state['latest_message'].casefold()
     if re.search(r'\b(?:kill myself|suicide|end my life)\b',q):
         return "I'm sorry you're going through this. Are you in immediate danger? If you might act on this now, contact emergency help or someone you trust who can stay with you."
     if state['mode']=='astrology_on_request':
         return "I couldn't give a reliable explanation from this draft. Which part of the previous answer would you like me to explain?"
+    # A chart question has a chart behind it. Saying otherwise is both untrue
+    # and the least useful sentence in the product.
+    if state['topic'] == 'career':
+        return ("I can read what your chart points at for work and money, but I "
+                "couldn't put this one into words I'd stand behind. Ask me again, "
+                "or tell me which part you most want — the kind of work, how the "
+                "money is likeliest to come, or the timing.")
     if state['topic'] in ('relationship','compatibility'):
         # Only reached when a draft could not be made safe twice over. It used
         # to ask what the other person had said or done, which answers a
@@ -766,8 +861,19 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
     remaining = review_issues(revised, state)
     if not remaining:
         return revised, tokens
+    # A rendered calculation beats prose about it, unchanged.
+    if fallback:
+        return fallback, tokens
+    # Cut the sentence, not the answer. A chart question always has a chart
+    # behind it, so the stock "I don't have enough reliable information" is
+    # never true of one — and it is what someone got for asking what career
+    # suited them.
+    trimmed = _without_offending(revised, state)
+    if trimmed:
+        return trimmed, tokens
     # Only step in front of the answer when what's left could mislead them
-    # about their own life. A clumsy reading is still a reading.
-    if _serious(remaining) or fallback:
-        return (fallback or safe_reply(state)), tokens
+    # about their own life and could not be cut out. A clumsy reading is
+    # still a reading.
+    if _serious(remaining):
+        return safe_reply(state), tokens
     return revised, tokens

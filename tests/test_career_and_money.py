@@ -85,9 +85,34 @@ def test_wanting_to_be_one_does_not_license_it_either():
     assert review_issues("As a therapist you already have the licence.", state)
 
 
-def test_asking_whether_to_become_one_does_not_license_it():
+def test_suggesting_a_profession_is_not_claiming_one():
+    """The distinction that broke production. Once the career engine went
+    live, every "what career suits me" answer was written from a payload
+    containing the words therapy, teaching, law and publishing — and one rule
+    could not tell "you would make a good therapist" from "as a lawyer you
+    already have the credential". It was marked serious, so the answer became
+    the stock apology.
+
+    A chart may suggest work all day. What it may not do is tell somebody they
+    already hold a job or a credential.
+    """
     state = state_for("should I become a lawyer?")
-    assert review_issues("As a lawyer you would be paid for judgement.", state)
+    # Conditional: a suggestion, and the whole point of the feature.
+    assert review_issues("As a lawyer you would be paid for judgement.", state) == []
+    assert review_issues("You would make a very good therapist.", state) == []
+    assert review_issues("The work suits a teacher more than an engineer.", state) == []
+    # Present tense: a claim about their life, and still caught.
+    assert review_issues("As a lawyer you are paid for judgement.", state)
+    assert review_issues("You are a teacher and it shows.", state)
+
+
+def test_a_credential_is_caught_however_it_is_phrased():
+    """A profession can be suggested. A credential cannot."""
+    state = state_for("should I become a lawyer?")
+    for draft in ("As a lawyer you would already have the credential.",
+                  "You would be qualified for this.",
+                  "Your degree would carry it."):
+        assert review_issues(draft, state), draft
 
 
 def test_saying_they_are_one_does_license_it():
@@ -169,8 +194,13 @@ def test_naming_work_without_a_buyer_or_a_price():
              "rather than from process, which is where you are strongest. You "
              "would find all three comfortable and the chart supports every one "
              "of them without much friction, so pick whichever appeals most.")
-    issues = review_issues(draft, state_for("What career suits me?"))
+    # Only on the money half. "What career suits me" is answered with what the
+    # work IS, where a buyer and a price are not the point — demanding them
+    # there rewrote correct answers.
+    issues = review_issues(draft, state_for(MONEY_QUESTION))
     assert any("who pays" in i for i in issues), issues
+    assert not any("who pays" in i
+                   for i in review_issues(draft, state_for("What career suits me?")))
 
 
 def test_a_real_route_passes():
@@ -318,3 +348,65 @@ def test_the_prompt_judges_the_chart_before_their_life():
     assert "before anything this person has told" in prompt
     assert "Studying something is not being it" in prompt
     assert "never name a fund, a stock, a currency, a property or a market" in prompt
+
+
+# --------------------------------------------------------------------------
+# The production regression: "what career suits me" returned the stock reply
+# --------------------------------------------------------------------------
+
+def test_the_drafts_that_returned_the_stock_apology_are_served():
+    """Reported live, 25 September 2026.
+
+    The career engine put the words therapy, teaching, law and publishing in
+    front of the model on every "what career suits me" question — that is the
+    themes payload doing its job. The qualification rule, built to stop Zoli
+    awarding a credential nobody mentioned, read "you would make a good
+    therapist" as a claim that they are one. It is marked serious, so it
+    survived the rewrite and the person got "I don't have enough reliable
+    information to be specific about that yet" for asking what career suited
+    them — about a chart that was sitting right there.
+    """
+    from app.answer_review_service import reviewed_answer, safe_reply
+    for draft in (
+        "You would make a very good therapist, and the chart points there "
+        "twice over. Teaching sits close behind, and the two read better as "
+        "one job than as a choice. Hold it lightly: only one thing points at each.",
+        "As a therapist you would be working with exactly what you are good "
+        "at, and teaching sits close behind it. The complication is that what "
+        "governs your work is not comfortably placed.",
+        "The work that suits you is film, photography and therapy — anything "
+        "working with what cannot be measured directly. Teaching and advising "
+        "sit close behind, where people come to you for expertise.",
+    ):
+        state = state_for("What career suits me?")
+        answer, _ = reviewed_answer(lambda p, **k: (draft, 0), "p",
+                                    {"question": "What career suits me?",
+                                     "conversation": state})
+        assert answer.strip() != safe_reply(state).strip(), draft
+        assert answer.strip() == draft.strip()
+
+
+def test_a_chart_question_never_says_there_is_not_enough_information():
+    """We always have the chart. Saying otherwise is untrue and is the least
+    useful sentence in the product."""
+    from app.answer_review_service import safe_reply
+    reply = safe_reply(state_for(MONEY_QUESTION))
+    assert "enough reliable information" not in reply
+    assert "chart" in reply
+
+
+def test_a_style_failure_costs_the_sentence_not_the_answer():
+    """A rewrite that still trips a style rule serves the best draft with the
+    offending sentence removed."""
+    from app.answer_review_service import reviewed_answer, safe_reply
+    draft = ("You earn best being paid for judgement rather than hours, from "
+             "clients who cannot afford a wrong answer. Consulting, advising, "
+             "teaching, curating — any of those. Charge per engagement and "
+             "move to a retainer once two of them come back. The first step "
+             "is writing down the three problems people already bring you.")
+    state = state_for(MONEY_QUESTION)
+    answer, _ = reviewed_answer(lambda p, **k: (draft, 0), "p",
+                                {"question": MONEY_QUESTION, "conversation": state})
+    assert answer.strip() != safe_reply(state).strip()
+    assert "Consulting, advising, teaching, curating" not in answer
+    assert "per engagement" in answer
