@@ -247,7 +247,13 @@ def safe_reply(state):
     if state['mode']=='astrology_on_request':
         return "I couldn't give a reliable explanation from this draft. Which part of the previous answer would you like me to explain?"
     if state['topic'] in ('relationship','compatibility'):
-        return "I don't have enough reliable information to say what they intend. What have they actually said or done?"
+        # Only reached when a draft could not be made safe twice over. It used
+        # to ask what the other person had said or done, which answers a
+        # question about intentions — not the one about the two charts that
+        # was actually asked.
+        return ("I can read the connection between the two charts, but I couldn't "
+                "put this one into words I'd stand behind. Ask me again, or tell me "
+                "what you most want to know about it.")
     return "I don't have enough reliable information to be specific about that yet. Can you tell me a little more about the situation?"
 
 
@@ -273,6 +279,10 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
         **({'remove_these_exact_words':offending} if offending else {}),
         # The calculated days, handed over rather than described. "You left the
         # date out" produced no date twice; the days themselves do.
+        # A name beats a pronoun and beats "they". The draft was rejected for
+        # assuming a gender; the rewrite needs to know there is an alternative.
+        **({'refer_to_them_as': state.get('their_name') or 'they/them'}
+           if any('gendered pronouns' in p for p in problems) else {}),
         **({'cite_one_of_these_dates':state['dates_available']}
            if state.get('dates_available') and
            any('without a date' in p for p in problems) else {}),

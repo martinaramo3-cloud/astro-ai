@@ -153,3 +153,35 @@ def test_power_and_attachment_never_leave_the_engine():
     source = inspect.getsource(main.ask_compatibility)
     assert '"power_profile"' in source and '"attachment_profile"' in source
     assert "not in (" in source, "they should be filtered out of the context"
+
+
+def test_a_rejected_pronoun_is_rewritten_as_a_name(account):
+    """A live test collapsed to the stock apology because the draft said "he"
+    about someone whose gender was never stated. The reading was fine; only the
+    pronoun was an assumption — so the rewrite is told what to call them."""
+    from app.answer_review_service import reviewed_answer
+    state = conversation_state("what is this connection actually like?",
+                               None, {"user": {"name": "Ana"}})
+    state["max_words"] = 420
+    state["their_name"] = "Sam"
+    seen = []
+
+    def generate(prompt, **kwargs):
+        seen.append(prompt)
+        return (("The pull is the loudest part, and he goes quiet after closeness.", 10)
+                if len(seen) == 1 else
+                ("The pull is the loudest part, and Sam goes quiet after closeness.", 10))
+
+    answer, _ = reviewed_answer(generate, "prompt", {"conversation": state})
+    assert "Sam" in answer and "reliable information" not in answer
+    assert "refer_to_them_as" in seen[1] and "Sam" in seen[1]
+
+
+def test_the_last_resort_answers_the_question_that_was_asked():
+    """It used to ask what the other person had said or done — an answer about
+    intentions, to someone asking about two charts."""
+    from app.answer_review_service import safe_reply
+    state = conversation_state("what is this connection actually like?")
+    state["topic"] = "compatibility"
+    assert "what have they actually said" not in safe_reply(state).lower()
+    assert "connection between the two charts" in safe_reply(state)
