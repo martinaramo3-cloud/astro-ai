@@ -114,6 +114,7 @@ from app.conversation_service import (
     relevant_history_question,
 )
 from app.answer_review_service import reviewed_answer
+from app.career_reading_service import build_career_reading, for_the_answer
 from app.transit_timing_service import build_predictive_timeline, build_relationship_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -1277,6 +1278,36 @@ def _prepare_astrologer_call(
         except Exception as exc:  # noqa: BLE001
             print("Month outlook failed:", repr(exc))
 
+    # The career reading: two rankings, computed from the chart alone before
+    # anything this person has said is looked at.
+    #
+    # This is the only version of "judge the chart first" that survives. The
+    # instruction cannot be given to the model, because the memory saying what
+    # they study arrives in the same payload as the chart it is meant to be
+    # ignored in favour of — and an instruction that competes with the data
+    # behind it has now lost four times. So the ranking is computed here, with
+    # their life out of scope, and their life is applied afterwards by the
+    # answer, to turn a ranked route into practical options.
+    #
+    # Only the conclusion is sent. Scores never are, and the placements and
+    # aspects only when they have asked how the chart says so.
+    if question_type == "career" and natal_data.get("houses") and data.birth_time_known:
+        try:
+            reading = build_career_reading(
+                natal_data, data.question,
+                timeline=chat_context.get("predictive_timeline"),
+                birth_date=current_user.get("birth_date") or data.birth_date,
+                birth_time_confident=bool(data.birth_time_known),
+            )
+            compact = for_the_answer(
+                reading, technical=(state["mode"] == "astrology_on_request"))
+            if compact:
+                chat_context["career_reading"] = compact
+        except Exception as exc:  # noqa: BLE001
+            # A career answer without this is the answer we had last week, not
+            # a broken one. Never let it take the reply down.
+            print("Career reading failed:", repr(exc))
+
     # How much answer does this deserve? Decided from the question and the
     # thread, before the prompt is assembled — because the honest way to get a
     # one-line reply is to stop shipping three thousand tokens of chart with it.
@@ -1337,6 +1368,7 @@ def _prepare_astrologer_call(
             "active_transits": "transit_to_natal", "relevant_transits": "transit_to_natal",
             "predictive_timeline": "transit_to_natal", "transits_on_asked_date": "transit_to_natal",
             "month_outlook": "transit_to_natal", "prediction": "transit_to_natal_interpretation",
+            "career_reading": "natal_ranking_computed_before_anything_they_told_you",
             "sky_now": "current_sky_and_transits_through_natal_houses",
         }.items() if key in chat_context
     }

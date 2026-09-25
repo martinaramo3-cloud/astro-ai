@@ -33,6 +33,7 @@ import pytest
 
 from app.career_reading_service import (
     QUESTION_TYPES, build_career_reading, choose_timing, classify_career_question,
+    for_the_answer,
 )
 from app.chart_analysis_service import get_house_rulers
 from app.earning_routes_service import DIMENSIONS, ROUTES
@@ -243,8 +244,11 @@ def test_a_sextile_at_six_degrees_no_longer_counts():
     assert within_orb("conjunction", 7.0, "Venus", "Mars")
 
 
-def test_the_policy_says_it_is_awaiting_approval():
-    assert "awaiting" in describe()["status"]
+def test_the_policy_says_where_it_stands():
+    """In use, and honest that it has not been signed off in writing. The
+    numbers stay in one named file so changing them is one edit."""
+    status = describe()["status"]
+    assert "in use" in status and "not yet signed off" in status
     assert describe()["exactness_floor"] > 0
 
 
@@ -428,20 +432,34 @@ def test_the_plain_language_carries_no_score():
 # Still dark
 # --------------------------------------------------------------------------
 
-@pytest.mark.parametrize("module", [
-    "career_reading_service", "earning_routes_service",
-    "professional_themes_service",
-])
-def test_none_of_it_is_wired_into_an_answer(module):
-    import subprocess
-    importers = {
-        path.replace("//", "/") for path in subprocess.run(
-            ["grep", "-rl", "--include=*.py", module, "app/"],
-            capture_output=True, text=True).stdout.split()
-        if not path.endswith(f"{module}.py")
-    }
-    allowed = {"app/career_reading_service.py"}
-    assert not (importers - allowed), importers
+def test_only_the_conclusion_reaches_the_prompt():
+    """Live now. The scores stay inside — a number attached to someone's
+    earning prospects reads as a probability whatever it is labelled."""
+    compact = for_the_answer(reading("What career suits me?"))
+    blob = json.dumps(compact)
+    for leak in ("score", "how_unusual", "counts_as", "activation", "points"):
+        assert leak not in blob, leak
+    assert compact["conclusion_in_plain_words"]
+
+
+def test_the_astrology_is_absent_unless_they_asked_for_it():
+    result = reading("What career suits me?")
+    assert "the_chart_behind_it" not in for_the_answer(result)
+    assert "the_chart_behind_it" in for_the_answer(result, technical=True)
+
+
+def test_the_plain_version_carries_no_planets_or_houses():
+    from app.answer_review_service import JARGON
+    blob = json.dumps(for_the_answer(reading("What career suits me?")))
+    assert not JARGON.search(blob), JARGON.search(blob).group(0)
+
+
+def test_the_prompt_is_told_to_build_on_it_and_not_re_derive():
+    prompt = " ".join(main.build_ask_astrologer_system().split())
+    assert "career_reading" in prompt
+    assert "Do not go back to the raw chart" in prompt
+    assert "Never say a ranking exists" in prompt
+    assert "never change the ranking" in prompt
 
 
 def test_the_blind_table_covers_both_rankings():

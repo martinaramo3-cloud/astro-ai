@@ -5,6 +5,8 @@ earns. A person can be paid by an employer or by clients — that is the earning
 route — while the work in either case is teaching, or building, or research.
 The two rankings are separate on purpose and are produced separately here.
 
+LIVE since 25 September 2026, through `career_reading_service`.
+
 Her weighting, in her order: the MC and its ruler first, then the 10th ruler,
 then repeated connections between those factors and other planets or houses.
 The 6th describes daily tasks and working conditions and does not by itself

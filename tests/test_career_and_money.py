@@ -313,6 +313,8 @@ def test_the_prompt_says_the_room_is_not_a_target():
 def test_the_prompt_judges_the_chart_before_their_life():
     prompt = main.build_ask_astrologer_system()
     assert "When they ask about career or money:" in prompt
-    assert "before you look at anything they have told" in prompt
+    # The instruction moved from words to code: the ranking is computed with
+    # their life out of scope, and the prompt now points at the result.
+    assert "before anything this person has told" in prompt
     assert "Studying something is not being it" in prompt
     assert "never name a fund, a stock, a currency, a property or a market" in prompt

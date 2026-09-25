@@ -3,8 +3,10 @@
 Written to the co-founder's instruction: "Set and document an orb policy; do
 not quietly treat an 8° conjunction as equivalent to a 1° conjunction."
 
-AWAITING HER APPROVAL. The numbers below are a proposal. They are in one file,
-named, so changing them is one edit rather than a search through the codebase.
+IN USE on career and money questions since 25 September 2026. The astrologer
+has seen these numbers at the top of the blind table but has not signed them
+off in writing, so they stay in one named file: changing them is one edit
+rather than a search through the codebase.
 
 ------------------------------------------------------------------------------
 The policy, in words
@@ -71,8 +73,8 @@ POLICY_NOTE = (
     "or trine, 5° for a sextile; 6/5/3° to an angle; 3° to the 2nd cusp. Two "
     "degrees wider when the Sun or Moon is involved. Exactness is then a "
     "weight from 0.2 to 1.0, so a 1° contact counts for roughly four times a "
-    "contact at the edge of its allowance. Proposal — awaiting the astrologer's "
-    "approval."
+    "contact at the edge of its allowance. In use on career questions; not yet "
+    "signed off in writing."
 )
 
 
@@ -115,6 +117,6 @@ def describe() -> dict:
         "to_the_second_cusp": TO_CUSP,
         "luminary_bonus": LUMINARY_BONUS,
         "exactness_floor": FLOOR,
-        "status": "proposal — awaiting the astrologer's approval",
+        "status": "in use; seen by the astrologer, not yet signed off in writing",
         "note": POLICY_NOTE,
     }

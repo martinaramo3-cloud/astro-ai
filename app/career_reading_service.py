@@ -5,7 +5,10 @@ type, the top professional themes, the top three earning routes, evidence and
 counterevidence for each, confidence, the timing windows, and the reason each
 window was chosen. Only then is anything written.
 
-NOT WIRED INTO ANY ANSWER. Dark until she has reviewed the blind table.
+LIVE on career and money questions since 25 September 2026, on Martina's
+call after the astrologer reviewed the blind table. Only the conclusion is
+sent — see `for_the_answer`. Scores never leave this module, and the
+placements and aspects go only to someone who asked how the chart says so.
 
 ------------------------------------------------------------------------------
 The two things this file exists to prevent
@@ -312,6 +315,86 @@ def _confidence(question_type, themes, routes, timing, birth_time_confident) -> 
     if question_type == "career_timing" and timing.get("timing_is_unclear"):
         return "moderate — the chart is clear, the timing indicators do not converge"
     return "high" if wanted else "moderate"
+
+
+def for_the_answer(reading: dict, *, technical: bool = False) -> dict | None:
+    """What actually goes into the prompt. Never the whole internal object.
+
+    Plain language by default, per her section 6. The placements and aspects
+    are included only when the person has explicitly asked how the chart says
+    so — the existing astrology-on-request mode — and are absent otherwise, so
+    a jargon-free answer is jargon-free because the jargon was never sent.
+
+    The scores never appear in either version. They are a ranking aid and a
+    consistency device; a number attached to someone's earning prospects would
+    read as a probability whatever it was labelled.
+    """
+    if not reading.get("available"):
+        return None
+    themes = reading["professional_themes"]
+    routes = reading["earning_routes"]
+    timing = reading["timing"]
+
+    compact: dict = {
+        "note": (
+            "A ranking computed from this chart BEFORE anything the person has "
+            "told you was looked at. Build the answer on it. Do not re-derive a "
+            "different reading from the raw chart data elsewhere in this "
+            "payload, and do not mention that a ranking exists."),
+        "this_question_is_about": reading["question_type"].replace("_", " "),
+        "conclusion_in_plain_words": reading["plain_language"],
+        "confidence": reading["confidence"],
+    }
+
+    if themes.get("available") and themes["themes"]:
+        compact["what_the_work_is"] = [
+            {"theme": t["label"], "in_plain_words": t["plain"],
+             "looks_like": t["work"], "well_supported": t["strong"]}
+            for t in themes["themes"]]
+        if themes.get("combined_reading"):
+            compact["these_two_are_one_career"] = themes["combined_reading"]
+
+    if routes.get("available") and routes["ranking"]:
+        compact["how_the_money_arrives"] = [
+            {"route": r["label"], "in_plain_words": r["plain"],
+             "means": r["means"], "well_supported": r["strong"]}
+            for r in routes["ranking"]]
+        if routes.get("complementary"):
+            compact["top_two_routes_are_complementary"] = True
+        compact["on_these_dimensions"] = {
+            name: reading_["reads_as"]
+            for name, reading_ in routes.get("dimensions", {}).items()}
+
+    if timing.get("timing_is_unclear"):
+        compact["timing"] = {
+            "say": "the timing is not clear enough to put a date on",
+            "why": "the indicators do not converge on one window",
+        }
+    elif timing.get("windows"):
+        compact["timing"] = {
+            "windows": [
+                {"dates": [p["window"] for p in w["passes"][:2]],
+                 "exact_days": w["exact_days"],
+                 "this_is": w["reads_as"],
+                 "chosen_because": w["why_this_window"]}
+                for w in timing["windows"][:2]],
+            "note": ("Chosen for activating what this question turns on, not "
+                     "for being the largest transit. Explain a window once; "
+                     "after that it is a clause."),
+        }
+
+    if technical:
+        from app.earning_routes_service import technical_evidence
+        compact["the_chart_behind_it"] = {
+            "money_ruler": reading["earning_routes"]["traced_from"]["money_house_ruler"],
+            "career_point": themes.get("career_point"),
+            "route_evidence": technical_evidence(routes),
+            "theme_evidence": [
+                f"{t['label']}: " + "; ".join(e["why"] for e in t["evidence"][:3])
+                for t in themes.get("themes", [])],
+            "year": reading["annual_profection"],
+        }
+    return compact
 
 
 def _plain(question_type, themes, routes, timing) -> str:

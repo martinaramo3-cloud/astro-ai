@@ -341,14 +341,11 @@ def test_a_dimension_can_read_as_undecided():
 # Still dark
 # --------------------------------------------------------------------------
 
-def test_the_engine_is_not_wired_into_any_answer():
-    """Live only after she has reviewed the blind table. This test is what
-    keeps that true.
-
-    The internal career reading may import it — that object is itself dark,
-    and test_career_reading holds the line for the pair of them. Nothing else
-    may.
-    """
+def test_it_is_reached_only_through_the_career_reading():
+    """Live since 25 September 2026. It still may not be imported directly by
+    a request path: everything that reaches an answer goes through
+    `career_reading_service`, which is where the plain-language filtering and
+    the astrology-on-request gate live."""
     import subprocess
     importers = {
         path.replace("//", "/") for path in subprocess.run(
@@ -356,7 +353,7 @@ def test_the_engine_is_not_wired_into_any_answer():
             capture_output=True, text=True).stdout.split()
         if not path.endswith("earning_routes_service.py")
     }
-    assert importers <= {"app/career_reading_service.py"}, importers
+    assert importers == {"app/career_reading_service.py"}, importers
 
 
 def test_the_blind_table_covers_this_engine_too():

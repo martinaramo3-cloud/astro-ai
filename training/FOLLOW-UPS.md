@@ -4,6 +4,30 @@ Things found while working, deliberately left for later. Newest first.
 
 ---
 
+## Live now, still hers to change (25 September 2026)
+
+The career engine went live on Martina's call after Nicole reviewed the blind
+table. Nothing below is blocked by it — these are adjustments to a running
+system, and each is one edit:
+
+- **The weights and the theme vocabulary.** Her weight table is applied as
+  written; the ten professional themes are mine, keyed on the planets because
+  a planet is what says what KIND of work something is. If she wants different
+  themes or different weights, they are the tables at the top of
+  `professional_themes_service.py` and `earning_routes_service.py`.
+- **The orb policy has not been signed off in writing.** It is in use and says
+  so in its own output. `app/orb_policy.py`.
+- **Ranking on how unusual a score is for that route or theme**, rather than on
+  the raw total — mine, and the one to argue with first. Without it one route
+  won 46% of charts and two never won at all.
+- **Placidus makes the MC ruler and the 10th ruler the same planet.** Counted
+  once. If she meant two factors, that is a house-system decision and hers.
+- **What Nicole has not sent back yet:** `career-blind-review.csv` from tab one
+  of the blind table, and the two ranking columns of the data audit. The first
+  is what would let the weights be tuned from where she actually disagrees.
+
+---
+
 ## Waiting on the co-founder (24 September 2026)
 
 - **The career data audit.** `training/area3/CAREER-DATA-AUDIT.md` — what the

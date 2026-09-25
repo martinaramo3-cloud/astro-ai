@@ -1,9 +1,9 @@
 """How a chart earns, from the co-founder's earning-route framework.
 
-NOT WIRED INTO ANY ANSWER. Built, tested and calibrated; dark until she has
-reviewed the blind table in `training/area3/`. Same arrangement as the
-friendship engine, for the same reason: the mechanism is mine, the astrology
-is hers.
+LIVE since 25 September 2026, reached through `career_reading_service` and
+never directly. The mechanism is mine and the astrology is hers; what is
+still hers to change is listed in `training/FOLLOW-UPS.md`, and changing it
+is editing the tables at the top of this file.
 
 This replaces an earlier engine of mine that scored five invented spectrums.
 Everything below — the six routes, the weight table, the five dimensions and
