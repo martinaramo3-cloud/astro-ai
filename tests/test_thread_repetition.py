@@ -198,6 +198,41 @@ def test_a_career_question_does_not_drag_in_an_unrelated_memory_twice(user_with_
     assert len(surfaced) == len(set(surfaced)), surfaced
 
 
+def test_memory_appears_once_in_a_thread_not_once_per_answer(user_with_memories):
+    """The fix that wasn't enough. "At most one per answer" was kept, and four
+    questions in one thread still surfaced four DIFFERENT memories —
+    "choosing between Albania and New York" then "graduating without a job
+    lined up" is one situation told twice, whatever it is stored as. Matching
+    subjects does not catch it either: those two share no words."""
+    uid, _ = user_with_memories
+    user = dict(id=uid, memory_enabled=1, birth_time_known=1, **SOFIA)
+    history, surfaced = [], []
+    for question in ("How am I most likely to make money according to my chart?",
+                     "Does my chart show potential for major financial success?",
+                     "What career suits me?"):
+        prep = main._prepare_astrologer_call(
+            main.AstrologyQuestionRequest(question=question, history=history, **SOFIA), user)
+        told = prep["chat_context"].get("what_they_told_you") or []
+        surfaced.append([m["note"] for m in told])
+        history = history + [{"role": "user", "content": question},
+                             {"role": "assistant", "content": "An answer."}]
+    assert surfaced[0], "the opening question should be allowed a memory"
+    assert surfaced[1] == [] and surfaced[2] == [], surfaced
+
+
+def test_but_it_comes_back_when_they_raise_it_mid_thread(user_with_memories):
+    uid, _ = user_with_memories
+    user = dict(id=uid, memory_enabled=1, birth_time_known=1, **SOFIA)
+    history = [{"role": "user", "content": "How do I make money?"},
+               {"role": "assistant", "content": "An answer."}]
+    prep = main._prepare_astrologer_call(
+        main.AstrologyQuestionRequest(
+            question="does the Albania move change any of that?",
+            history=history, **SOFIA), user)
+    told = prep["chat_context"].get("what_they_told_you") or []
+    assert any("Albania" in m["note"] for m in told), told
+
+
 def test_the_memory_is_marked_as_the_only_one(user_with_memories):
     uid, _ = user_with_memories
     prep = main._prepare_astrologer_call(

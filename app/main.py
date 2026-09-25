@@ -20,6 +20,8 @@ from app.memory_service import (
     list_memories,
     update_text,
     note_mentioned,
+    raised_memory,
+    subject_raised,
     pick_check_in,
     relevant_memories,
 )
@@ -1178,6 +1180,18 @@ def _prepare_astrologer_call(
             user_id, question_type,
             is_relocation=bool(detect_relocation_request(data.question)),
             continued_in=data.question)
+        # Memory belongs at the start of a conversation, or when they raise it
+        # themselves — not once per answer.
+        #
+        # "At most one per answer" was kept, and it still read as repetition:
+        # four questions in one thread surfaced four DIFFERENT memories, and
+        # "choosing between Albania and New York" followed by "graduating
+        # without a job lined up" is one situation told twice, however many
+        # rows it happens to be stored in. Matching subjects does not catch it
+        # either — those two share no words. So the rule is about the shape of
+        # the conversation instead: once per thread, unless they ask.
+        if state["kind"] != "new_question" and not subject_raised(memories, data.question):
+            memories = []
         if memories:
             may_ask = tier == 4 and state["topic"] != "emotional" and not image_context
             check_in = pick_check_in(memories, topic=question_type, allowed=may_ask)
@@ -1187,7 +1201,12 @@ def _prepare_astrologer_call(
             # about them. If there is a plan worth checking in on, that is the
             # one; otherwise the most relevant, which is what the ordering in
             # relevant_memories already means.
-            surfaced = check_in or memories[0]
+            # What they raised beats what the ordering would have picked, and
+            # both beat the default. Asking "does the Albania move change
+            # that?" and being told about something else is worse than saying
+            # nothing.
+            surfaced = raised_memory(memories, data.question) or check_in or memories[0]
+            asking = bool(check_in and check_in["id"] == surfaced["id"])
             chat_context["what_they_told_you"] = [{
                 "kind": surfaced["kind"], "said_on": surfaced["said_on"],
                 "note": surfaced["text"],
@@ -1201,7 +1220,7 @@ def _prepare_astrologer_call(
             # figure or a credential was theirs to begin with. Review sees all
             # of them; only one is offered to the model.
             state["reported_facts"]["remembered"] = [m["text"] for m in memories]
-            if check_in:
+            if asking:
                 chat_context["ask_about_this_once"] = {
                     "id": check_in["id"], "said_on": check_in["said_on"],
                     "note": check_in["text"],
@@ -1210,7 +1229,7 @@ def _prepare_astrologer_call(
             # unless they raise it. This was only ever recorded for check-ins,
             # which is why the back-to-back rule had nothing to act on and a
             # memory could repeat indefinitely.
-            note_mentioned(user_id, surfaced["id"], asked=bool(check_in))
+            note_mentioned(user_id, surfaced["id"], asked=asking)
 
     if image_context:
         chat_context["attached_image"] = image_context
@@ -1655,11 +1674,15 @@ def ask_compatibility(
         remembered = relevant_memories(
             user_id, state["topic"], profile_id=profile_id,
             continued_in=data.question)
+        # Once per thread here too, for the same reason.
+        if state["kind"] != "new_question" and not subject_raised(remembered, data.question):
+            remembered = []
         if remembered:
             may_ask = state["kind"] != "follow_up" and state["topic"] != "emotional"
             check_in = pick_check_in(remembered, topic=state["topic"], allowed=may_ask)
             # One memory, same as the ordinary chat path.
-            surfaced = check_in or remembered[0]
+            surfaced = raised_memory(remembered, data.question) or check_in or remembered[0]
+            asking = bool(check_in and check_in["id"] == surfaced["id"])
             context["what_they_told_you"] = [{
                 "kind": surfaced["kind"], "said_on": surfaced["said_on"],
                 "note": surfaced["text"],
@@ -1667,12 +1690,12 @@ def ask_compatibility(
                                  "this answer. One clause at most unless they ask."),
             }]
             state["reported_facts"]["remembered"] = [m["text"] for m in remembered]
-            if check_in:
+            if asking:
                 context["ask_about_this_once"] = {
                     "id": check_in["id"], "said_on": check_in["said_on"],
                     "note": check_in["text"],
                 }
-            note_mentioned(user_id, surfaced["id"], asked=bool(check_in))
+            note_mentioned(user_id, surfaced["id"], asked=asking)
 
     if asks_for_timing(data.question) and _has_windows(relationship_timeline):
         state["expects_a_date"] = True

@@ -232,8 +232,14 @@ MONEY_MANAGEMENT = re.compile(
     r"\bkeep\b[^.!?]{0,30}\b(?:savings|cash|money|funds?|capital)\b[^.!?]{0,20}\bliquid\b"
     r"|\b(?:stay|staying|sit|sitting|remain|remaining)\s+liquid\b"
     r"|\bliquid(?:ity)?\s+(?:through|during|until|over|across)\b"
-    r"|\b(?:build|keep|hold|grow)\b[^.!?]{0,25}"
-    r"\b(?:cash buffer|buffer|reserve|cushion|emergency fund|rainy.?day fund|runway)\b"
+    # Every tense, because "good timing to have already BUILT some cushion"
+    # walked past a list that only knew the present tense — and it is the same
+    # advice whichever way round it is said.
+    r"|\b(?:build|builds|building|built|keep|keeps|keeping|kept|hold|holds|holding|held|"
+    r"have|has|having|had|grow|grew|save|saves|saving|saved|set aside|put aside|"
+    r"bank|banked|stash|stashed)\b[^.!?]{0,30}"
+    r"\b(?:cash buffer|buffer|reserve|cushion|emergency fund|rainy.?day fund|"
+    r"runway|nest egg|safety net)\b"
     r"|\b(?:avoid|don'?t|do not|hold off on|postpone|delay)\b[^.!?]{0,25}"
     r"\b(?:big|large|major|significant)\s+(?:purchases?|buys?|spending|"
     r"financial (?:decisions?|commitments?))\b"
@@ -274,6 +280,68 @@ HOW_CHARGED = re.compile(
     r"|\bsubscription\b|\blicen[cs]e fee\b|\bup ?front\b|\bon delivery\b"
     r"|\bcharge(?:s|d)? (?:for|by|per)\b|\bprice(?:d|s)? (?:by|per|as)\b"
     r"|\bsalar(?:y|ied)\b|\bwage\b|\bequity\b|\bstake in\b", re.I)
+
+# A financial decision with an arithmetic answer, asked of an astrologer.
+#
+# "Should I pay off my debt before starting a business?" came back with "pay it
+# off first", justified from the chart. Whether that is right depends on the
+# interest rate, how the business would be funded, and what the debt costs
+# every month — none of which a chart contains, and all of which decide it.
+#
+# So the question is allowed and the verdict is not. The chart can speak to
+# timing and to appetite for starting something, clearly labelled as one input
+# among several.
+FINANCIAL_DECISION = re.compile(
+    r"\b(?:pay(?:ing)? off|pay(?:ing)? down|clear(?:ing)?)\b[^?]{0,25}"
+    r"\b(?:debt|debts|loans?|mortgage|credit card)\b"
+    r"|\b(?:take|taking|get|getting|accept|accepting)\b[^?]{0,20}"
+    r"\b(?:loan|mortgage|credit|financing|investment|funding)\b"
+    r"|\b(?:re)?mortgage\b|\brefinanc\w+\b"
+    r"|\b(?:buy|buying|rent|renting|sell|selling)\b[^?]{0,20}"
+    r"\b(?:a )?(?:house|flat|apartment|property|home)\b"
+    r"|\b(?:quit|leave|leaving|resign)\w*\b[^?]{0,30}\b(?:to start|and start|for the business)\b"
+    r"|\b(?:use|using|spend|spending|put)\b[^?]{0,20}\b(?:my |the |our )?savings\b"
+    r"|\b(?:borrow|borrowing|lend|invest)\w*\b", re.I)
+# A verdict on one of those. This is what must never appear.
+FINANCIAL_VERDICT = re.compile(
+    r"\b(?:pay (?:it|them|that|those|the debt|it all) (?:off|down)"
+    r"|pay off (?:the |your |that )?\w+ first"
+    r"|clear (?:it|them|the debt|that) first"
+    r"|(?:do|take) it(?: first)?\b|don'?t (?:do|take) it\b"
+    r"|wait until[^.!?]{0,30}\bbefore (?:you )?(?:start|buy|borrow|invest)"
+    r"|start the business first|business first|debt first)\b", re.I)
+# What an honest answer to one of those contains: the limits of the chart, and
+# somewhere better to take the arithmetic.
+OUTSIDE_THE_CHART = re.compile(
+    r"\b(?:chart|astrology|i)\b[^.!?]{0,30}\b(?:can'?t|cannot|does not|doesn'?t|won'?t)\b"
+    r"[^.!?]{0,20}\b(?:see|know|tell|answer|decide|weigh)\b"
+    r"|\bdepends on\b|\binterest rate\b|\bwhat the debt costs\b"
+    r"|\bhow (?:the|it|that) [^.!?]{0,20}(?:funded|financed)\b"
+    r"|\bnot (?:something )?(?:a|the) chart\b|\bnumbers? (?:decide|answer|settle)\b", re.I)
+ADVISER = re.compile(
+    r"\bfinancial (?:adviser|advisor|planner)\b|\baccountant\b"
+    r"|\bsomeone who can (?:look at|see) the (?:numbers|figures|actual)\b"
+    r"|\bwho can run the numbers\b|\bqualified to advise on\b", re.I)
+
+# A question about feelings, on a question that was about arithmetic.
+#
+# "If part of this question is about wanting to feel financially safe, that's
+# worth sitting with" reads as a statement about how someone feels, offered to
+# somebody who asked how to earn more. The feelings question is real and stays
+# — it just needs them to have brought feeling into it first.
+FEELINGS_PROBE = re.compile(
+    r"\bworth sitting with\b|\bsit with (?:that|this|it)\b"
+    r"|\bif part of (?:this|the|your) (?:question|thing)[^.!?]{0,40}"
+    r"\b(?:wanting|feeling|needing|about how you feel)\b"
+    r"|\bhow (?:does|did) that (?:land|feel|sit)\b"
+    r"|\bnotice how you (?:feel|are feeling)\b"
+    r"|\bwhat (?:is|'s) that (?:bringing up|stirring)\b", re.I)
+# Anything they said that makes a feelings question welcome rather than odd.
+EMOTIONAL_SIGNAL = re.compile(
+    r"\b(?:feel|feels|feeling|felt|scared|afraid|anxious|anxiety|worried|worry|"
+    r"stress(?:ed)?|panic|overwhelm(?:ed)?|lonely|alone|sad|down|depress\w*|"
+    r"hopeless|exhausted|burnt out|burned out|ashamed|shame|embarrassed|"
+    r"terrified|dread|hate|miserable|stuck|lost|desperate)\b", re.I)
 
 # Money promised rather than read. A window is a stretch of time in which
 # something is more available; it is not an event with a payout attached.
@@ -427,6 +495,28 @@ def _ground(text) -> set:
             if len(w) >= 4 and w not in _COMMON}
 
 
+# Saying why a window is a window, which is the part already given the first
+# time. A reference points at it; this re-derives it.
+RE_EXPLAINS = re.compile(
+    r"\b(?:transit|crosses|crossing|passes|passing|degree|retrograde|"
+    r"stretch of time|season rather than|rather than a (?:single )?(?:date|day)|"
+    r"more than once|twice before|because|since it|which is why)\b", re.I)
+
+
+def _dates_in(text) -> set:
+    """Which calendar things a piece of text names, normalised.
+
+    Months and years, because a window restated in a thread is nearly always
+    restated with the same month and the same year — "late October 2026 into
+    early 2027" and "from late October 2026 through the early part of 2027"
+    share nothing else a word comparison would catch.
+    """
+    lowered = (text or "").lower()
+    return set(re.findall(
+        r"\b(?:january|february|march|april|may|june|july|august|september|"
+        r"october|november|december|(?:19|20)\d{2})\b", lowered))
+
+
 # How much of a follow-up may be ground the thread has already covered.
 #
 # Measured rather than picked. Across realistic career threads, an answer that
@@ -515,6 +605,19 @@ def review_issues(answer, state):
         issues.append('tells them where to invest their money')
     if PROMISED_WEALTH.search(answer):
         issues.append('promises money as certain rather than reading a chart')
+    # A money decision with an arithmetic answer. The chart may speak to
+    # timing and appetite; it may not settle it.
+    if FINANCIAL_DECISION.search(state['latest_message']):
+        if FINANCIAL_VERDICT.search(answer):
+            issues.append('decides a financial question the chart cannot answer')
+        elif not (OUTSIDE_THE_CHART.search(answer) and ADVISER.search(answer)):
+            issues.append('answers a money decision without saying what the chart '
+                          'cannot see or where to take the numbers')
+    # A feelings question on a practical money question, unasked for.
+    if state['topic'] == 'career' and FEELINGS_PROBE.search(answer):
+        said = ' '.join(state['reported_facts']['user_statements'])
+        if not EMOTIONAL_SIGNAL.search(said):
+            issues.append('asks about their feelings on a practical money question')
     if MONEY_MANAGEMENT.search(answer):
         # Not in SERIOUS. It is out of scope rather than wrong about their
         # life, and replacing a good money answer with the stock apology over
@@ -553,7 +656,11 @@ def review_issues(answer, state):
     # Pronouns in quoted user reports can establish usage; names and charts cannot.
     if re.search(r'\b(?:she|her|he|him|his)\b',answer,re.I) and not GENDERED_EVIDENCE.search(pronoun_evidence):
         issues.append('unsupported gendered pronouns')
-    if state['kind']=='follow_up' and not state['recap_requested']:
+    # "When exactly is that window?" is a request to say it again, the same as
+    # asking for a recap — the dates ARE the answer, and an answer that
+    # withheld them to avoid repeating itself would be useless.
+    if state['kind']=='follow_up' and not state['recap_requested'] \
+            and not state.get('expects_a_date'):
         old=[s for text in state['previous_assistant_responses'] for s in _sentences(text) if len(s.split())>=6]
         for sentence in _sentences(answer):
             if len(sentence.split())<6: continue
@@ -574,6 +681,23 @@ def review_issues(answer, state):
                 issues.append(
                     f'covers ground already given in this thread ({recycled:.0%} of it) '
                     'instead of adding new')
+        # One window, explained once. A whole-answer measure cannot see this:
+        # a timing paragraph repeated inside an otherwise-new answer leaves the
+        # answer only a quarter recycled, so the rule above passes it every
+        # time — and the same window got its own paragraph four answers
+        # running. After the first telling it is a clause, and only when they
+        # asked about timing at all.
+        given=_dates_in(' '.join(state['previous_assistant_responses']))
+        if given:
+            again=[s for s in _sentences(answer) if _dates_in(s) & given]
+            # A reference is short and says nothing new about the window.
+            # Explaining it again is either long, or carries the machinery of
+            # an explanation — which is the part that was already given.
+            if (len(again) > 1
+                    or any(len(s.split()) > 16 for s in again)
+                    or any(RE_EXPLAINS.search(s) for s in again)):
+                issues.append('explains a timing window already given in this thread '
+                              'instead of referring to it in a clause')
     return list(dict.fromkeys(issues))
 
 

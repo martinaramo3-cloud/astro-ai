@@ -193,6 +193,25 @@ def _subject_of(text: str) -> set:
             if len(w) >= 4 and w not in _ORDINARY}
 
 
+def raised_memory(memories: list[dict], question: str) -> dict | None:
+    """The memory they themselves brought up, if any.
+
+    Whichever one they raised is the one to answer about. Surfacing the
+    highest-priority memory instead means someone asking "does the Albania
+    move change that?" is told about something else entirely.
+    """
+    asked = _subject_of(question)
+    for memory in memories:
+        if _subject_of(memory["text"]) & asked:
+            return memory
+    return None
+
+
+def subject_raised(memories: list[dict], question: str) -> bool:
+    """Did they bring one of these subjects up themselves?"""
+    return raised_memory(memories, question) is not None
+
+
 def relevant_memories(owner_user_id: int, topic: str, *, is_relocation: bool = False,
                       profile_id: int | None = None, limit: int = 3,
                       continued_in: str | None = None) -> list[dict]:
