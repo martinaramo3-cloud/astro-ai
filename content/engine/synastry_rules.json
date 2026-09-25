@@ -332,6 +332,24 @@
         "max": 9999,
         "label": "exceptional"
       }
+    ],
+    "friendship": [
+      {
+        "max": 1.64,
+        "label": "low"
+      },
+      {
+        "max": 2.6,
+        "label": "typical"
+      },
+      {
+        "max": 3.05,
+        "label": "high"
+      },
+      {
+        "max": 9999,
+        "label": "exceptional"
+      }
     ]
   },
   "classifiers": {

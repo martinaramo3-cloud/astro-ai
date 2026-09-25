@@ -13,8 +13,9 @@ from app.compatibility_service import RULES, _bucketize_index, _classify_relatio
 
 def test_every_index_is_banded():
     """Only attraction and toxicity had bands; emotional and long_term were
-    computed and then never described."""
-    assert set(RULES["index_thresholds"]) == {"attraction", "emotional", "long_term", "toxicity"}
+    computed and then never described. Friendship joined them as its own axis."""
+    assert set(RULES["index_thresholds"]) == {
+        "attraction", "emotional", "long_term", "toxicity", "friendship"}
 
 
 @pytest.mark.parametrize("index, value, band", [

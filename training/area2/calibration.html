@@ -1,0 +1,549 @@
+<title>Zoli friendship calibration</title>
+<style>
+ :root{--ink:#241f19;--ink2:#5c5346;--ink3:#8e8474;--gold:#9a7128;--line:rgba(36,31,25,.14);--bg:#fbf6ec;--card:#fffdf8}
+ @media(prefers-color-scheme:dark){:root:not([data-theme=light]){--ink:#ecedf4;--ink2:#afb7ca;--ink3:#7f889d;--gold:#ebcf9b;--line:rgba(236,237,244,.16);--bg:#121826;--card:#1a2233}}
+ body{background:var(--bg);color:var(--ink);font:400 15px/1.55 ui-serif,Georgia,serif;margin:0}
+ .wrap{max-width:900px;margin:0 auto;padding:34px 20px 80px}
+ h1{font-size:30px;font-weight:400;margin:0 0 6px}
+ .sub{color:var(--ink2);max-width:62ch;margin:0 0 20px}
+ .tabs{display:flex;gap:8px;margin:0 0 22px;border-bottom:1px solid var(--line)}
+ .tabs button{font:inherit;font-size:13px;letter-spacing:.06em;text-transform:uppercase;background:none;border:0;border-bottom:2px solid transparent;color:var(--ink3);padding:9px 14px;cursor:pointer}
+ .tabs button[aria-selected=true]{color:var(--gold);border-bottom-color:var(--gold)}
+ .warn{background:var(--card);border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:0 10px 10px 0;padding:13px 16px;margin:0 0 24px;color:var(--ink2);font-size:14px}
+ .pair{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin:0 0 16px}
+ h3{font-size:19px;font-weight:500;margin:0 0 3px}
+ .tag{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink3);margin-left:8px}
+ .born{color:var(--ink3);font-size:13px;margin:0 0 12px}
+ .cols{display:grid;grid-template-columns:1fr 1fr;gap:22px}
+ @media(max-width:700px){.cols{grid-template-columns:1fr}}
+ h4{font-size:12px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink3);margin:0 0 7px;font-weight:500}
+ h4.ask{margin-top:16px;color:var(--gold)}
+ table{width:100%;border-collapse:collapse;font-size:13.5px}
+ td{padding:4px 6px 4px 0;border-bottom:1px solid var(--line);vertical-align:top}
+ td.n{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+ .muted{color:var(--ink3);font-size:12.5px}
+ .write{border:1px dashed var(--line);border-radius:8px;height:62px}
+ .hint{color:var(--ink3);font-size:12px;margin:5px 0 0}
+ .lean{margin:0 0 12px}
+ .say{margin:14px 0 0;color:var(--ink2);font-size:14px;line-height:1.6}
+ [hidden]{display:none!important}
+</style>
+<div class="wrap">
+  <h1>Friendship calibration</h1>
+  <p class="sub">Twelve invented pairs. Read the contacts, write your own lean in the box,
+     and only then open the second tab. The scores are there to be disagreed with &mdash;
+     where you disagree, say why, and the weights change.</p>
+  <div class="tabs" role="tablist">
+    <button role="tab" aria-selected="true" onclick="show(1)">1 &middot; The charts</button>
+    <button role="tab" aria-selected="false" onclick="show(2)">2 &middot; What the engine said</button>
+  </div>
+  <div id="p1">
+    <p class="warn">Everyone here is fictional. No real user&rsquo;s chart is in this file.</p>
+    
+<section class="pair">
+  <h3>Pair 1 &mdash; Milo &amp; Ines</h3>
+  <p class="born">Milo: 29 Oct 2007, 17:30, Milan &nbsp;&middot;&nbsp;
+     Ines: 17 Oct 1998, 05:34, New York</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Milo&rsquo;s Venus</td><td>opposition</td><td>Ines&rsquo;s Jupiter</td><td class='n'>0.0&deg;</td></tr><tr><td>Milo&rsquo;s Saturn</td><td>square</td><td>Ines&rsquo;s Pluto</td><td class='n'>0.0&deg;</td></tr><tr><td>Milo&rsquo;s Sun</td><td>sextile</td><td>Ines&rsquo;s Mars</td><td class='n'>0.1&deg;</td></tr><tr><td>Milo&rsquo;s Venus</td><td>sextile</td><td>Ines&rsquo;s Chiron</td><td class='n'>0.2&deg;</td></tr><tr><td>Milo&rsquo;s Jupiter</td><td>square</td><td>Ines&rsquo;s Jupiter</td><td class='n'>0.2&deg;</td></tr><tr><td>Milo&rsquo;s Saturn</td><td>conjunction</td><td>Ines&rsquo;s Mars</td><td class='n'>0.3&deg;</td></tr><tr><td>Milo&rsquo;s Neptune</td><td>square</td><td>Ines&rsquo;s Chiron</td><td class='n'>0.3&deg;</td></tr><tr><td>Milo&rsquo;s Mercury</td><td>conjunction</td><td>Ines&rsquo;s Sun</td><td class='n'>0.6&deg;</td></tr><tr><td>Milo&rsquo;s North Node</td><td>opposition</td><td>Ines&rsquo;s Mars</td><td class='n'>1.0&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Ines&rsquo;s Moon</td><td>in Milo&rsquo;s</td><td>5th house</td></tr><tr><td>Ines&rsquo;s Mars</td><td>in Milo&rsquo;s</td><td>5th house</td></tr><tr><td>Ines&rsquo;s Pluto</td><td>in Milo&rsquo;s</td><td>7th house</td></tr><tr><td>Milo&rsquo;s Venus</td><td>in Ines&rsquo;s</td><td>12th house</td></tr><tr><td>Ines&rsquo;s Saturn</td><td>in Milo&rsquo;s</td><td>12th house</td></tr><tr><td>Milo&rsquo;s Neptune</td><td>in Ines&rsquo;s</td><td>5th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 2 &mdash; Jonas &amp; Iris</h3>
+  <p class="born">Jonas: 11 May 1999, 01:56, London &nbsp;&middot;&nbsp;
+     Iris: 06 Apr 1997, 06:57, Milan</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Jonas&rsquo;s Sun</td><td>trine</td><td>Iris&rsquo;s Mars</td><td class='n'>0.2&deg;</td></tr><tr><td>Jonas&rsquo;s Uranus</td><td>sextile</td><td>Iris&rsquo;s Sun</td><td class='n'>0.3&deg;</td></tr><tr><td>Jonas&rsquo;s Saturn</td><td>square</td><td>Iris&rsquo;s Uranus</td><td class='n'>0.4&deg;</td></tr><tr><td>Jonas&rsquo;s Uranus</td><td>sextile</td><td>Iris&rsquo;s Venus</td><td class='n'>0.6&deg;</td></tr><tr><td>Jonas&rsquo;s Uranus</td><td>conjunction</td><td>Iris&rsquo;s Jupiter</td><td class='n'>0.8&deg;</td></tr><tr><td>Jonas&rsquo;s North Node</td><td>trine</td><td>Iris&rsquo;s Sun</td><td class='n'>0.9&deg;</td></tr><tr><td>Jonas&rsquo;s Neptune</td><td>sextile</td><td>Iris&rsquo;s Pluto</td><td class='n'>1.0&deg;</td></tr><tr><td>Jonas&rsquo;s Neptune</td><td>square</td><td>Iris&rsquo;s Mercury</td><td class='n'>1.1&deg;</td></tr><tr><td>Jonas&rsquo;s Pluto</td><td>trine</td><td>Iris&rsquo;s Saturn</td><td class='n'>1.4&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Jonas&rsquo;s Moon</td><td>in Iris&rsquo;s</td><td>12th house</td></tr><tr><td>Jonas&rsquo;s Mars</td><td>in Iris&rsquo;s</td><td>7th house</td></tr><tr><td>Iris&rsquo;s Mars</td><td>in Jonas&rsquo;s</td><td>7th house</td></tr><tr><td>Jonas&rsquo;s Pluto</td><td>in Iris&rsquo;s</td><td>8th house</td></tr><tr><td>Iris&rsquo;s Neptune</td><td>in Jonas&rsquo;s</td><td>12th house</td></tr><tr><td>Iris&rsquo;s Moon</td><td>in Jonas&rsquo;s</td><td>1th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 3 &mdash; Ines &amp; Iris</h3>
+  <p class="born">Ines: 22 Jan 1993, 00:40, London &nbsp;&middot;&nbsp;
+     Iris: 02 Apr 1997, 21:06, Tokyo</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Ines&rsquo;s North Node</td><td>square</td><td>Iris&rsquo;s Mars</td><td class='n'>0.2&deg;</td></tr><tr><td>Ines&rsquo;s Mars</td><td>square</td><td>Iris&rsquo;s Venus</td><td class='n'>0.3&deg;</td></tr><tr><td>Ines&rsquo;s Mars</td><td>square</td><td>Iris&rsquo;s Sun</td><td class='n'>0.3&deg;</td></tr><tr><td>Ines&rsquo;s Mercury</td><td>square</td><td>Iris&rsquo;s Mercury</td><td class='n'>0.3&deg;</td></tr><tr><td>Ines&rsquo;s Jupiter</td><td>trine</td><td>Iris&rsquo;s Jupiter</td><td class='n'>0.7&deg;</td></tr><tr><td>Ines&rsquo;s Sun</td><td>square</td><td>Iris&rsquo;s Mercury</td><td class='n'>0.8&deg;</td></tr><tr><td>Ines&rsquo;s Mercury</td><td>square</td><td>Iris&rsquo;s Chiron</td><td class='n'>0.8&deg;</td></tr><tr><td>Ines&rsquo;s Mercury</td><td>conjunction</td><td>Iris&rsquo;s Neptune</td><td class='n'>1.2&deg;</td></tr><tr><td>Ines&rsquo;s Neptune</td><td>trine</td><td>Iris&rsquo;s Mars</td><td class='n'>1.7&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Ines&rsquo;s Mars</td><td>in Iris&rsquo;s</td><td>8th house</td></tr><tr><td>Iris&rsquo;s Mercury</td><td>in Ines&rsquo;s</td><td>7th house</td></tr><tr><td>Ines&rsquo;s Pluto</td><td>in Iris&rsquo;s</td><td>1th house</td></tr><tr><td>Ines&rsquo;s Venus</td><td>in Iris&rsquo;s</td><td>4th house</td></tr><tr><td>Iris&rsquo;s Jupiter</td><td>in Ines&rsquo;s</td><td>4th house</td></tr><tr><td>Iris&rsquo;s Chiron</td><td>in Ines&rsquo;s</td><td>1th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 4 &mdash; Noa &amp; Vera</h3>
+  <p class="born">Noa: 01 Sep 1997, 11:37, Lisbon &nbsp;&middot;&nbsp;
+     Vera: 09 Sep 1998, 09:47, Sofia</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Noa&rsquo;s Uranus</td><td>sextile</td><td>Vera&rsquo;s Pluto</td><td class='n'>0.0&deg;</td></tr><tr><td>Noa&rsquo;s Moon</td><td>conjunction</td><td>Vera&rsquo;s Venus</td><td class='n'>0.0&deg;</td></tr><tr><td>Noa&rsquo;s Moon</td><td>trine</td><td>Vera&rsquo;s Saturn</td><td class='n'>0.1&deg;</td></tr><tr><td>Noa&rsquo;s Pluto</td><td>square</td><td>Vera&rsquo;s Venus</td><td class='n'>0.1&deg;</td></tr><tr><td>Noa&rsquo;s Chiron</td><td>square</td><td>Vera&rsquo;s Neptune</td><td class='n'>0.1&deg;</td></tr><tr><td>Noa&rsquo;s Pluto</td><td>square</td><td>Vera&rsquo;s Mercury</td><td class='n'>0.9&deg;</td></tr><tr><td>Noa&rsquo;s Mars</td><td>square</td><td>Vera&rsquo;s Mars</td><td class='n'>1.0&deg;</td></tr><tr><td>Noa&rsquo;s Moon</td><td>conjunction</td><td>Vera&rsquo;s Mercury</td><td class='n'>1.0&deg;</td></tr><tr><td>Noa&rsquo;s Jupiter</td><td>square</td><td>Vera&rsquo;s Chiron</td><td class='n'>1.1&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Noa&rsquo;s Venus</td><td>in Vera&rsquo;s</td><td>12th house</td></tr><tr><td>Noa&rsquo;s Saturn</td><td>in Vera&rsquo;s</td><td>7th house</td></tr><tr><td>Vera&rsquo;s Saturn</td><td>in Noa&rsquo;s</td><td>7th house</td></tr><tr><td>Vera&rsquo;s Jupiter</td><td>in Noa&rsquo;s</td><td>5th house</td></tr><tr><td>Noa&rsquo;s Mars</td><td>in Vera&rsquo;s</td><td>1th house</td></tr><tr><td>Noa&rsquo;s Jupiter</td><td>in Vera&rsquo;s</td><td>4th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 5 &mdash; Tess &amp; Sofia</h3>
+  <p class="born">Tess: 20 Feb 2001, 07:17, London &nbsp;&middot;&nbsp;
+     Sofia: 06 Feb 1995, 17:43, Milan</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Tess&rsquo;s Mercury</td><td>conjunction</td><td>Sofia&rsquo;s Sun</td><td class='n'>0.3&deg;</td></tr><tr><td>Tess&rsquo;s Saturn</td><td>square</td><td>Sofia&rsquo;s Mars</td><td class='n'>0.3&deg;</td></tr><tr><td>Tess&rsquo;s Sun</td><td>sextile</td><td>Sofia&rsquo;s Venus</td><td class='n'>0.4&deg;</td></tr><tr><td>Tess&rsquo;s Saturn</td><td>trine</td><td>Sofia&rsquo;s Neptune</td><td class='n'>0.8&deg;</td></tr><tr><td>Tess&rsquo;s Saturn</td><td>trine</td><td>Sofia&rsquo;s Chiron</td><td class='n'>1.0&deg;</td></tr><tr><td>Tess&rsquo;s Neptune</td><td>square</td><td>Sofia&rsquo;s Moon</td><td class='n'>1.1&deg;</td></tr><tr><td>Tess&rsquo;s Moon</td><td>conjunction</td><td>Sofia&rsquo;s Uranus</td><td class='n'>1.1&deg;</td></tr><tr><td>Tess&rsquo;s Sun</td><td>square</td><td>Sofia&rsquo;s Pluto</td><td class='n'>1.3&deg;</td></tr><tr><td>Tess&rsquo;s Venus</td><td>sextile</td><td>Sofia&rsquo;s Mercury</td><td class='n'>1.3&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Tess&rsquo;s Sun</td><td>in Sofia&rsquo;s</td><td>7th house</td></tr><tr><td>Sofia&rsquo;s Pluto</td><td>in Tess&rsquo;s</td><td>8th house</td></tr><tr><td>Sofia&rsquo;s Sun</td><td>in Tess&rsquo;s</td><td>12th house</td></tr><tr><td>Sofia&rsquo;s Mercury</td><td>in Tess&rsquo;s</td><td>12th house</td></tr><tr><td>Tess&rsquo;s Uranus</td><td>in Sofia&rsquo;s</td><td>7th house</td></tr><tr><td>Tess&rsquo;s Chiron</td><td>in Sofia&rsquo;s</td><td>5th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 6 &mdash; Iris &amp; Theo</h3>
+  <p class="born">Iris: 11 Sep 1996, 01:31, Sydney &nbsp;&middot;&nbsp;
+     Theo: 21 Oct 2007, 14:09, Milan</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Iris&rsquo;s Venus</td><td>square</td><td>Theo&rsquo;s Mercury</td><td class='n'>0.4&deg;</td></tr><tr><td>Iris&rsquo;s North Node</td><td>square</td><td>Theo&rsquo;s Mars</td><td class='n'>0.5&deg;</td></tr><tr><td>Iris&rsquo;s Sun</td><td>square</td><td>Theo&rsquo;s Jupiter</td><td class='n'>0.6&deg;</td></tr><tr><td>Iris&rsquo;s Jupiter</td><td>opposition</td><td>Theo&rsquo;s Mars</td><td class='n'>0.7&deg;</td></tr><tr><td>Iris&rsquo;s Moon</td><td>opposition</td><td>Theo&rsquo;s Moon</td><td class='n'>1.2&deg;</td></tr><tr><td>Iris&rsquo;s Chiron</td><td>sextile</td><td>Theo&rsquo;s Jupiter</td><td class='n'>2.0&deg;</td></tr><tr><td>Iris&rsquo;s Jupiter</td><td>sextile</td><td>Theo&rsquo;s North Node</td><td class='n'>2.1&deg;</td></tr><tr><td>Iris&rsquo;s Uranus</td><td>square</td><td>Theo&rsquo;s Mercury</td><td class='n'>2.3&deg;</td></tr><tr><td>Iris&rsquo;s Jupiter</td><td>trine</td><td>Theo&rsquo;s Saturn</td><td class='n'>2.3&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Iris&rsquo;s Moon</td><td>in Theo&rsquo;s</td><td>7th house</td></tr><tr><td>Theo&rsquo;s Moon</td><td>in Iris&rsquo;s</td><td>8th house</td></tr><tr><td>Iris&rsquo;s Mars</td><td>in Theo&rsquo;s</td><td>7th house</td></tr><tr><td>Iris&rsquo;s Venus</td><td>in Theo&rsquo;s</td><td>7th house</td></tr><tr><td>Iris&rsquo;s Sun</td><td>in Theo&rsquo;s</td><td>8th house</td></tr><tr><td>Iris&rsquo;s Mercury</td><td>in Theo&rsquo;s</td><td>8th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 7 &mdash; Rui &amp; Theo</h3>
+  <p class="born">Rui: 25 Dec 2001, 18:01, New York &nbsp;&middot;&nbsp;
+     Theo: 06 May 2006, 17:42, Milan</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Rui&rsquo;s Saturn</td><td>trine</td><td>Theo&rsquo;s Chiron</td><td class='n'>0.0&deg;</td></tr><tr><td>Rui&rsquo;s Mercury</td><td>trine</td><td>Theo&rsquo;s Sun</td><td class='n'>0.1&deg;</td></tr><tr><td>Rui&rsquo;s Chiron</td><td>trine</td><td>Theo&rsquo;s Moon</td><td class='n'>0.1&deg;</td></tr><tr><td>Rui&rsquo;s Sun</td><td>square</td><td>Theo&rsquo;s Venus</td><td class='n'>0.6&deg;</td></tr><tr><td>Rui&rsquo;s Sun</td><td>square</td><td>Theo&rsquo;s North Node</td><td class='n'>0.6&deg;</td></tr><tr><td>Rui&rsquo;s Mars</td><td>trine</td><td>Theo&rsquo;s Mars</td><td class='n'>0.8&deg;</td></tr><tr><td>Rui&rsquo;s North Node</td><td>opposition</td><td>Theo&rsquo;s Pluto</td><td class='n'>0.8&deg;</td></tr><tr><td>Rui&rsquo;s Chiron</td><td>trine</td><td>Theo&rsquo;s Mercury</td><td class='n'>1.0&deg;</td></tr><tr><td>Rui&rsquo;s Moon</td><td>square</td><td>Theo&rsquo;s Chiron</td><td class='n'>1.0&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Rui&rsquo;s Moon</td><td>in Theo&rsquo;s</td><td>7th house</td></tr><tr><td>Rui&rsquo;s Mars</td><td>in Theo&rsquo;s</td><td>5th house</td></tr><tr><td>Theo&rsquo;s Mars</td><td>in Rui&rsquo;s</td><td>12th house</td></tr><tr><td>Rui&rsquo;s Saturn</td><td>in Theo&rsquo;s</td><td>8th house</td></tr><tr><td>Theo&rsquo;s Jupiter</td><td>in Rui&rsquo;s</td><td>5th house</td></tr><tr><td>Theo&rsquo;s Neptune</td><td>in Rui&rsquo;s</td><td>8th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 8 &mdash; Mira &amp; Bruno</h3>
+  <p class="born">Mira: 25 Oct 1992, 02:25, Tirana &nbsp;&middot;&nbsp;
+     Bruno: 23 Nov 1991, 17:49, Lisbon</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Mira&rsquo;s Mars</td><td>trine</td><td>Bruno&rsquo;s Pluto</td><td class='n'>0.1&deg;</td></tr><tr><td>Mira&rsquo;s North Node</td><td>conjunction</td><td>Bruno&rsquo;s Mercury</td><td class='n'>0.2&deg;</td></tr><tr><td>Mira&rsquo;s Sun</td><td>square</td><td>Bruno&rsquo;s Saturn</td><td class='n'>0.3&deg;</td></tr><tr><td>Mira&rsquo;s Uranus</td><td>conjunction</td><td>Bruno&rsquo;s Neptune</td><td class='n'>0.4&deg;</td></tr><tr><td>Mira&rsquo;s Chiron</td><td>trine</td><td>Bruno&rsquo;s Mercury</td><td class='n'>0.4&deg;</td></tr><tr><td>Mira&rsquo;s Neptune</td><td>square</td><td>Bruno&rsquo;s Venus</td><td class='n'>0.7&deg;</td></tr><tr><td>Mira&rsquo;s Jupiter</td><td>trine</td><td>Bruno&rsquo;s Saturn</td><td class='n'>0.8&deg;</td></tr><tr><td>Mira&rsquo;s Uranus</td><td>square</td><td>Bruno&rsquo;s Venus</td><td class='n'>1.2&deg;</td></tr><tr><td>Mira&rsquo;s Moon</td><td>sextile</td><td>Bruno&rsquo;s Mercury</td><td class='n'>1.2&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Mira&rsquo;s Moon</td><td>in Bruno&rsquo;s</td><td>5th house</td></tr><tr><td>Bruno&rsquo;s Saturn</td><td>in Mira&rsquo;s</td><td>5th house</td></tr><tr><td>Mira&rsquo;s Jupiter</td><td>in Bruno&rsquo;s</td><td>5th house</td></tr><tr><td>Mira&rsquo;s Neptune</td><td>in Bruno&rsquo;s</td><td>8th house</td></tr><tr><td>Bruno&rsquo;s Jupiter</td><td>in Mira&rsquo;s</td><td>12th house</td></tr><tr><td>Mira&rsquo;s Uranus</td><td>in Bruno&rsquo;s</td><td>8th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 9 &mdash; Ana &amp; Nadia</h3>
+  <p class="born">Ana: 12 Jan 1998, 23:30, Tirana &nbsp;&middot;&nbsp;
+     Nadia: 05 Oct 1994, 04:07, London</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Ana&rsquo;s Sun</td><td>conjunction</td><td>Nadia&rsquo;s Uranus</td><td class='n'>0.1&deg;</td></tr><tr><td>Ana&rsquo;s Chiron</td><td>conjunction</td><td>Nadia&rsquo;s Venus</td><td class='n'>0.2&deg;</td></tr><tr><td>Ana&rsquo;s Pluto</td><td>square</td><td>Nadia&rsquo;s Saturn</td><td class='n'>0.5&deg;</td></tr><tr><td>Ana&rsquo;s Chiron</td><td>conjunction</td><td>Nadia&rsquo;s Jupiter</td><td class='n'>0.7&deg;</td></tr><tr><td>Ana&rsquo;s Neptune</td><td>opposition</td><td>Nadia&rsquo;s Mars</td><td class='n'>0.9&deg;</td></tr><tr><td>Ana&rsquo;s Moon</td><td>trine</td><td>Nadia&rsquo;s Pluto</td><td class='n'>1.2&deg;</td></tr><tr><td>Ana&rsquo;s Jupiter</td><td>square</td><td>Nadia&rsquo;s Pluto</td><td class='n'>1.4&deg;</td></tr><tr><td>Ana&rsquo;s Chiron</td><td>conjunction</td><td>Nadia&rsquo;s North Node</td><td class='n'>1.5&deg;</td></tr><tr><td>Ana&rsquo;s Chiron</td><td>sextile</td><td>Nadia&rsquo;s Chiron</td><td class='n'>1.9&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Nadia&rsquo;s Moon</td><td>in Ana&rsquo;s</td><td>12th house</td></tr><tr><td>Ana&rsquo;s Sun</td><td>in Nadia&rsquo;s</td><td>5th house</td></tr><tr><td>Ana&rsquo;s Venus</td><td>in Nadia&rsquo;s</td><td>5th house</td></tr><tr><td>Nadia&rsquo;s Sun</td><td>in Ana&rsquo;s</td><td>12th house</td></tr><tr><td>Nadia&rsquo;s Saturn</td><td>in Ana&rsquo;s</td><td>5th house</td></tr><tr><td>Ana&rsquo;s Saturn</td><td>in Nadia&rsquo;s</td><td>8th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 10 &mdash; Sofia &amp; Dani</h3>
+  <p class="born">Sofia: 12 Feb 2002, 03:08, Sofia &nbsp;&middot;&nbsp;
+     Dani: 11 Sep 2003, 07:57, Milan</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Sofia&rsquo;s Pluto</td><td>conjunction</td><td>Dani&rsquo;s Pluto</td><td class='n'>0.0&deg;</td></tr><tr><td>Sofia&rsquo;s Venus</td><td>conjunction</td><td>Dani&rsquo;s Uranus</td><td class='n'>0.1&deg;</td></tr><tr><td>Sofia&rsquo;s Mars</td><td>trine</td><td>Dani&rsquo;s Pluto</td><td class='n'>0.2&deg;</td></tr><tr><td>Sofia&rsquo;s Pluto</td><td>square</td><td>Dani&rsquo;s Mercury</td><td class='n'>0.5&deg;</td></tr><tr><td>Sofia&rsquo;s Sun</td><td>square</td><td>Dani&rsquo;s North Node</td><td class='n'>0.6&deg;</td></tr><tr><td>Sofia&rsquo;s Pluto</td><td>square</td><td>Dani&rsquo;s Sun</td><td class='n'>0.8&deg;</td></tr><tr><td>Sofia&rsquo;s North Node</td><td>square</td><td>Dani&rsquo;s Moon</td><td class='n'>1.0&deg;</td></tr><tr><td>Sofia&rsquo;s North Node</td><td>square</td><td>Dani&rsquo;s Venus</td><td class='n'>1.1&deg;</td></tr><tr><td>Sofia&rsquo;s Venus</td><td>conjunction</td><td>Dani&rsquo;s Mars</td><td class='n'>1.8&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Sofia&rsquo;s Moon</td><td>in Dani&rsquo;s</td><td>5th house</td></tr><tr><td>Sofia&rsquo;s Sun</td><td>in Dani&rsquo;s</td><td>5th house</td></tr><tr><td>Sofia&rsquo;s Venus</td><td>in Dani&rsquo;s</td><td>5th house</td></tr><tr><td>Sofia&rsquo;s Mars</td><td>in Dani&rsquo;s</td><td>7th house</td></tr><tr><td>Dani&rsquo;s Saturn</td><td>in Sofia&rsquo;s</td><td>7th house</td></tr><tr><td>Sofia&rsquo;s Neptune</td><td>in Dani&rsquo;s</td><td>5th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 11 &mdash; Sam &amp; Elif</h3>
+  <p class="born">Sam: 23 Jun 1994, 22:18, Tirana &nbsp;&middot;&nbsp;
+     Elif: 13 Jan 2005, 05:45, Sofia</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Sam&rsquo;s Mercury</td><td>trine</td><td>Elif&rsquo;s Uranus</td><td class='n'>0.1&deg;</td></tr><tr><td>Sam&rsquo;s Mercury</td><td>opposition</td><td>Elif&rsquo;s Venus</td><td class='n'>0.2&deg;</td></tr><tr><td>Sam&rsquo;s North Node</td><td>sextile</td><td>Elif&rsquo;s Sun</td><td class='n'>0.2&deg;</td></tr><tr><td>Sam&rsquo;s Mars</td><td>trine</td><td>Elif&rsquo;s Sun</td><td class='n'>0.3&deg;</td></tr><tr><td>Sam&rsquo;s Saturn</td><td>square</td><td>Elif&rsquo;s Mars</td><td class='n'>0.4&deg;</td></tr><tr><td>Sam&rsquo;s Mercury</td><td>opposition</td><td>Elif&rsquo;s Mercury</td><td class='n'>0.4&deg;</td></tr><tr><td>Sam&rsquo;s Jupiter</td><td>trine</td><td>Elif&rsquo;s Uranus</td><td class='n'>0.4&deg;</td></tr><tr><td>Sam&rsquo;s Jupiter</td><td>sextile</td><td>Elif&rsquo;s Venus</td><td class='n'>0.6&deg;</td></tr><tr><td>Sam&rsquo;s Neptune</td><td>conjunction</td><td>Elif&rsquo;s Sun</td><td class='n'>0.6&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Sam&rsquo;s Mars</td><td>in Elif&rsquo;s</td><td>5th house</td></tr><tr><td>Sam&rsquo;s Sun</td><td>in Elif&rsquo;s</td><td>7th house</td></tr><tr><td>Sam&rsquo;s Venus</td><td>in Elif&rsquo;s</td><td>8th house</td></tr><tr><td>Elif&rsquo;s Sun</td><td>in Sam&rsquo;s</td><td>12th house</td></tr><tr><td>Sam&rsquo;s Mercury</td><td>in Elif&rsquo;s</td><td>7th house</td></tr><tr><td>Elif&rsquo;s Jupiter</td><td>in Sam&rsquo;s</td><td>8th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 12 &mdash; Sofia &amp; Pol</h3>
+  <p class="born">Sofia: 08 Jul 1996, 23:54, New York &nbsp;&middot;&nbsp;
+     Pol: 20 Dec 2005, 05:22, Lisbon</p>
+  <div class="cols">
+    <div>
+      <h4>Closest contacts</h4>
+      <table><tbody><tr><td>Sofia&rsquo;s Chiron</td><td>sextile</td><td>Pol&rsquo;s Mercury</td><td class='n'>0.2&deg;</td></tr><tr><td>Sofia&rsquo;s Pluto</td><td>sextile</td><td>Pol&rsquo;s Chiron</td><td class='n'>0.4&deg;</td></tr><tr><td>Sofia&rsquo;s Pluto</td><td>sextile</td><td>Pol&rsquo;s Venus</td><td class='n'>0.5&deg;</td></tr><tr><td>Sofia&rsquo;s Mars</td><td>sextile</td><td>Pol&rsquo;s Moon</td><td class='n'>0.8&deg;</td></tr><tr><td>Sofia&rsquo;s Chiron</td><td>opposition</td><td>Pol&rsquo;s North Node</td><td class='n'>0.8&deg;</td></tr><tr><td>Sofia&rsquo;s Jupiter</td><td>sextile</td><td>Pol&rsquo;s Jupiter</td><td class='n'>0.9&deg;</td></tr><tr><td>Sofia&rsquo;s Saturn</td><td>trine</td><td>Pol&rsquo;s Mercury</td><td class='n'>1.5&deg;</td></tr><tr><td>Sofia&rsquo;s Chiron</td><td>sextile</td><td>Pol&rsquo;s Saturn</td><td class='n'>1.6&deg;</td></tr><tr><td>Sofia&rsquo;s North Node</td><td>sextile</td><td>Pol&rsquo;s Saturn</td><td class='n'>1.7&deg;</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>House overlays</h4>
+      <table><tbody><tr><td>Sofia&rsquo;s Moon</td><td>in Pol&rsquo;s</td><td>5th house</td></tr><tr><td>Pol&rsquo;s Moon</td><td>in Sofia&rsquo;s</td><td>5th house</td></tr><tr><td>Sofia&rsquo;s Mars</td><td>in Pol&rsquo;s</td><td>7th house</td></tr><tr><td>Sofia&rsquo;s Venus</td><td>in Pol&rsquo;s</td><td>7th house</td></tr><tr><td>Sofia&rsquo;s Sun</td><td>in Pol&rsquo;s</td><td>8th house</td></tr><tr><td>Pol&rsquo;s Saturn</td><td>in Sofia&rsquo;s</td><td>5th house</td></tr></tbody></table>
+      <h4 class="ask">Your lean</h4>
+      <div class="write"></div>
+      <p class="hint">friendship / friendship with attraction / attraction with a thin
+         friendship / mixed &mdash; and a word on why</p>
+    </div>
+  </div>
+</section>
+  </div>
+  <div id="p2" hidden>
+    <p class="warn">Equal weights, unreviewed. Friendship bands are cut at the 25th, 75th
+      and 90th percentiles of 1,000 random pairs, so &ldquo;high&rdquo; means high among
+      pairs in general.</p>
+    
+<section class="pair">
+  <h3>Pair 1 &mdash; Milo &amp; Ines
+      <span class="tag">friendship, little romance</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mostly a friendship, with some pull</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.99 &mdash; high</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>7.07</td><td class='muted'>Moon trine Sun (1.2°), Venus conjunction Moon (1.4°)</td></tr><tr><td>mental connection</td><td class='n'>4.54</td><td class='muted'>Mercury conjunction Sun (0.6°), Saturn sextile Mercury (1.9°)</td></tr><tr><td>emotional intimacy</td><td class='n'>2.37</td><td class='muted'>Moon trine Sun (1.2°), Venus conjunction Moon (1.4°)</td></tr><tr><td>durability</td><td class='n'>5.96</td><td class='muted'>Saturn conjunction Mars (0.3°), Mercury conjunction Sun (0.6°)</td></tr><tr><td>conflict and repair</td><td class='n'>-1.26</td><td class='muted'>Moon trine Sun (1.2°), Venus conjunction Moon (1.4°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.72</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">33.0</td><td>typical</td></tr>
+        <tr><td>emotional</td><td class="n">17.5</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">16.0</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">18.0</td><td>low</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;Mostly a friendship, with a thread of something else. Staying power is what it runs on.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 2 &mdash; Jonas &amp; Iris
+      <span class="tag">mixed</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mixed — the charts alone do not settle what this is</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.26 &mdash; typical</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>7.16</td><td class='muted'>Sun trine Mars (0.2°), Venus square Moon (3.5°)</td></tr><tr><td>mental connection</td><td class='n'>1.33</td><td class='muted'>Mercury conjunction Mercury (1.6°), Venus sextile Mercury (2.9°)</td></tr><tr><td>emotional intimacy</td><td class='n'>-0.02</td><td class='muted'>Moon opposition Mars (1.4°), Venus square Moon (3.5°)</td></tr><tr><td>durability</td><td class='n'>4.29</td><td class='muted'>Mercury conjunction Mercury (1.6°), Venus sextile Mercury (2.9°)</td></tr><tr><td>conflict and repair</td><td class='n'>1.51</td><td class='muted'>Moon opposition Mars (1.4°), Sun trine Mars (0.2°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.71</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">45.5</td><td>typical</td></tr>
+        <tr><td>emotional</td><td class="n">12.25</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">9.0</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">34.0</td><td>typical</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;What stands out is pull and chemistry; nothing here settles what this is on its own.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 3 &mdash; Ines &amp; Iris
+      <span class="tag">mixed</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mixed — the charts alone do not settle what this is</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.01 &mdash; typical</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>1.18</td><td class='muted'>Mars square Venus (0.3°), Mars square Sun (0.3°)</td></tr><tr><td>mental connection</td><td class='n'>0.94</td><td class='muted'>Sun square Mercury (0.8°), Mercury conjunction Moon (3.9°)</td></tr><tr><td>emotional intimacy</td><td class='n'>2.35</td><td class='muted'>Sun conjunction Moon (2.8°), Moon trine Mars (2.9°)</td></tr><tr><td>durability</td><td class='n'>2.1</td><td class='muted'>Mars square Saturn (1.9°), Sun square Mercury (0.8°)</td></tr><tr><td>conflict and repair</td><td class='n'>5.91</td><td class='muted'>Mars square Venus (0.3°), Mars square Sun (0.3°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.42</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">30.0</td><td>low</td></tr>
+        <tr><td>emotional</td><td class="n">15.0</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">8.5</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">8.0</td><td>low</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;What stands out is emotional closeness; nothing here settles what this is on its own.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 4 &mdash; Noa &amp; Vera
+      <span class="tag">high friction</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mixed — the charts alone do not settle what this is</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.38 &mdash; typical</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>3.81</td><td class='muted'>Moon conjunction Venus (0.0°), Mars sextile Sun (5.0°)</td></tr><tr><td>mental connection</td><td class='n'>3.24</td><td class='muted'>Moon conjunction Mercury (1.0°), Mercury conjunction Venus (4.3°)</td></tr><tr><td>emotional intimacy</td><td class='n'>2.99</td><td class='muted'>Moon conjunction Venus (0.0°), Moon trine Saturn (0.1°)</td></tr><tr><td>durability</td><td class='n'>2.9</td><td class='muted'>Moon trine Saturn (0.1°), Moon conjunction Mercury (1.0°)</td></tr><tr><td>conflict and repair</td><td class='n'>1.73</td><td class='muted'>Moon conjunction Venus (0.0°), Moon trine Saturn (0.1°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.39</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">41.5</td><td>typical</td></tr>
+        <tr><td>emotional</td><td class="n">13.0</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">10.5</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">72.25</td><td>exceptional</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;What stands out is pull and chemistry; nothing here settles what this is on its own. It also takes more repair than most.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 5 &mdash; Tess &amp; Sofia
+      <span class="tag">high friction</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mixed — the charts alone do not settle what this is</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.45 &mdash; typical</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>4.89</td><td class='muted'>Sun sextile Venus (0.4°), Mercury conjunction Sun (0.3°)</td></tr><tr><td>mental connection</td><td class='n'>2.49</td><td class='muted'>Mercury conjunction Sun (0.3°), Venus sextile Mercury (1.3°)</td></tr><tr><td>emotional intimacy</td><td class='n'>1.6</td><td class='muted'>Sun sextile Moon (6.6°), Mercury square Moon (8.8°)</td></tr><tr><td>durability</td><td class='n'>6.31</td><td class='muted'>Saturn square Mars (0.3°), Mercury conjunction Sun (0.3°)</td></tr><tr><td>conflict and repair</td><td class='n'>0.29</td><td class='muted'>Saturn square Mars (0.3°), Mercury conjunction Sun (0.3°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.87</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">32.5</td><td>typical</td></tr>
+        <tr><td>emotional</td><td class="n">1.0</td><td>low</td></tr>
+        <tr><td>staying power</td><td class="n">11.0</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">63.0</td><td>exceptional</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;What stands out is staying power; nothing here settles what this is on its own. It also takes more repair than most.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 6 &mdash; Iris &amp; Theo
+      <span class="tag">attraction, thin friendship</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> strong attraction on a thin friendship base</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 1.37 &mdash; low</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>1.72</td><td class='muted'>Venus square Mercury (0.4°), Mars square Sun (2.8°)</td></tr><tr><td>mental connection</td><td class='n'>-1.02</td><td class='muted'>Venus square Mercury (0.4°), Mars square Mercury (2.8°)</td></tr><tr><td>emotional intimacy</td><td class='n'>0.45</td><td class='muted'>Moon opposition Moon (1.2°), Moon sextile Sun (5.2°)</td></tr><tr><td>durability</td><td class='n'>1.59</td><td class='muted'>Venus square Mercury (0.4°), Saturn square Mars (3.4°)</td></tr><tr><td>conflict and repair</td><td class='n'>5.81</td><td class='muted'>Moon opposition Moon (1.2°), Venus square Mercury (0.4°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.35</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">53.5</td><td>high</td></tr>
+        <tr><td>emotional</td><td class="n">18.0</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">14.0</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">29.5</td><td>typical</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;The pull is the loudest thing between you. What&#x27;s thinner is the ordinary friendship underneath it.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 7 &mdash; Rui &amp; Theo
+      <span class="tag">friendship, little romance</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mostly a friendship, with some pull</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 3.62 &mdash; exceptional</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>7.45</td><td class='muted'>Sun square Venus (0.6°), Mercury trine Sun (0.1°)</td></tr><tr><td>mental connection</td><td class='n'>5.03</td><td class='muted'>Mercury trine Sun (0.1°), Sun trine Mercury (1.8°)</td></tr><tr><td>emotional intimacy</td><td class='n'>3.28</td><td class='muted'>Venus trine Moon (2.1°), Sun trine Moon (2.6°)</td></tr><tr><td>durability</td><td class='n'>9.27</td><td class='muted'>Mercury trine Sun (0.1°), Sun trine Mercury (1.8°)</td></tr><tr><td>conflict and repair</td><td class='n'>-2.8</td><td class='muted'>Mars trine Mars (0.8°), Mercury trine Sun (0.1°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.48</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">31.0</td><td>typical</td></tr>
+        <tr><td>emotional</td><td class="n">18.0</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">11.75</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">17.5</td><td>low</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;Mostly a friendship, with a thread of something else. Emotional closeness is what it runs on.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 8 &mdash; Mira &amp; Bruno
+      <span class="tag">friendship, little romance</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> mostly a friendship, with some pull</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.63 &mdash; high</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>4.15</td><td class='muted'>Sun square Saturn (0.3°), Saturn trine Venus (3.8°)</td></tr><tr><td>mental connection</td><td class='n'>4.13</td><td class='muted'>Moon sextile Mercury (1.2°), Mercury conjunction Mars (1.6°)</td></tr><tr><td>emotional intimacy</td><td class='n'>2.52</td><td class='muted'>Moon sextile Mercury (1.2°), Moon trine Moon (4.2°)</td></tr><tr><td>durability</td><td class='n'>6.69</td><td class='muted'>Sun square Saturn (0.3°), Moon sextile Mercury (1.2°)</td></tr><tr><td>conflict and repair</td><td class='n'>-1.28</td><td class='muted'>Moon sextile Mercury (1.2°), Mercury conjunction Mars (1.6°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.43</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">39.0</td><td>typical</td></tr>
+        <tr><td>emotional</td><td class="n">35.0</td><td>exceptional</td></tr>
+        <tr><td>staying power</td><td class="n">9.5</td><td>typical</td></tr>
+        <tr><td>friction</td><td class="n">40.0</td><td>typical</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;Mostly a friendship, with a thread of something else. Emotional closeness is what it runs on.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 9 &mdash; Ana &amp; Nadia
+      <span class="tag">attraction, thin friendship</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> strong attraction on a thin friendship base</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 1.58 &mdash; low</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>4.87</td><td class='muted'>Venus opposition Mars (2.0°), Mars square Venus (3.4°)</td></tr><tr><td>mental connection</td><td class='n'>0.41</td><td class='muted'>Mercury sextile Mercury (5.2°), Venus square Mercury (7.3°)</td></tr><tr><td>emotional intimacy</td><td class='n'>1.17</td><td class='muted'>Saturn opposition Moon (3.0°), Moon conjunction Mars (5.2°)</td></tr><tr><td>durability</td><td class='n'>0.22</td><td class='muted'>Saturn opposition Moon (3.0°), Saturn opposition Sun (2.6°)</td></tr><tr><td>conflict and repair</td><td class='n'>3.7</td><td class='muted'>Venus opposition Mars (2.0°), Saturn opposition Moon (3.0°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.87</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">55.75</td><td>high</td></tr>
+        <tr><td>emotional</td><td class="n">4.75</td><td>low</td></tr>
+        <tr><td>staying power</td><td class="n">-13.75</td><td>low</td></tr>
+        <tr><td>friction</td><td class="n">42.5</td><td>typical</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;The pull is the loudest thing between you. What&#x27;s thinner is the ordinary friendship underneath it.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 10 &mdash; Sofia &amp; Dani
+      <span class="tag">attraction, thin friendship</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> strong attraction on a thin friendship base</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 1.05 &mdash; low</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>2.08</td><td class='muted'>Venus conjunction Mars (1.8°), Mercury trine Venus (4.8°)</td></tr><tr><td>mental connection</td><td class='n'>0.56</td><td class='muted'>Mercury sextile Moon (4.6°), Mercury trine Venus (4.8°)</td></tr><tr><td>emotional intimacy</td><td class='n'>0.12</td><td class='muted'>Mercury sextile Moon (4.6°), Moon sextile Pluto (2.9°)</td></tr><tr><td>durability</td><td class='n'>2.37</td><td class='muted'>Mercury sextile Moon (4.6°), Mars square Saturn (6.0°)</td></tr><tr><td>conflict and repair</td><td class='n'>1.51</td><td class='muted'>Venus conjunction Mars (1.8°), Mercury sextile Moon (4.6°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.31</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">55.0</td><td>high</td></tr>
+        <tr><td>emotional</td><td class="n">12.0</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">-1.0</td><td>low</td></tr>
+        <tr><td>friction</td><td class="n">34.0</td><td>typical</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;The pull is the loudest thing between you. What&#x27;s thinner is the ordinary friendship underneath it.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 11 &mdash; Sam &amp; Elif
+      <span class="tag">friendship with attraction</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> a friendship that also carries attraction</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 3.61 &mdash; exceptional</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>10.11</td><td class='muted'>Sun trine Moon (1.6°), Mars trine Sun (0.3°)</td></tr><tr><td>mental connection</td><td class='n'>2.3</td><td class='muted'>Mercury opposition Venus (0.2°), Moon conjunction Mercury (2.9°)</td></tr><tr><td>emotional intimacy</td><td class='n'>3.63</td><td class='muted'>Sun trine Moon (1.6°), Moon conjunction Venus (2.7°)</td></tr><tr><td>durability</td><td class='n'>5.99</td><td class='muted'>Saturn square Mars (0.4°), Mars sextile Saturn (1.2°)</td></tr><tr><td>conflict and repair</td><td class='n'>0.7</td><td class='muted'>Sun trine Moon (1.6°), Mars trine Sun (0.3°)</td></tr><tr><td>reciprocity</td><td class='n'>-1.07</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">49.25</td><td>high</td></tr>
+        <tr><td>emotional</td><td class="n">14.25</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">-1.0</td><td>low</td></tr>
+        <tr><td>friction</td><td class="n">36.25</td><td>typical</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;There&#x27;s a genuine friendship here and an attraction running alongside it; pull and chemistry is the strongest part.&rdquo;</p>
+    </div>
+  </div>
+</section>
+<section class="pair">
+  <h3>Pair 12 &mdash; Sofia &amp; Pol
+      <span class="tag">friendship with attraction</span></h3>
+  <p class="lean"><strong>Engine&rsquo;s lean:</strong> a friendship that also carries attraction</p>
+  <div class="cols">
+    <div>
+      <h4>Friendship 2.75 &mdash; high</h4>
+      <table><tbody><tr><td>social ease</td><td class='n'>5.15</td><td class='muted'>Moon square Venus (2.7°), Venus sextile Saturn (2.0°)</td></tr><tr><td>mental connection</td><td class='n'>2.42</td><td class='muted'>Saturn trine Mercury (1.5°), Venus opposition Mercury (3.8°)</td></tr><tr><td>emotional intimacy</td><td class='n'>1.07</td><td class='muted'>Mars sextile Moon (0.8°), Moon square Venus (2.7°)</td></tr><tr><td>durability</td><td class='n'>7.94</td><td class='muted'>Saturn trine Mercury (1.5°), Venus sextile Saturn (2.0°)</td></tr><tr><td>conflict and repair</td><td class='n'>0.58</td><td class='muted'>Mars sextile Moon (0.8°), Moon square Venus (2.7°)</td></tr><tr><td>reciprocity</td><td class='n'>-0.67</td><td class='muted'>measured from how evenly the other dimensions fall on each side</td></tr></tbody></table>
+    </div>
+    <div>
+      <h4>The other axis</h4>
+      <table><tbody>
+        <tr><td>attraction</td><td class="n">51.0</td><td>high</td></tr>
+        <tr><td>emotional</td><td class="n">20.25</td><td>typical</td></tr>
+        <tr><td>staying power</td><td class="n">25.0</td><td>exceptional</td></tr>
+        <tr><td>friction</td><td class="n">22.0</td><td>low</td></tr>
+      </tbody></table>
+      <p class="say"><strong>How Zoli would open:</strong><br>
+        &ldquo;There&#x27;s a genuine friendship here and an attraction running alongside it; staying power is the strongest part.&rdquo;</p>
+    </div>
+  </div>
+</section>
+  </div>
+</div>
+<script>
+ function show(n){
+   document.getElementById('p1').hidden = n!==1;
+   document.getElementById('p2').hidden = n!==2;
+   document.querySelectorAll('.tabs button').forEach((b,i)=>b.setAttribute('aria-selected', String(i===n-1)));
+ }
+</script>
