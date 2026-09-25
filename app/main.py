@@ -1577,6 +1577,12 @@ def ask_compatibility(
         synastry_aspects,
     )
 
+    # Who "holds the power" and who "attaches first" are internal scoring
+    # only. Told to somebody about their own situationship they are either
+    # clarifying or quietly corrosive, and the charts cannot establish either.
+    synastry_engine = {k: v for k, v in synastry_engine.items()
+                       if k not in ("power_profile", "attachment_profile")}
+
     context = build_ask_compatibility_context(
         person_1_chart,
         person_2_chart,
@@ -1616,6 +1622,27 @@ def ask_compatibility(
     # They asked when — in those words or not — and there are dated windows in
     # the request. Review will reject an answer that names none of them, which
     # the prompt asks for and repeatedly did not get.
+    # What she has told Zoli before, when it could change this answer. A
+    # saved-person chat had none of this, so "how does this fit what you told
+    # me about October" was a question Zoli could not have answered.
+    if current_user.get("memory_enabled"):
+        catch_up_on_finished_chats(user_id)
+        remembered = relevant_memories(
+            user_id, state["topic"], profile_id=profile_id)
+        if remembered:
+            context["what_they_told_you"] = [
+                {"kind": m["kind"], "said_on": m["said_on"], "note": m["text"]}
+                for m in remembered
+            ]
+            may_ask = state["kind"] != "follow_up" and state["topic"] != "emotional"
+            check_in = pick_check_in(remembered, topic=state["topic"], allowed=may_ask)
+            if check_in:
+                context["ask_about_this_once"] = {
+                    "id": check_in["id"], "said_on": check_in["said_on"],
+                    "note": check_in["text"],
+                }
+                note_mentioned(user_id, check_in["id"], asked=True)
+
     if asks_for_timing(data.question) and _has_windows(relationship_timeline):
         state["expects_a_date"] = True
         state["dates_available"] = _datable_windows(relationship_timeline)

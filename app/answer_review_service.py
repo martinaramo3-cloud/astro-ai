@@ -114,6 +114,26 @@ DATE_MENTIONED = re.compile(
     r"|\bin (?:a|two|three|four|six) (?:days?|weeks?|months?)\b"
     r"|\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I)
 
+# Internal scoring words. They are how the engine thinks, not how a person
+# should be spoken to about someone they know — and "toxic" said about a
+# relationship somebody is actually in is a verdict, not a reading.
+SCORING_LABELS = re.compile(
+    r"\btoxic\b|\bobsessive\b|\bhigh pull with high friction\b"
+    r"|\bvolatile, with little\b|\bnothing that stands out\b"
+    r"|\battraction[_ ]band\b|\btoxicity[_ ]band\b|\brelationship[_ ]classifier\b"
+    r"|\bnet[_ ]score\b|\bpower[_ ]holder\b|\battaches[_ ]first\b", re.I)
+
+# Dating-game advice. Narrow on purpose: "wait until Thursday" is legitimate
+# timing and this app gives it constantly — what is banned is a rule about
+# managing another person's interest.
+DATING_RULES = re.compile(
+    r"\bwait for (?:him|her|them) to\b"
+    r"|\bdon'?t (?:text|call|message|reach out|double.text) (?:him|her|them) (?:first|back)\b"
+    r"|\blet (?:him|her|them) (?:come to you|chase|make the first move)\b"
+    r"|\bplay (?:it )?(?:cool|hard to get)\b"
+    r"|\bmake (?:him|her|them) (?:want|miss|chase)\b"
+    r"|\bdon'?t seem too (?:available|eager|keen)\b", re.I)
+
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
 BIOGRAPHY = {
@@ -172,6 +192,10 @@ def review_issues(answer, state):
     # An answer with no date in it has left the only checkable thing out.
     if state.get('expects_a_date') and not DATE_MENTIONED.search(answer):
         issues.append('a timing question answered without a date')
+    if SCORING_LABELS.search(answer):
+        issues.append('says an internal scoring label out loud')
+    if DATING_RULES.search(answer):
+        issues.append('gives dating-game advice instead of something to notice')
     if HEDGE_MENU.search(answer):
         issues.append('offers a menu of possibilities instead of one reading')
     if BOTH_BRANCHES.search(answer):
@@ -241,7 +265,8 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
     # one that fails the same check twice. "Technical astrology in an everyday
     # reply" does not say which phrase to cut; a list does.
     offending=sorted({m.group(0) for pattern in (JARGON,STOCK,SELF_NARRATION,LITIGATES,
-                                                 HEDGE_MENU,BOTH_BRANCHES)
+                                                 HEDGE_MENU,BOTH_BRANCHES,
+                                                 SCORING_LABELS,DATING_RULES)
                       for m in pattern.finditer(answer)})
     repair=prompt+'\n\nDRAFT REVIEW — revise once, return only the replacement answer.\n'+json.dumps({
         'problems':problems,'draft':answer,

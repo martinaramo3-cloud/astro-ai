@@ -325,6 +325,63 @@ def _build_trajectory(indices: dict) -> dict:
     }
 
 
+# Where a pair sits inside its own band, so two "typical" scores can still be
+# ranked against each other. Without this an ordinary pair — four in five of
+# them — has nothing to lead with, and "nothing stands out" becomes "it could
+# be anything", which is the one thing a reading must never be.
+def _relative_position(index_name: str, value: float) -> float:
+    """Roughly what fraction of pairs this beats, from the banded cut points."""
+    cuts = [t["max"] for t in RULES["index_thresholds"].get(index_name, [])][:3]
+    if len(cuts) < 3:
+        return 0.5
+    low, typical, high = cuts                    # p25, p75, p90
+    if value <= low:
+        return 0.25 * max(0.0, value / low) if low else 0.0
+    if value <= typical:
+        return 0.25 + 0.50 * (value - low) / max(typical - low, 1e-9)
+    if value <= high:
+        return 0.75 + 0.15 * (value - typical) / max(high - typical, 1e-9)
+    return min(1.0, 0.90 + 0.10 * (value - high) / max(high, 1e-9))
+
+
+# What each index is, in words a person would use.
+AREA_IN_WORDS = {
+    "attraction": "pull and chemistry",
+    "emotional": "emotional closeness",
+    "long_term": "staying power",
+    "toxicity": "friction",
+}
+
+
+def _relative_shape(indices: dict) -> dict:
+    """Which of the three strengths leads for this pair, and which trails.
+
+    Friction is deliberately not eligible to "lead": a high score there is not
+    something a pair is good at, and offering it as their standout quality is
+    how an ordinary connection gets read back as a warning.
+    """
+    strengths = {name: _relative_position(name, indices[name])
+                 for name in ("attraction", "emotional", "long_term")}
+    leading = max(strengths, key=strengths.get)
+    trailing = min(strengths, key=strengths.get)
+    friction = _relative_position("toxicity", indices["toxicity"])
+    return {
+        "leads_on": AREA_IN_WORDS[leading],
+        "leads_on_key": leading,
+        "trails_on": AREA_IN_WORDS[trailing],
+        "friction_position": round(friction, 2),
+        "spread": round(max(strengths.values()) - min(strengths.values()), 2),
+        "note": (
+            "Where this pair sits against pairs in general, area by area. Use "
+            "'leads_on' to give an ordinary pair something specific to be — "
+            "'mostly a talking connection', 'more steady than exciting' — "
+            "rather than saying nothing stands out. A small 'spread' means the "
+            "three really are level, which is itself a description: even, "
+            "unremarkable, no single thing carrying it."
+        ),
+    }
+
+
 def _classify_relationship(indices: dict) -> list[str]:
     """Every description that fits, not the first one in the file.
 
@@ -435,6 +492,7 @@ def build_synastry_engine(person_1_chart: dict, person_2_chart: dict, synastry_a
             "band_meaning": "where this pair sits among pairs in general, not a verdict on the people",
             "net_score": net_score
         },
+        "relative_shape": _relative_shape(indices),
         "double_whammies": double_whammies,
         "attachment_profile": attachment_profile,
         "power_profile": power_profile,
