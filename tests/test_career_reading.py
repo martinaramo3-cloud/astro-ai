@@ -432,14 +432,70 @@ def test_the_plain_language_carries_no_score():
 # Still dark
 # --------------------------------------------------------------------------
 
-def test_only_the_conclusion_reaches_the_prompt():
-    """Live now. The scores stay inside — a number attached to someone's
-    earning prospects reads as a probability whatever it is labelled."""
+def _every_key(value):
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            yield key
+            yield from _every_key(inner)
+    elif isinstance(value, list):
+        for item in value:
+            yield from _every_key(item)
+
+
+def test_no_score_reaches_the_prompt():
+    """The scores stay inside — a number attached to someone's earning
+    prospects reads as a probability whatever it is labelled.
+
+    Checked on the KEYS, not on the text: a plain reason legitimately contains
+    the word "points" ("the part of your chart that governs money points
+    straight at this"), and a substring search called that a leak.
+    """
+    import re
     compact = for_the_answer(reading("What career suits me?"))
-    blob = json.dumps(compact)
-    for leak in ("score", "how_unusual", "counts_as", "activation", "points"):
-        assert leak not in blob, leak
+    keys = set(_every_key(compact))
+    assert not keys & {"score", "how_unusual", "counts_as", "activation",
+                       "points", "weight", "signals"}, keys
+    # And no bare number anywhere except a calendar date. Walked over the
+    # real strings, not the JSON: an em-dash escapes to \u2014 and a regex
+    # run over the encoded form called that a number.
+    def strings(value):
+        if isinstance(value, dict):
+            for inner in value.values():
+                yield from strings(inner)
+        elif isinstance(value, list):
+            for item in value:
+                yield from strings(item)
+        elif isinstance(value, str):
+            yield value
+    for value in strings(compact):
+        if re.search(r"\d", value):
+            assert re.fullmatch(r"[^\d]*\d{4}-\d{2}-\d{2}[^\d]*(\d{4}-\d{2}-\d{2})?[^\d]*",
+                                value), value
     assert compact["conclusion_in_plain_words"]
+
+
+def test_the_complication_reaches_the_prompt():
+    """Her rule 4: explain the complication rather than delete the route. The
+    first live version sent none of it, so every route arrived flat."""
+    compact = for_the_answer(reading("How am I most likely to make money?"))
+    routes = compact.get("how_the_money_arrives") or []
+    assert routes
+    assert all("but" in r and "because" in r for r in routes)
+    assert any(r["because"] for r in routes)
+
+
+def test_each_reason_is_given_once():
+    compact = for_the_answer(reading("How am I most likely to make money?"))
+    for entry in compact.get("how_the_money_arrives", []):
+        assert len(entry["because"]) == len(set(entry["because"]))
+
+
+def test_it_says_how_hard_to_lean():
+    """Withholding the scores left no way to say whether the top answer was
+    miles ahead or a hair ahead, so every answer landed with equal force."""
+    compact = for_the_answer(reading("How am I most likely to make money?"))
+    assert compact["how_decided_the_chart_is_about_money"]
+    assert compact["how_decided_the_chart_is_about_the_work"]
 
 
 def test_the_astrology_is_absent_unless_they_asked_for_it():

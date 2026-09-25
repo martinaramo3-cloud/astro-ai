@@ -117,6 +117,22 @@ CLOSE_LINK_ORB = 4.0
 # solve turned out not to be tenancy at all. See RANKING below.
 TENANCY_CAP = None
 
+# The same evidence said without a planet or a house in it, so an answer can
+# be specific about WHY without becoming technical. This is the tier that was
+# missing: the first version sent the conclusion and nothing else, which left
+# the model asserting a route it could not ground in anything.
+PLAIN_REASON = {
+    "second_ruler_placement":
+        "the part of your chart that governs money points straight at this",
+    "second_tenth_link":
+        "what you earn from and what you are known for are directly connected",
+    "ruler_connects":
+        "another part of the chart this route depends on is tied into your money",
+    "on_cusp": "something sits right on the point that governs it",
+    "planet_in_house": "the area of life this route belongs to is occupied",
+    "symbolism": "the symbolism leans this way, which on its own is thin",
+}
+
 # Rule 2: what may serve as the required signal. At least one piece of
 # evidence for a "strong" route must involve the 2nd house or its ruler, or a
 # direct link between career and income.
@@ -386,6 +402,43 @@ def _counterevidence(route_key: str, facts: dict, evidence: list[dict]) -> list[
     return list(dict.fromkeys(against))[:6]
 
 
+def plain_complications(evidence: list[dict], facts: dict, route_key: str) -> list[str]:
+    """What makes this route harder, said without a planet or a house in it.
+
+    Her rule 4: a complicated ruler still describes the route, and the answer
+    should EXPLAIN the complication rather than delete the route. The first
+    version of the live wiring sent none of this, which meant the answer
+    asserted every route flat — the exact thing the rule was written against.
+    """
+    second, tenth = facts["ruler_of"][2], facts["ruler_of"][10]
+    said: list[str] = []
+
+    for planet, role in ((second, "what governs your money"),
+                         (tenth, "what governs your standing")):
+        condition = _condition(planet, facts)
+        if condition["dignity"] in DIFFICULT:
+            said.append(f"{role} is not comfortably placed, so this works but "
+                        "costs more effort than it should")
+        if any("under pressure" in note for note in condition["notes"]):
+            said.append(f"there is steady friction on {role}, so progress here "
+                        "tends to come in pushes rather than smoothly")
+        if any("quiet part" in note for note in condition["notes"]):
+            said.append(f"{role} operates out of sight, so the work is likelier "
+                        "to be recognised late than early")
+        if condition["retrograde"] if "retrograde" in condition else False:
+            said.append(f"{role} tends to arrive on a second attempt rather "
+                        "than a first")
+
+    kinds = {item["kind"] for item in evidence}
+    if kinds and kinds <= {"planet_in_house", "symbolism"}:
+        said.append("this one rests on where things sit rather than on how they "
+                    "connect, which is the weaker kind of evidence")
+    if not any(item["qualifies"] for item in evidence):
+        said.append("nothing here ties it directly to money, so treat it as a "
+                    "possibility rather than a conclusion")
+    return list(dict.fromkeys(said))[:3]
+
+
 def _score(evidence: list[dict]) -> float:
     """Sum her weights, each scaled by how exact its aspect is.
 
@@ -558,8 +611,10 @@ def score_earning_routes(chart: dict, *, birth_time_confident: bool = True) -> d
             "strong": signals >= 2 and qualifying,
             "has_qualifying_signal": qualifying,
             "evidence": [{"points": i["points"], "weight": i["weight"],
-                          "counts_as": i["counts_as"], "why": i["why"]}
+                          "counts_as": i["counts_as"], "why": i["why"],
+                          "in_plain_words": PLAIN_REASON.get(i["kind"], "")}
                          for i in evidence],
+            "complications": plain_complications(evidence, facts, key),
             "counterevidence": _counterevidence(key, facts, evidence),
         }
 

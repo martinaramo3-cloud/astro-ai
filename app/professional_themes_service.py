@@ -113,6 +113,17 @@ POINTS = {
     "symbolism": 1,
 }
 SYMBOLISM_CAP = 1
+
+# The same evidence without a planet or a house in it.
+PLAIN_REASON = {
+    "rules_the_mc": "this governs the part of your chart that carries your work",
+    "aspects_the_mc": "it makes close contact with the point that carries your work",
+    "aspects_the_ruler": "it is closely tied to whatever governs your work",
+    "in_the_tenth": "it sits in the part of the chart the career belongs to",
+    "daily_work": "it shows up in how your days are actually spent, which "
+                  "describes conditions rather than the career itself",
+    "symbolism": "the symbolism leans this way, which on its own is thin",
+}
 # Her rule: the 6th does not by itself define the career.
 CANNOT_ESTABLISH = {"daily_work", "symbolism"}
 
@@ -237,7 +248,10 @@ def score_professional_themes(chart: dict) -> dict:
             # Two independent signals, and the 6th cannot supply them.
             "strong": len(establishing) >= 2,
             "evidence": [{"points": i["points"], "weight": i["weight"],
-                          "counts_as": i["weighted"], "why": i["why"]} for i in items],
+                          "counts_as": i["weighted"], "why": i["why"],
+                          "in_plain_words": PLAIN_REASON.get(i["kind"], "")}
+                         for i in items],
+            "complications": _plain_against(items, establishing),
             "counterevidence": _against(planet, items, establishing),
         })
 
@@ -280,6 +294,22 @@ def _score(items) -> float:
         else:
             total += item["weighted"]
     return total
+
+
+def _plain_against(items: list, establishing: list) -> list[str]:
+    """Why this theme is less settled than it looks, without the machinery."""
+    said = []
+    if len(establishing) < 2:
+        said.append("only one thing in the chart actually points here, so it is "
+                    "a lead rather than a finding")
+    if items and all(i["kind"] in CANNOT_ESTABLISH for i in items):
+        said.append("this describes how the days are spent rather than what the "
+                    "career is")
+    weak = [i for i in items if i["weight"] < 0.45]
+    if weak and len(weak) == len(items):
+        said.append("every connection here is loose, so read it as a lean and "
+                    "not a direction")
+    return said[:3]
 
 
 def _against(planet: str, items: list, establishing: list) -> list[str]:

@@ -304,17 +304,78 @@ def build_career_reading(chart: dict, question: str, *, timeline: dict | None = 
 
 def _confidence(question_type, themes, routes, timing, birth_time_confident) -> str:
     if not birth_time_confident:
-        return "low — the birth time is uncertain, so nothing here may rest on a house"
+        return ("low — the birth time is not reliable, so say what can be said from "
+                "the signs and do not reach for anything that needs one")
     leads = QUESTION_TYPES[question_type]["ranking"]
     strong_theme = themes.get("available") and any(t["strong"] for t in themes["themes"])
     strong_route = routes.get("available") and any(r["strong"] for r in routes["ranking"])
     wanted = {"themes": strong_theme, "routes": strong_route,
               "both": strong_theme and strong_route}[leads]
     if not wanted:
-        return "low — nothing reaches two independent signals on the side this question asks about"
+        return ("low — the chart does not say enough about the side of this they "
+                "asked about; say so plainly rather than filling the gap")
     if question_type == "career_timing" and timing.get("timing_is_unclear"):
-        return "moderate — the chart is clear, the timing indicators do not converge"
+        return ("moderate — the reading is clear but the timing is not, so give the "
+                "reading and leave the date alone")
+    # Confidence counts evidence; how_decided compares this chart with other
+    # charts. They can honestly differ — plenty of evidence for something most
+    # charts also have — but sending "high" beside "only mildly decided" is a
+    # contradiction the answer would have to resolve on its own, and it would
+    # resolve it in favour of the confident half.
+    leading = (themes["themes"] if leads == "themes" else routes["ranking"]) or []
+    if leading and leading[0]["how_unusual"] < 0.6:
+        return ("moderate — well evidenced, but this chart is no more decided "
+                "about it than most are; lean lightly")
     return "high" if wanted else "moderate"
+
+
+def _how_decided(ranked: list[dict]) -> str:
+    """How much the chart actually leans, in words rather than a number.
+
+    The scores stay internal, but withholding them entirely left no way to
+    say whether the top answer was miles ahead or a hair ahead — so an answer
+    said "your strongest way of earning is X" with equal force whether the
+    chart was emphatic or barely decided. That is overclaiming by omission.
+    """
+    if not ranked:
+        return "the chart does not lean anywhere in particular"
+    top = ranked[0]["how_unusual"]
+    gap = top - ranked[1]["how_unusual"] if len(ranked) > 1 else 1.0
+    if top < 0.6:
+        return ("only mildly — this chart is less decided about it than most "
+                "charts are, so hold it lightly and say so")
+    if gap >= 0.2:
+        return "clearly — the first one is well ahead of the rest"
+    if gap <= 0.05:
+        return ("the top two are close enough to be one answer rather than a "
+                "ranking")
+    return "moderately — the first leads, but not by a distance"
+
+
+# Planets and house numbers, stripped out of a payload that is meant to have
+# none. The reason survives; the machinery does not.
+_PLANET = re.compile(
+    r"\b(?:Sun|Moon|Mercury|Venus|Mars|Jupiter|Saturn|Uranus|Neptune|Pluto|"
+    r"Chiron|North Node|Midheaven|Ascendant)\b")
+_HOUSE = re.compile(r"\b(\d{1,2})(?:st|nd|rd|th)\b|\((\d[\d, ]*)\)")
+
+
+def _plainly(reasons: list[str]) -> list[str]:
+    said = []
+    for reason in reasons:
+        if "which this question turns on" in reason:
+            said.append("it lands on exactly what this question is about")
+        elif "touches a house this question turns on" in reason:
+            said.append("it touches the part of life this question is about")
+        elif "crossing your" in reason:
+            said.append("it is moving through the area this question concerns")
+        elif "year, which is where" in reason:
+            said.append("it falls in the part of life this year of yours is about")
+        elif "rules this year" in reason:
+            said.append("it involves what this year of yours turns on")
+        else:
+            said.append(_HOUSE.sub("", _PLANET.sub("it", reason)).strip())
+    return [s for s in dict.fromkeys(said) if s]
 
 
 def for_the_answer(reading: dict, *, technical: bool = False) -> dict | None:
@@ -349,16 +410,33 @@ def for_the_answer(reading: dict, *, technical: bool = False) -> dict | None:
     if themes.get("available") and themes["themes"]:
         compact["what_the_work_is"] = [
             {"theme": t["label"], "in_plain_words": t["plain"],
-             "looks_like": t["work"], "well_supported": t["strong"]}
+             "looks_like": t["work"], "well_supported": t["strong"],
+             # Why, without a planet or a house in it. Without this the answer
+             # asserts a theme it cannot ground in anything, which is how a
+             # confident reading becomes a vague one.
+             "because": list(dict.fromkeys(
+                 e["in_plain_words"] for e in t["evidence"]
+                 if e.get("in_plain_words")))[:3],
+             "but": t.get("complications") or []}
             for t in themes["themes"]]
+        compact["how_decided_the_chart_is_about_the_work"] = _how_decided(
+            themes["themes"])
         if themes.get("combined_reading"):
             compact["these_two_are_one_career"] = themes["combined_reading"]
 
     if routes.get("available") and routes["ranking"]:
         compact["how_the_money_arrives"] = [
             {"route": r["label"], "in_plain_words": r["plain"],
-             "means": r["means"], "well_supported": r["strong"]}
+             "means": r["means"], "well_supported": r["strong"],
+             "because": list(dict.fromkeys(
+                 e["in_plain_words"] for e in r["evidence"]
+                 if e.get("in_plain_words")))[:3],
+             # Her rule 4: explain the complication, never delete the route.
+             # The model cannot explain one it was never told about.
+             "but": r.get("complications") or []}
             for r in routes["ranking"]]
+        compact["how_decided_the_chart_is_about_money"] = _how_decided(
+            routes["ranking"])
         if routes.get("complementary"):
             compact["top_two_routes_are_complementary"] = True
         compact["on_these_dimensions"] = {
@@ -373,10 +451,15 @@ def for_the_answer(reading: dict, *, technical: bool = False) -> dict | None:
     elif timing.get("windows"):
         compact["timing"] = {
             "windows": [
-                {"dates": [p["window"] for p in w["passes"][:2]],
+                # Dates deduplicated: two passes of one transit share a window,
+                # and printing it twice invited an answer that named it twice.
+                {"dates": list(dict.fromkeys(p["window"] for p in w["passes"]))[:2],
                  "exact_days": w["exact_days"],
                  "this_is": w["reads_as"],
-                 "chosen_because": w["why_this_window"]}
+                 # Stripped of planets and house numbers. The first version
+                 # sent "it lands on Venus" and "it is crossing your 1st" into
+                 # a payload that was supposed to contain no astrology.
+                 "chosen_because": _plainly(w["why_this_window"])}
                 for w in timing["windows"][:2]],
             "note": ("Chosen for activating what this question turns on, not "
                      "for being the largest transit. Explain a window once; "
