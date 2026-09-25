@@ -20,23 +20,38 @@ Things found while working, deliberately left for later. Newest first.
   from a birth date, so the boost has never once applied to a real person);
   and nothing ranks earning patterns, which is the item below.
 
-- **Which earning patterns she would name, and how she would weight them.**
-  `app/earning_profile_service.py` scores a chart on five spectrums — the named
-  person or the one behind it; a few clients or many buyers; their own money or
-  other people's; judgement sold as advice or a thing sold as a product; a
-  steady build or work in waves. Those five are mine, chosen because they are
-  what a person can act on, and she may want different ones entirely.
+- **The blind earning-route table.** `training/area3/blind_routes.html` — open
+  it in a browser. Twelve invented charts; tab one has the chart details her
+  framework asks for and boxes for her own top three, with a download button;
+  tab two has the engine's ranking with evidence and counterevidence. Blind and
+  in that order on purpose.
 
-  The house weights inside it are hers already, lifted from the money table she
-  wrote for the city rankings — the one table in the codebase an astrologer
-  actually authored. Everything else (which houses pull which way, the planet
-  tilts) is assembled by analogy and marked as such in the output.
+  `app/earning_routes_service.py` implements her document as written: the six
+  routes, the weight table, the five dimensions, and all six rules — trace
+  money from the 2nd and its ruler first, two independent signals with one on
+  the money house to call a route strong, never count the same aspect twice,
+  condition changes how a route works rather than whether it exists, rank at
+  most three, and the person's own facts never count as chart evidence (they
+  cannot even reach the function).
 
-  Bands are calibrated over a thousand invented charts
-  (`training/area3/distribution.py`), so the thresholds are measured rather
-  than guessed. Across those charts the five spectrums split between 43/57 and
-  58/42, and a third of charts have nothing pronounced at all — which is the
-  honest outcome, not a failure.
+  **Two numbers and one method are mine, not hers**, and the engine says so in
+  its own output:
+  - a "close" connection is 4° — her document says close without a number
+  - two routes read as complementary within 0.03 of each other
+  - **routes are ranked on how unusual a score is for that route, not on the
+    raw total.** This one matters most and she should push back on it if she
+    disagrees. Her evidence column names five houses for business and one for
+    partnerships, so business has five chances at the 5-point evidence.
+    Ranked on the raw total, business came first for 46% of a thousand charts
+    and partnerships never came first at all; employment came first 3% of the
+    time. Her weights are untouched and the raw score is still what the audit
+    trail shows — only the comparison between routes changed. With it, the six
+    routes rank first 14–20% each.
+
+  Also new, and the gap the earlier audit found: **aspects to the Midheaven
+  and the angles are now calculated** (`app/angle_aspects_service.py`), because
+  her weight table awards points for a planet conjunct the MC and nothing in
+  the system could see one.
 
   **Not wired into any answer.** A test enforces that.
 

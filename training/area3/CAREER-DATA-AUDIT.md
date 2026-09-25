@@ -88,8 +88,8 @@ material for a career reading in the first place?** That is Tables B and C.
 | **Ruler of the Midheaven, and where it sits** | **Sent** | Inside the full house-ruler table: its sign, house and dignity are all there | | |
 | Rulers of the 2nd, 6th, 8th, 10th | **Sent** | Same table, all twelve houses | | |
 | Planets sitting in the 2nd, 6th, 8th, 10th | **Sent, but not grouped** | Every planet carries its house number, so it is derivable — nothing hands over "here is what is in the money houses" as a set | | |
-| **Aspects to the Midheaven** | **Not calculated** | Aspects are computed between planets only. The angles are excluded, so a square to the MC does not exist anywhere in the system | | |
-| Aspects to the Ascendant | **Not calculated** | Same gap | | |
+| **Aspects to the Midheaven** | **Now calculated** | Was the largest hole; built 25 September 2026 in `app/angle_aspects_service.py` for the earning-route engine. Not yet in ordinary answers | | |
+| Aspects to the Ascendant | **Now calculated** | Same change. Descendant and IC too, which were never stored at all | | |
 | Planets *conjunct* the angles | **Sent** | Conjunctions only, within 8° | | |
 | Jupiter and Saturn by sign, house, dignity | **Sent** | | | |
 | North Node by sign and house | **Sent** | | | |
@@ -141,13 +141,10 @@ Ours, not yours — argue with them.
    the profected house from a birth date. This may be the cheapest real
    addition on the list.
 
-3. **Nothing ranks earning patterns.** Separately from this audit, there is
-   now a scoring engine that reads a chart for *how* it earns — being the
-   named person or the one behind it, a few clients or many buyers, own money
-   or other people's, judgement or craft, steady or in waves. It is built,
-   calibrated against a thousand invented charts, and switched off until you
-   have seen it. The five patterns and their weights are the part waiting on
-   you.
+3. **Nothing ranks earning patterns.** Now superseded by your own framework:
+   `training/area3/blind_routes.html` implements the six routes and the weight
+   table, calibrated against a thousand invented charts and switched off until
+   you have reviewed the blind table.
 
 ---
 

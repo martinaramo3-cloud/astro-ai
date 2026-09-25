@@ -17,7 +17,6 @@ from app.answer_review_service import review_issues
 from app.conversation_service import (
     CAREER_BUDGET, budget_for, conversation_state,
 )
-from app.earning_profile_service import POLES, describe_profile, score_earning_profile
 import app.main as main
 from tests.conftest import SOFIA
 
@@ -317,95 +316,3 @@ def test_the_prompt_judges_the_chart_before_their_life():
     assert "before you look at anything they have told" in prompt
     assert "Studying something is not being it" in prompt
     assert "never name a fund, a stock, a currency, a property or a market" in prompt
-
-
-# --------------------------------------------------------------------------
-# Part B: the earning engine. Built, calibrated, and deliberately not live.
-# --------------------------------------------------------------------------
-
-def chart():
-    return main.build_natal_chart_data(type("P", (), dict(SOFIA, birth_time_known=True)))
-
-
-def test_the_earning_engine_is_not_wired_into_any_answer():
-    """Dark until the co-founder has reviewed the dimensions and the weights.
-
-    The same arrangement as friendship, and this test is what keeps it true.
-    """
-    import subprocess
-    importers = subprocess.run(
-        ["grep", "-rl", "--include=*.py", "earning_profile_service", "app/"],
-        capture_output=True, text=True).stdout.split()
-    assert importers == [], f"now reached from {importers} — was it meant to go live?"
-
-
-def test_it_scores_five_spectrums_from_the_chart_alone():
-    profile = score_earning_profile(chart())
-    assert profile["available"]
-    assert set(profile["spectrums"]) == set(POLES)
-    for entry in profile["spectrums"].values():
-        assert entry["leans"]
-        assert entry["band"] in ("low", "typical", "high", "exceptional")
-
-
-def test_it_needs_a_birth_time():
-    assert score_earning_profile({"planet_positions": [], "houses": []})["available"] is False
-
-
-def test_it_never_produces_a_quantity_of_money():
-    """There is no scale here on which a chart says someone will be rich, and
-    building one would be the most attractive lie in the product.
-
-    Checked against the words an ANSWER would be built from — the spectrums —
-    not the whole payload, whose disclaimer says the word "rich" precisely in
-    order to rule it out.
-    """
-    import json
-    import re
-    blob = json.dumps(score_earning_profile(chart())["spectrums"]).lower()
-    for word in ("salary", "income", "rich", "wealthy", "earn ", "$", "€"):
-        assert word not in blob, word
-    # And no figure of any kind, anywhere in the reading.
-    assert not re.search(r"\d[\d,.]*\s*(?:a|per)\s+(?:month|year|hour)", blob)
-    for line in describe_profile(score_earning_profile(chart())):
-        assert not re.search(r"\d", line), line
-
-
-def test_the_plain_description_carries_no_jargon():
-    from app.answer_review_service import JARGON
-    for line in describe_profile(score_earning_profile(chart())):
-        assert not JARGON.search(line), line
-
-
-def test_the_bands_are_calibrated_not_guessed():
-    """Guessed thresholds put 95.8% of couples in "toxic attraction"."""
-    import json
-    import pathlib
-    bands = json.loads(
-        (pathlib.Path(main.__file__).resolve().parents[1]
-         / "content" / "engine" / "earning_bands.json").read_text())
-    assert set(bands) == set(POLES)
-    for spectrum, steps in bands.items():
-        assert [s["label"] for s in steps] == ["low", "typical", "high", "exceptional"]
-        cuts = [s["max"] for s in steps]
-        assert cuts == sorted(cuts), spectrum
-
-
-def test_the_ranking_is_not_just_the_widest_spectrum():
-    """The five do not share a scale, so ranking on the raw score ranked the
-    scale rather than the chart."""
-    profile = score_earning_profile(chart())
-    raw_order = sorted(profile["spectrums"],
-                       key=lambda s: abs(profile["spectrums"][s]["score"]), reverse=True)
-    # Not an assertion that they differ for this one chart — an assertion that
-    # the ranking is computed from the relative figure at all.
-    assert profile["ranked"] == sorted(
-        profile["spectrums"],
-        key=lambda s: profile["spectrums"][s]["how_decided"], reverse=True)
-    assert all(profile["spectrums"][s]["how_decided"] >= 0 for s in raw_order)
-
-
-def test_it_says_where_its_astrology_came_from():
-    profile = score_earning_profile(chart())
-    assert "pending" in profile["weights"]
-    assert "not yet" in profile["provenance"]

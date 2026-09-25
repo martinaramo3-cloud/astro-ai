@@ -1,0 +1,43 @@
+{
+ "charts": 1000,
+ "ranks_first": {
+  "employment": 0.167,
+  "independent_expertise": 0.176,
+  "business_products": 0.14,
+  "partnerships_deals": 0.153,
+  "others_assets": 0.16,
+  "owned_assets": 0.204
+ },
+ "reaches_top_three": {
+  "employment": 0.377,
+  "independent_expertise": 0.394,
+  "business_products": 0.364,
+  "partnerships_deals": 0.357,
+  "others_assets": 0.382,
+  "owned_assets": 0.417
+ },
+ "called_strong": {
+  "employment": 0.473,
+  "independent_expertise": 0.824,
+  "business_products": 0.882,
+  "partnerships_deals": 0.353,
+  "others_assets": 0.46,
+  "owned_assets": 0.774
+ },
+ "median_score": {
+  "employment": 8.0,
+  "independent_expertise": 17.0,
+  "business_products": 20.0,
+  "partnerships_deals": 5.0,
+  "others_assets": 7.0,
+  "owned_assets": 16.0
+ },
+ "close_link_fires": 0.268,
+ "complementary": 0.167,
+ "gap_median": 0.087,
+ "confidence": {
+  "moderate": 0.409,
+  "high": 0.422,
+  "low": 0.169
+ }
+}
