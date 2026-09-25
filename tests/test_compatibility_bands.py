@@ -68,3 +68,88 @@ def test_eighth_house_is_depth_not_a_point_in_its_favour():
     mutual or sustainable."""
     assert not any("8th" in flag for flag in RULES["green_flags"])
     assert any("8th" in marker for marker in RULES["neutral_markers"])
+
+
+# ── An ordinary pair still gets a specific reading ─────────────────────────
+
+from app.compatibility_service import _relative_shape  # noqa: E402
+
+
+@pytest.mark.parametrize("indices, leads", [
+    ({"attraction": 32, "emotional": 19, "long_term": 8, "toxicity": 30}, "emotional closeness"),
+    ({"attraction": 31, "emotional": 9, "long_term": 16, "toxicity": 28}, "staying power"),
+    ({"attraction": 46, "emotional": 8, "long_term": 6, "toxicity": 30}, "pull and chemistry"),
+])
+def test_four_in_five_pairs_still_have_something_to_be(indices, leads):
+    """81.9% of pairs now classify as "nothing that stands out". Without a
+    relative read, that becomes "it could be anything" — the one thing a
+    reading must never be."""
+    assert _relative_shape(indices)["leads_on"] == leads
+
+
+def test_friction_is_never_offered_as_a_strength():
+    """A high friction score is not something a pair is good at, and leading
+    with it turns an ordinary connection into a warning."""
+    shape = _relative_shape({"attraction": 20, "emotional": 5, "long_term": 3, "toxicity": 100})
+    assert shape["leads_on"] != "friction"
+    assert shape["leads_on_key"] in ("attraction", "emotional", "long_term")
+
+
+def test_a_level_pair_is_described_as_level():
+    shape = _relative_shape({"attraction": 38, "emotional": 12, "long_term": 10, "toxicity": 36})
+    assert shape["spread"] < 0.2, "these three are genuinely even, and that is the description"
+
+
+# ── What must never be said out loud ───────────────────────────────────────
+
+from app.answer_review_service import review_issues  # noqa: E402
+from app.conversation_service import conversation_state  # noqa: E402
+
+
+def _state():
+    # The question names him, so "he" in an answer is supported — otherwise the
+    # pronoun rule fires and masks what these tests are actually checking.
+    state = conversation_state("is he a friend or something else?")
+    state["max_words"] = 420
+    return state
+
+
+@pytest.mark.parametrize("draft", [
+    "This reads as a toxic attraction between you.",
+    "The pull is obsessive.",
+    "Your net_score is high.",
+    "He is the power_holder here.",
+])
+def test_internal_scoring_words_never_reach_the_reader(draft):
+    assert 'says an internal scoring label out loud' in review_issues(draft, _state())
+
+
+@pytest.mark.parametrize("draft", [
+    "Wait for him to call first.",
+    "Don't text him back too quickly.",
+    "Let him come to you.",
+    "Play it cool for a week.",
+])
+def test_dating_game_advice_is_rejected(draft):
+    assert 'gives dating-game advice instead of something to notice' in review_issues(draft, _state())
+
+
+@pytest.mark.parametrize("draft", [
+    "Wait until Thursday — the window opens then.",
+    "It goes hot then cold, and the cold part always follows a real conversation.",
+    "Notice whether he keeps the contact going when you are not the one starting it.",
+])
+def test_real_timing_and_real_observations_still_pass(draft):
+    """The line is between a rule for managing someone's interest and a fact
+    about when something happens."""
+    assert review_issues(draft, _state()) == []
+
+
+def test_power_and_attachment_never_leave_the_engine():
+    """Who 'holds the power' is internal scoring, and the charts cannot
+    establish it anyway."""
+    import inspect
+    import app.main as main
+    source = inspect.getsource(main.ask_compatibility)
+    assert '"power_profile"' in source and '"attachment_profile"' in source
+    assert "not in (" in source, "they should be filtered out of the context"
