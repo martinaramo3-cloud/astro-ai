@@ -4,6 +4,24 @@ Things found while working, deliberately left for later. Newest first.
 
 ---
 
+## Waiting on the co-founder (24 September 2026)
+
+- **Calibration table review and friendship weights.** The twelve-pair table is
+  in `training/area2/`. Section 1 is blind — chart contacts with an empty
+  column for her own lean — and section 2 has the scores. Friendship runs at
+  equal weights until she adjusts them from her disagreements.
+- **The three-degree contact orb.** Currently `CONTACT_ORB` in
+  `app/transit_timing_service.py`. To be made a setting she can change.
+- **Whether "Saturn conjunction their Saturn" counts as a connection window.**
+  It is a transit to his chart, so it currently ranks as being about the two of
+  them — but a Saturn return is arguably his alone, the way hers is hers.
+- **Power and attachment stay internal.** Not sent to the model at all. Hers to
+  decide whether they are ever readable.
+- **Friendship-based leans are not live.** Built and tested, not wired into any
+  answer, pending her review.
+
+---
+
 ## A saved person never reaches an ordinary question
 
 **Found:** 23 September 2026, while widening the gendered-pronoun evidence rule.
