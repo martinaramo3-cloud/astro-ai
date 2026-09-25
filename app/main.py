@@ -1182,6 +1182,12 @@ def _prepare_astrologer_call(
                 {"kind": m["kind"], "said_on": m["said_on"], "note": m["text"]}
                 for m in memories
             ]
+            # Draft review has to count these as things they told us. Without
+            # it, an answer resting on something said three weeks ago reads as
+            # invented biography and gets rejected for it — and the money and
+            # qualification rules need the same evidence to know whether a
+            # figure or a credential was theirs to begin with.
+            state["reported_facts"]["remembered"] = [m["text"] for m in memories]
             may_ask = tier == 4 and state["topic"] != "emotional" and not image_context
             check_in = pick_check_in(memories, topic=question_type, allowed=may_ask)
             if check_in:

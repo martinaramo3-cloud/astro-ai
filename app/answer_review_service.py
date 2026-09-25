@@ -80,7 +80,13 @@ SERIOUS = ("empty answer", "unsupported personal fact", "unsupported age",
            "unqualified claim about another person", "unsupported gendered pronouns",
            # A sentence that stops halfway is unservable whatever it says, and
            # the rewrite already gets double the tokens to finish it.
-           "provider stopped before", "answer ends mid-sentence")
+           "provider stopped before", "answer ends mid-sentence",
+           # Money. An invented figure, a credential they may not hold and a
+           # promise of wealth are all wrong about someone's life in the way
+           # this list exists for; where to put their savings is the one thing
+           # the safety floor names outright.
+           "invents a money figure", "tells them where to invest",
+           "promises money as certain")
 
 
 def _serious(issues) -> list:
@@ -133,6 +139,195 @@ DATING_RULES = re.compile(
     r"|\bplay (?:it )?(?:cool|hard to get)\b"
     r"|\bmake (?:him|her|them) (?:want|miss|chase)\b"
     r"|\bdon'?t seem too (?:available|eager|keen)\b", re.I)
+
+# ---------------------------------------------------------------------------
+# Career and money: four things an answer here must never invent.
+#
+# All four of these passed review clean before this section existed — an
+# invented salary, a qualification nobody mentioned, an index fund, and a
+# promise of wealth. The prompt's one line about never directing investments
+# sits inside a twenty-thousand-character safety floor, arriving behind the
+# whole chart, and that is precisely the instruction that loses. So they are
+# rules here instead of requests there.
+#
+# Each one is drawn as narrowly as it can be, because the useful half of a
+# money answer lives right next to the banned half: pricing structure next to
+# invented prices, a form of success next to an investment instruction.
+# ---------------------------------------------------------------------------
+
+# A figure the person gave first is theirs, and repeating it back is fine. One
+# appearing for the first time in the answer is a forecast about their income
+# that nothing calculated it.
+#
+# Pricing STRUCTURE carries no digits — "paid per project", "a monthly
+# retainer", "a share of what it earns" — so nothing here can reach it. That
+# is deliberate: structure is the useful, sayable half.
+MONEY_FIGURE = re.compile(
+    r"[€$£¥]\s?\d[\d,.]*"
+    r"|\b\d[\d,.]*\s?(?:euros?|dollars?|pounds?|usd|eur|gbp)\b"
+    r"|\b\d[\d,.]*\s?k\s+(?:a|an|per)\s+(?:month|year|week|day|hour)\b"
+    r"|\b\d[\d,.]*\s+(?:a|an|per)\s+"
+    r"(?:month|year|week|day|hour|project|client|session|engagement|head)\b"
+    r"|\b(?:five|six|seven|eight)[\s-]figures?\b",
+    re.I)
+
+# Professions you cannot claim without a credential, and the credentials
+# themselves. The FIELDS are deliberately absent — no "law", no "medicine", no
+# "architecture" — because studying something is not being it. A memory that
+# says "studies law" must never license "as a lawyer" or "you already have the
+# credential", and it cannot, because neither word appears in it.
+QUALIFICATION_TERM = (
+    r"lawyer|attorney|solicitor|barrister|"
+    r"doctor|physician|surgeon|nurse|dentist|pharmacist|veterinarian|"
+    r"engineer|architect|accountant|auditor|actuary|"
+    r"psychologist|psychiatrist|therapist|counsellor|counselor|"
+    r"teacher|professor|lecturer|"
+    r"licen[cs]ed|certified|accredited|chartered|board.certified|"
+    r"qualified|credentials?|credentialled|credentialed|"
+    r"degree|diploma|doctorate|masters|"
+    r"bar (?:exam|admission)|called to the bar|"
+    r"mba|jd|phd|cpa|cfa|acca"
+)
+_QUALIFICATION_TERM_RE = re.compile(r"\b(?:" + QUALIFICATION_TERM + r")\b", re.I)
+# The claim, not the word. "A qualified yes" is ordinary English and stays;
+# "you are qualified" is a statement about their life and needs evidence.
+QUALIFIED_CLAIM = re.compile(
+    r"\b(?:as an?|your|you(?:'re| are| have| already have|'ve)(?:\s+(?:an?|the))?)"
+    r"\s+(?:\w+[\s-]){0,2}(?:" + QUALIFICATION_TERM + r")\b", re.I)
+
+# Where to put money. Naming one of these in an astrology answer is investment
+# advice whatever the sentence around it is doing.
+INVESTMENT_VEHICLE = re.compile(
+    r"\b(?:index fund|tracker fund|mutual fund|hedge fund|"
+    r"s&p ?500|nasdaq|ftse|dow jones|"
+    r"crypto(?:currency)?|bitcoin|ethereum|altcoins?|nfts?|"
+    r"401\(?k\)?|roth|sipp|"
+    r"brokerage account|treasury (?:bills|bonds)|government bonds|"
+    r"stock market|the markets)\b", re.I)
+# Acronyms that are only acronyms in capitals. Lower-cased, "ira" is a name and
+# "isa" is most of a verb.
+INVESTMENT_VEHICLE_CASED = re.compile(r"\b(?:ETFs?|IRA|ISA)\b")
+# An instruction to move money somewhere. Forms of success are not instructions
+# and must survive this: "owning a business", "equity in a company you help
+# build", "a stake in the thing you make" are answers to what the upside looks
+# like, which is half of what was asked for. So is "invest in yourself".
+INVESTMENT_INSTRUCTION = re.compile(
+    r"\b(?:put|move|park|place|allocate|sink|pour|funnel)\b[^.!?]{0,40}?"
+    r"\binto\b[^.!?]{0,30}?"
+    r"\b(?:stocks?|shares|equities|property|real estate|gold|bonds?|funds?|"
+    r"the market|markets)\b"
+    r"|\binvest(?:ing)?\s+in\s+"
+    r"(?:stocks?|shares|equities|property|real estate|gold|bonds?|funds?|"
+    r"the market|markets|commodities)\b"
+    r"|\bbuy(?:ing)?\s+(?:stocks?|shares|equities|gold|bonds)\b", re.I)
+
+# Money promised rather than read. A window is a stretch of time in which
+# something is more available; it is not an event with a payout attached.
+PROMISED_WEALTH = re.compile(
+    r"\b(?:this|that|it|the chart)\s+will\s+make\s+you\s+"
+    r"(?:rich|wealthy|money|a fortune)\b"
+    r"|\byou\s+will\s+(?:be|become|end up)\s+"
+    r"(?:rich|wealthy|a millionaire|financially free)\b"
+    r"|\byou(?:'ll| will)\s+never\s+"
+    r"(?:worry about|have to worry about|struggle for)\s+money\b"
+    r"|\bthe money (?:will )?(?:arrives?|is coming|comes in|lands|shows up)\b"
+    r"|\b(?:wealth|financial success|the money) is "
+    r"(?:guaranteed|certain|assured|inevitable|coming)\b"
+    r"|\bguaranteed (?:income|return|profit|payday|wealth)\b", re.I)
+
+
+# Wanting to be a thing is not being it — the distinction the whole
+# qualification rule exists for. "Should I become a lawyer?", "I'm studying to
+# be a lawyer" and a memory reading "wants to be a lawyer" all license nothing.
+ASPIRING = re.compile(
+    r"\b(?:become|becoming|train(?:ing)? (?:to be|as)|stud(?:y|ying|ies) (?:to be|for)|"
+    r"want(?:s|ed)? to be|hopes? to be|thinking about|considering|"
+    r"plan(?:s|ning)? to be|if i (?:were|was)|once i)\b", re.I)
+
+
+def _licensing_clauses(text):
+    """The parts of something they said that actually claim a fact.
+
+    Split at clause boundaries rather than sentence ones, because "I'm a
+    lawyer, what should I do next?" is a single sentence carrying both a fact
+    and a question, and treating the whole thing as a question threw the fact
+    away — which flagged the answer for inventing a job they had just named.
+    """
+    for clause in re.split(r"[,;:—–]|\b(?:but|and then|so)\b", text):
+        clause = clause.strip()
+        if clause and _asserted(clause) and not ASPIRING.search(clause):
+            yield clause
+
+
+def _stated(state) -> str:
+    """Facts they have claimed: this thread, the saved profile, and memory.
+
+    Memory belongs here now that it is live. Without it, an answer resting on
+    something said in an earlier conversation looks invented to this file and
+    gets rejected for it.
+    """
+    facts = state['reported_facts']
+    said = [c for text in facts['user_statements'] for c in _licensing_clauses(text)]
+    said += [c for text in (facts.get('remembered') or []) for c in _licensing_clauses(text)]
+    return ' '.join(said) + ' ' + json.dumps(facts['saved_profile'], ensure_ascii=False)
+
+
+def _everything_they_typed(state) -> str:
+    """The same sources, unfiltered.
+
+    Money uses this rather than the filtered version. The rule is about
+    INVENTING a figure, and a number they typed is not invented by us, whether
+    they stated it or asked about it — "should I charge 60 an hour?" makes 60
+    theirs. A qualification is the opposite case, which is why it uses the
+    filtered text: asking whether to become a lawyer must never license
+    answering them as one.
+    """
+    facts = state['reported_facts']
+    return ' '.join(facts['user_statements'] + list(facts.get('remembered') or [])) \
+        + ' ' + json.dumps(facts['saved_profile'], ensure_ascii=False)
+
+
+def money_figures_not_theirs(answer, state) -> list:
+    """Amounts in the answer that the person never typed."""
+    typed = _everything_they_typed(state)
+    theirs = {re.sub(r"[^\d]", "", t) for t in re.findall(r"\d[\d,.]*", typed)}
+    lowered = typed.casefold()
+    found = []
+    for match in MONEY_FIGURE.finditer(answer):
+        phrase = match.group(0)
+        digits = re.sub(r"[^\d]", "", phrase)
+        if digits and digits in theirs:
+            continue
+        if not digits and phrase.casefold() in lowered:
+            continue
+        found.append(phrase)
+    return found
+
+
+def qualifications_not_theirs(answer, state) -> list:
+    """Credentials the answer hands them that nothing they said supports."""
+    stated = _stated(state)
+    found = []
+    for sentence in _sentences(answer):
+        if not _asserted(sentence):
+            continue
+        for match in QUALIFIED_CLAIM.finditer(sentence):
+            term = _QUALIFICATION_TERM_RE.search(match.group(0))
+            if term and not re.search(
+                r"\b" + re.escape(term.group(0)) + r"\b", stated, re.I
+            ):
+                found.append(match.group(0))
+    return found
+
+
+def career_offenders(answer, state) -> list:
+    """The exact words to name in a repair, since naming them is what works."""
+    words = money_figures_not_theirs(answer, state) + qualifications_not_theirs(answer, state)
+    for pattern in (INVESTMENT_VEHICLE, INVESTMENT_VEHICLE_CASED,
+                    INVESTMENT_INSTRUCTION, PROMISED_WEALTH):
+        words += [m.group(0) for m in pattern.finditer(answer)]
+    return sorted(set(words))
+
 
 # These words describe biography only when asserted/possessed. A conditional or
 # clarifying question is not an assertion, and discussion of the topic is allowed.
@@ -207,10 +402,22 @@ def review_issues(answer, state):
     if closing.endswith('?') and HANDS_BACK.search(closing):
         issues.append('ends by asking them to supply what they asked about')
     user_reports=state['reported_facts']['user_statements']
-    reported=' '.join(s for text in user_reports for s in _sentences(text) if _asserted(s))
     saved=state['reported_facts']['saved_profile']
     pronoun_evidence=' '.join(user_reports) + ' ' + json.dumps(saved,ensure_ascii=False)
-    known_text=reported + ' ' + json.dumps(saved,ensure_ascii=False)
+    known_text=_stated(state)
+    # Money. Each of these was written as an answer this app could plausibly
+    # produce, and each one passed every rule above it.
+    invented_money=money_figures_not_theirs(answer,state)
+    if invented_money:
+        issues.append('invents a money figure: '+', '.join(invented_money[:3]))
+    unlicensed=qualifications_not_theirs(answer,state)
+    if unlicensed:
+        issues.append('unsupported personal fact: qualification ('+', '.join(unlicensed[:3])+')')
+    if (INVESTMENT_VEHICLE.search(answer) or INVESTMENT_VEHICLE_CASED.search(answer)
+            or INVESTMENT_INSTRUCTION.search(answer)):
+        issues.append('tells them where to invest their money')
+    if PROMISED_WEALTH.search(answer):
+        issues.append('promises money as certain rather than reading a chart')
     for sentence in _sentences(answer):
         if not _asserted(sentence): continue
         for category,terms in BIOGRAPHY.items():
@@ -273,7 +480,12 @@ def reviewed_answer(generate, prompt, context, *, on_repair=None, fallback=None,
     offending=sorted({m.group(0) for pattern in (JARGON,STOCK,SELF_NARRATION,LITIGATES,
                                                  HEDGE_MENU,BOTH_BRANCHES,
                                                  SCORING_LABELS,DATING_RULES)
-                      for m in pattern.finditer(answer)})
+                      for m in pattern.finditer(answer)}
+                     # The money ones know which figures were the person's own,
+                     # so they are computed rather than matched: telling a
+                     # rewrite to delete a number the user supplied is how you
+                     # lose the answer they asked for.
+                     | set(career_offenders(answer,state)))
     repair=prompt+'\n\nDRAFT REVIEW — revise once, return only the replacement answer.\n'+json.dumps({
         'problems':problems,'draft':answer,
         **({'remove_these_exact_words':offending} if offending else {}),

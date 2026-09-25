@@ -6,6 +6,26 @@ Things found while working, deliberately left for later. Newest first.
 
 ## Waiting on the co-founder (24 September 2026)
 
+- **Which earning patterns she would name, and how she would weight them.**
+  `app/earning_profile_service.py` scores a chart on five spectrums — the named
+  person or the one behind it; a few clients or many buyers; their own money or
+  other people's; judgement sold as advice or a thing sold as a product; a
+  steady build or work in waves. Those five are mine, chosen because they are
+  what a person can act on, and she may want different ones entirely.
+
+  The house weights inside it are hers already, lifted from the money table she
+  wrote for the city rankings — the one table in the codebase an astrologer
+  actually authored. Everything else (which houses pull which way, the planet
+  tilts) is assembled by analogy and marked as such in the output.
+
+  Bands are calibrated over a thousand invented charts
+  (`training/area3/distribution.py`), so the thresholds are measured rather
+  than guessed. Across those charts the five spectrums split between 43/57 and
+  58/42, and a third of charts have nothing pronounced at all — which is the
+  honest outcome, not a failure.
+
+  **Not wired into any answer.** A test enforces that.
+
 - **Calibration table review and friendship weights.** The twelve-pair table is
   in `training/area2/`. Section 1 is blind — chart contacts with an empty
   column for her own lean — and section 2 has the scores. Friendship runs at
@@ -78,6 +98,11 @@ together they push the cost per conversation up.
 Nothing is wrong yet. Spend tracking is on `/admin`. Worth a look after a few
 days of real use, and the fix would be tuning the ceilings rather than undoing
 the routing.
+
+**Added 24 September 2026:** career and money questions now get 820 tokens
+instead of 550, about half as much again, on tier-4 questions only. Follow-ups
+inside a career thread are unaffected. Same note applies: watch it on `/admin`
+rather than pre-emptively trimming.
 
 ---
 

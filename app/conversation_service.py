@@ -105,7 +105,12 @@ def conversation_state(question, history=None, known_profile=None):
         'mode': 'astrology_on_request' if technical else 'everyday',
         'recent_turns': turns[-12:],
         'previous_assistant_responses': answers[-3:],
+        # 'remembered' is filled in later, once memory has been read, and only
+        # when the person has memory switched on. Draft review counts it as
+        # something they told us — without that, every answer built on a
+        # memory looks invented and gets rejected for it.
         'reported_facts': {'saved_profile': known_profile or {}, 'user_statements': statements,
+                           'remembered': [],
                            'note': 'Verbatim reports, not independently verified. Questions and hypotheticals are NOT asserted facts. Prior assistant text is NOT biographical evidence.'},
         'recap_requested': bool(re.search(r'\b(?:recap|summari[sz]e|repeat (?:that|your answer)|remind me)\b',question,re.I)),
         'max_words': max_words,
@@ -141,6 +146,17 @@ EXPLANATION_BUDGET = (620, 470)
 DETAILED_BUDGET = (760, 570)
 # Seven ranked cities with local arrival times is a table, not a paragraph.
 RELOCATION_BUDGET = (900, 690)
+# A career or money question asks for several different things at once: what
+# the chart is built to earn from, concrete routes with who pays and how, where
+# the losses come from, the biggest upside, and one first step. At tier 4's 420
+# words that is eighty words each, which is how you get five vague sentences
+# instead of three useful ones.
+#
+# This is ROOM, not a target. Nothing asks for the extra words, and an answer
+# that is done in two hundred should stop at two hundred — the prompt says so
+# explicitly. It only applies to a full question; a short follow-up inside a
+# career thread is still tier 3 and still short.
+CAREER_BUDGET = (820, 620)
 # A greeting. The tokens stop the model at roughly the same place the word
 # limit would have rejected it, so "hi" can never cost a rewrite — the cheapest
 # turn in the app stays the cheapest turn in the app.
@@ -157,6 +173,10 @@ def budget_for(question, tier, state=None, detail=None):
     if detect_relocation_request(question):
         return RELOCATION_BUDGET
     tier_budget = BUDGETS.get(tier, BUDGETS[4])
+    # Only a full career question, never a follow-up inside one. "so which of
+    # those?" after a money answer is tier 3 and stays tier 3.
+    if tier == 4 and state is not None and state['topic'] == 'career':
+        tier_budget = max(tier_budget, CAREER_BUDGET)
     # These are floors, not overrides: asking for an explanation of a full
     # answer must never end up with less room than the answer itself had.
     if detail == 'detailed':
