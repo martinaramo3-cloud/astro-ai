@@ -1,0 +1,25 @@
+{
+ "charts": 1000,
+ "first_strength": {
+  "action": 0.117,
+  "connection": 0.123,
+  "drive": 0.143,
+  "expansion": 0.141,
+  "feeling": 0.151,
+  "structure": 0.115,
+  "temperament": 0.05,
+  "thinking": 0.16
+ },
+ "first_weakness": {
+  "action": 0.148,
+  "connection": 0.166,
+  "drive": 0.101,
+  "expansion": 0.139,
+  "feeling": 0.093,
+  "structure": 0.134,
+  "temperament": 0.111,
+  "thinking": 0.108
+ },
+ "identical_trios": 0.002964824120603015,
+ "passes": true
+}

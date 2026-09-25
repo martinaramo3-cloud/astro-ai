@@ -4,6 +4,37 @@ Things found while working, deliberately left for later. Newest first.
 
 ---
 
+## For Nicole: the strengths/weaknesses content (25 September 2026)
+
+- **The existing gifts/challenge table is NOT hers, and she should see it.**
+  `interpretation_service.PLANET_SIGN_MEANINGS` — gifts and challenge words for
+  all twelve signs across Sun, Moon, Mercury, Venus and Mars. It arrived in
+  this repo's first commit, 19 April 2026, carries no source note, and every
+  commit in the repo is Martina's. Nobody knows where it came from. It is now
+  the backbone of every strengths-and-weaknesses answer, so the whole table
+  wants her eye.
+
+  Some of it is heavy — "wounded ego", "suppressed anger", "dependence on
+  validation". None of those words reach an answer: what reaches it is the
+  situation, not the label. But the words are still what the reading rests on.
+
+- **Saturn and Jupiter, twelve signs each, are MINE.** They had no entries at
+  all, which for a weaknesses question is the significant gap — Saturn is the
+  planet most of it turns on. Written in the same shape as the existing table
+  so they can be reviewed together: `SATURN_JUPITER` in
+  `app/trait_profile_service.py`.
+
+- **Also mine:** every "shows up as" situation, the prominence weights (what
+  makes a trait loud in a chart), and the four element traits. The engine says
+  so in its own output.
+
+- **One judgement worth her argument:** prominence is not virtue. A planet in
+  detriment is loud, not weak — the same function arrives under strain, so the
+  overuse is what shows first rather than the gift. That single rule is what
+  stops the answer being a list of compliments, and it is mine.
+
+---
+
 ## Live now, still hers to change (25 September 2026)
 
 The career engine went live on Martina's call after Nicole reviewed the blind

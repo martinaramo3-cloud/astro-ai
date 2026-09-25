@@ -115,6 +115,11 @@ from app.conversation_service import (
 )
 from app.answer_review_service import reviewed_answer
 from app.career_reading_service import build_career_reading, for_the_answer
+from app.trait_profile_service import (
+    asks_about_traits,
+    build_trait_reading,
+    for_the_answer as traits_for_the_answer,
+)
 from app.transit_timing_service import build_predictive_timeline, build_relationship_timeline
 from app.transit_service import (
     annotate_house_rulership,
@@ -1308,6 +1313,21 @@ def _prepare_astrologer_call(
             # a broken one. Never let it take the reply down.
             print("Career reading failed:", repr(exc))
 
+    # Strengths and weaknesses, ranked before the answer is written.
+    #
+    # Gated on the question rather than on the topic: this classifies as
+    # "general", which is most of the traffic, and attaching a payload to all
+    # of it would be paid for on every chat in the product.
+    if asks_about_traits(data.question):
+        try:
+            traits = build_trait_reading(natal_data)
+            compact = traits_for_the_answer(
+                traits, technical=(state["mode"] == "astrology_on_request"))
+            if compact:
+                chat_context["strengths_and_weaknesses"] = compact
+        except Exception as exc:  # noqa: BLE001
+            print("Trait reading failed:", repr(exc))
+
     # How much answer does this deserve? Decided from the question and the
     # thread, before the prompt is assembled — because the honest way to get a
     # one-line reply is to stop shipping three thousand tokens of chart with it.
@@ -1369,6 +1389,7 @@ def _prepare_astrologer_call(
             "predictive_timeline": "transit_to_natal", "transits_on_asked_date": "transit_to_natal",
             "month_outlook": "transit_to_natal", "prediction": "transit_to_natal_interpretation",
             "career_reading": "natal_ranking_computed_before_anything_they_told_you",
+            "strengths_and_weaknesses": "natal_ranking_computed_before_anything_they_told_you",
             "sky_now": "current_sky_and_transits_through_natal_houses",
         }.items() if key in chat_context
     }

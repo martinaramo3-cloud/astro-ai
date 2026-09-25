@@ -86,7 +86,10 @@ SERIOUS = ("empty answer", "unsupported personal fact", "unsupported age",
            # this list exists for; where to put their savings is the one thing
            # the safety floor names outright.
            "invents a money figure", "tells them where to invest",
-           "promises money as certain")
+           "promises money as certain",
+           # A claim about the inside of someone's head is the same class of
+           # wrong as a claim about their biography.
+           "claims to know what they feel or fear")
 
 
 def _serious(issues) -> list:
@@ -370,6 +373,35 @@ EMOTIONAL_SIGNAL = re.compile(
     r"hopeless|exhausted|burnt out|burned out|ashamed|shame|embarrassed|"
     r"terrified|dread|hate|miserable|stuck|lost|desperate)\b", re.I)
 
+# Psychology the chart cannot see, stated as fact about a person.
+#
+# The underlying trait table says things like "wounded ego", "suppressed
+# anger" and "dependence on validation". None of that is sent to the model,
+# but a strengths-and-weaknesses answer drifts there on its own: it is the
+# register the question invites. A reading someone can disagree with is a
+# reading; a diagnosis they cannot is something else.
+UNSUPPORTED_PSYCHOLOGY = re.compile(
+    r"\byou (?:secretly|really|actually|deep down)\b"
+    r"|\b(?:deep down|underneath it all|at your core),? you\b"
+    r"|\byour (?:deepest|secret|unconscious|repressed|hidden) (?:fear|need|wound|desire)"
+    r"|\byou(?:'re| are) afraid (?:of|to|that)\b"
+    r"|\bwhat you(?:'re| are) (?:really|actually) (?:afraid of|avoiding|running from)\b"
+    r"|\byou have (?:a )?(?:wounded|fragile) (?:ego|sense of)"
+    r"|\b(?:suppressed|repressed) (?:anger|rage|grief|feelings?)\b"
+    r"|\byou depend on validation\b|\byour need for validation\b"
+    r"|\bstress (?:shows up|lives|sits|manifests) in your (?:body|shoulders|stomach|chest|jaw|gut)"
+    r"|\byou(?:'ll| will) (?:carry|hold) (?:this|it|that) in your (?:body|shoulders|stomach|chest|jaw)"
+    r"|\byour (?:nervous system|body) (?:keeps|holds|remembers)"
+    r"|\byou were (?:taught|conditioned|raised) (?:to|that)\b"
+    r"|\bunresolved (?:childhood|trauma|wound)", re.I)
+# Phrasings that turn a read into something the reader can say no to. One of
+# these anywhere near the claim is enough.
+OFFERED_AS_POSSIBLE = re.compile(
+    r"\b(?:might|may|can happen|could|tends? to|often|sometimes|when this "
+    r"(?:runs|goes) |if (?:that|this) (?:sounds|lands|fits)|you may find|"
+    r"the version of this that|where this costs you|it is worth (?:watching|noticing)|"
+    r"see if|does (?:that|this) sound)\b", re.I)
+
 # Money promised rather than read. A window is a stretch of time in which
 # something is more available; it is not an event with a payout attached.
 PROMISED_WEALTH = re.compile(
@@ -486,7 +518,7 @@ def career_offenders(answer, state) -> list:
     words = money_figures_not_theirs(answer, state) + qualifications_not_theirs(answer, state)
     for pattern in (INVESTMENT_VEHICLE, INVESTMENT_VEHICLE_CASED,
                     INVESTMENT_INSTRUCTION, PROMISED_WEALTH, MONEY_MANAGEMENT,
-                    OCCUPATION_LIST):
+                    OCCUPATION_LIST, UNSUPPORTED_PSYCHOLOGY):
         words += [m.group(0) for m in pattern.finditer(answer)]
     return sorted(set(words))
 
@@ -663,6 +695,12 @@ def review_issues(answer, state):
         said = ' '.join(state['reported_facts']['user_statements'])
         if not EMOTIONAL_SIGNAL.search(said):
             issues.append('asks about their feelings on a practical money question')
+    # Psychology the chart cannot see. Serious: it is a claim about the
+    # inside of someone's head, which is the same class of wrong as inventing
+    # their biography.
+    guess = UNSUPPORTED_PSYCHOLOGY.search(answer)
+    if guess:
+        issues.append('claims to know what they feel or fear: ' + guess.group(0))
     if MONEY_MANAGEMENT.search(answer):
         # Not in SERIOUS. It is out of scope rather than wrong about their
         # life, and replacing a good money answer with the stock apology over

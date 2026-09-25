@@ -157,6 +157,10 @@ RELOCATION_BUDGET = (900, 690)
 # explicitly. It only applies to a full question; a short follow-up inside a
 # career thread is still tier 3 and still short.
 CAREER_BUDGET = (820, 620)
+# Three strengths and three weaknesses, each with a concrete situation, plus
+# the links between them. At tier 4's 420 words that is thirty-five words
+# apiece, which is how six findings turn into six labels.
+TRAITS_BUDGET = (760, 580)
 # A greeting. The tokens stop the model at roughly the same place the word
 # limit would have rejected it, so "hi" can never cost a rewrite — the cheapest
 # turn in the app stays the cheapest turn in the app.
@@ -173,6 +177,9 @@ def budget_for(question, tier, state=None, detail=None):
     if detect_relocation_request(question):
         return RELOCATION_BUDGET
     tier_budget = BUDGETS.get(tier, BUDGETS[4])
+    from app.trait_profile_service import asks_about_traits
+    if tier == 4 and asks_about_traits(question):
+        tier_budget = max(tier_budget, TRAITS_BUDGET)
     # Only a full career question, never a follow-up inside one. "so which of
     # those?" after a money answer is tier 3 and stays tier 3.
     if tier == 4 and state is not None and state['topic'] == 'career':
