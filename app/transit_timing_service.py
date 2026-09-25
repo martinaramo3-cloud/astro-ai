@@ -488,6 +488,10 @@ def _for_prompt(cycle: dict) -> dict:
 
 
 # Which of each person's points a relationship question actually turns on.
+# How close a synastry aspect has to be before a transit to one of its ends
+# counts as touching the connection rather than one person's own chart.
+CONTACT_ORB = 3.0
+
 RELATIONSHIP_POINTS = {"Sun", "Moon", "Mercury", "Venus", "Mars",
                        "Jupiter", "Saturn", "Pluto", "Ascendant", "Descendant"}
 
@@ -535,10 +539,17 @@ def build_relationship_timeline(
     if not cycles:
         return {}
 
-    # Which points are one end of a contact between the charts. A transit here
-    # is doing something to the connection, not to one person's week.
+    # Which points are one end of a CLOSE contact between the charts.
+    #
+    # This used to take the top twelve aspects at any orb, which between two
+    # charts covers nearly every planet either of them has — so every window
+    # came back marked "connection", the flag was true for everything, and
+    # sorting by it did nothing. Three different people then received the same
+    # top date, because what actually won was the user's own heaviest transit.
     contacts: dict[str, str] = {}
-    for contact in (synastry_aspects or [])[:12]:
+    for contact in (synastry_aspects or []):
+        if (contact.get("orb") or 99) > CONTACT_ORB:
+            continue
         p1, p2 = contact.get("person_1_planet"), contact.get("person_2_planet")
         if not p1 or not p2:
             continue
@@ -547,7 +558,19 @@ def build_relationship_timeline(
         contacts.setdefault(f"their {p2}", described)
 
     for cycle in cycles:
-        cycle["lights_contact"] = contacts.get(cycle["natal_point"])
+        point = cycle["natal_point"]
+        cycle["lights_contact"] = contacts.get(point)
+        theirs = point.startswith("their ")
+        # Whose window this really is. A transit to their chart is specific to
+        # them by definition; a transit to the user's own chart happens
+        # whoever she asks about, and saying otherwise is how every person in
+        # her life ends up sharing one date.
+        cycle["belongs_to"] = (
+            "the connection" if (theirs and cycle["lights_contact"]) else
+            "them" if theirs else
+            "the connection, through your side" if cycle["lights_contact"] else
+            "you"
+        )
 
     today = start.date().isoformat()
     soon = (start + timedelta(days=NEAR_TERM_MONTHS * 30)).date().isoformat()
@@ -558,10 +581,14 @@ def build_relationship_timeline(
     def soon_(cycle):
         return any(today <= w["starts"] <= soon for w in cycle["passes"])
 
-    # A window on a shared degree outranks a bigger one on a single chart:
-    # it is the only kind that answers "between us" rather than "to me".
+    # What answers "between us" comes first, and the user's own transits come
+    # last however heavy they are. Saturn crossing her Venus is a real and
+    # important period — it is simply not about him, and leading with it gave
+    # every saved person in her life the same date.
+    ORDER = {"the connection": 0, "them": 1, "the connection, through your side": 2, "you": 3}
+
     def weight(cycle):
-        return (-(1 if cycle["lights_contact"] else 0), -cycle["importance"])
+        return (ORDER[cycle["belongs_to"]], -cycle["importance"])
 
     # Each bucket gets its own reserved space. Letting "live" take the whole
     # budget filled it six deep and left nothing under "what's coming" — which
@@ -573,14 +600,28 @@ def build_relationship_timeline(
     ahead = sorted([c for c in cycles if c not in active and c not in coming],
                    key=weight)[: max(0, limit - len(active) - len(coming))]
 
+    about_the_pair = [c for c in active + coming + ahead
+                      if c["belongs_to"] in ("the connection", "them")]
+
     return {
         "note": (
-            "Calculated windows for the two of you, searched two years ahead. Each "
-            "pass has its own dates and its own exact day — cite them. A window with "
-            "'lights_contact' is a transit landing where the two charts already "
-            "touch: that is the strongest thing here and the one to date, because it "
-            "is about the connection rather than one person's week. 'importance' is "
-            "how much a transit matters, separate from how exact it is."
+            "Calculated windows, searched two years ahead. Each pass has its own "
+            "dates and its own exact day — cite them. Read 'belongs_to' before "
+            "anything else: 'the connection' and 'them' are about these two "
+            "people and are the dates to lead with. 'you' is the user's own "
+            "transit, which happens whoever they ask about — it may be "
+            "mentioned as background, and only if you say so plainly: 'this is "
+            "a big stretch for you in general, not just with him.' Never give "
+            "a personal transit as the answer to a question about a couple. "
+            "'importance' is how much a transit matters, separate from how "
+            "exact it is."
+        ),
+        "has_windows_about_the_pair": bool(about_the_pair),
+        "if_none": (
+            "Nothing between these two charts is due in the next two years. Say "
+            "that plainly — there is no date to give for them — rather than "
+            "offering one of the user's own as if it were about the pair."
+            if not about_the_pair else None
         ),
         "searched_months_ahead": 24,
         "active_now": [_for_two(c) for c in active],
@@ -593,6 +634,7 @@ def _for_two(cycle: dict) -> dict:
     """Like _for_prompt, but the point already says whose it is."""
     return {
         "transit": f"{cycle['transit_planet']} {cycle['aspect']} {cycle['natal_point']}",
+        "belongs_to": cycle.get("belongs_to", "you"),
         **({"lights_contact": cycle["lights_contact"]} if cycle.get("lights_contact") else {}),
         "importance": cycle["importance"],
         "passes": [

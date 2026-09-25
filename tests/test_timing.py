@@ -403,3 +403,73 @@ def test_the_rewrite_is_handed_the_actual_days():
     assert answer == "It opens around 17 October."
     assert "cite_one_of_these_dates" in prompts[1]
     assert "2026-10-17" in prompts[1]
+
+
+# ── A window about the pair, not about her ─────────────────────────────────
+
+def _person(date, time, lat, lon, zone):
+    import pytz
+    from datetime import datetime
+    from app.astrology_engine import (
+        add_house_to_planets, get_houses_and_ascendant, get_planet_positions_from_utc)
+    utc = pytz.timezone(zone).localize(datetime.fromisoformat(f"{date}T{time}")).astimezone(pytz.utc)
+    planets = get_planet_positions_from_utc(utc)
+    houses = get_houses_and_ascendant(utc, lat, lon)
+    placed = add_house_to_planets(planets, houses["houses"])
+    return placed, placed + [{**a, "house": 1} for a in houses.get("angles", [])]
+
+
+def _timeline_for(them):
+    from app.compatibility_service import get_synastry_aspects
+    from app.transit_timing_service import build_relationship_timeline
+    mine, mine_all = _person("1999-03-02", "07:15", 42.70, 23.32, "Europe/Sofia")
+    theirs, theirs_all = them
+    return build_relationship_timeline(mine_all, theirs_all,
+                                       get_synastry_aspects(mine, theirs))
+
+
+def test_different_people_get_different_dates():
+    """Three saved people all received "Saturn conjunction your Venus, 17
+    October" as their top window — her own heaviest transit, which happens
+    whoever she asks about."""
+    people = [
+        _person("1997-11-08", "14:30", 45.46, 9.19, "Europe/Rome"),
+        _person("1995-06-21", "09:40", 51.51, -0.13, "Europe/London"),
+        _person("2001-02-14", "18:05", 38.72, -9.14, "Europe/Lisbon"),
+    ]
+    tops = []
+    for them in people:
+        timeline = _timeline_for(them)
+        windows = [w for bucket in ("active_now", "starting_soon", "major_ahead")
+                   for w in timeline.get(bucket, [])]
+        assert windows
+        tops.append((windows[0]["transit"], windows[0]["passes"][0]["exact"]))
+    assert len(set(tops)) == len(tops), f"the same window for different people: {tops}"
+
+
+def test_the_pairs_own_windows_come_first():
+    them = _person("1997-11-08", "14:30", 45.46, 9.19, "Europe/Rome")
+    timeline = _timeline_for(them)
+    windows = [w for bucket in ("active_now", "starting_soon", "major_ahead")
+               for w in timeline.get(bucket, [])]
+    assert windows[0]["belongs_to"] in ("the connection", "them")
+
+
+def test_her_own_transits_are_labelled_as_hers():
+    """So they can be offered as background and named as such, rather than
+    passed off as something about the two of them."""
+    them = _person("1997-11-08", "14:30", 45.46, 9.19, "Europe/Rome")
+    timeline = _timeline_for(them)
+    windows = [w for bucket in ("active_now", "starting_soon", "major_ahead")
+               for w in timeline.get(bucket, [])]
+    assert all(w["belongs_to"] in
+               ("the connection", "them", "the connection, through your side", "you")
+               for w in windows)
+
+
+def test_a_contact_has_to_be_close_to_count():
+    """It used to take the top twelve aspects at any orb, which between two
+    charts covers nearly every planet — so every window was marked as touching
+    the connection and sorting by it did nothing."""
+    from app.transit_timing_service import CONTACT_ORB
+    assert CONTACT_ORB <= 4.0
