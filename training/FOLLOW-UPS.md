@@ -20,40 +20,43 @@ Things found while working, deliberately left for later. Newest first.
   from a birth date, so the boost has never once applied to a real person);
   and nothing ranks earning patterns, which is the item below.
 
-- **The blind earning-route table.** `training/area3/blind_routes.html` — open
-  it in a browser. Twelve invented charts; tab one has the chart details her
-  framework asks for and boxes for her own top three, with a download button;
-  tab two has the engine's ranking with evidence and counterevidence. Blind and
-  in that order on purpose.
+- **The blind career table.** `training/area3/blind_career.html` — open it in a
+  browser. Twelve invented charts. Tab one has the chart details her rules ask
+  for and boxes for her own top three professional themes AND top three earning
+  routes, with a download button; tab two has the engine's two rankings, the
+  timing it chose and why, the profection, and the counterevidence. Blind and in
+  that order on purpose.
 
-  `app/earning_routes_service.py` implements her document as written: the six
-  routes, the weight table, the five dimensions, and all six rules — trace
-  money from the 2nd and its ruler first, two independent signals with one on
-  the money house to call a route strong, never count the same aspect twice,
-  condition changes how a route works rather than whether it exists, rank at
-  most three, and the person's own facts never count as chart evidence (they
-  cannot even reach the function).
+  Her career and money rules document is implemented in full, and it wins over
+  her earlier earning-routes PDF wherever the two differ — different route
+  labels, "delivery" replacing "control" as the fifth dimension, and the
+  three-point evidence widened from a planet CONJUNCT the MC to any close
+  relevant aspect to it.
 
-  **Two numbers and one method are mine, not hers**, and the engine says so in
-  its own output:
-  - a "close" connection is 4° — her document says close without a number
-  - two routes read as complementary within 0.03 of each other
-  - **routes are ranked on how unusual a score is for that route, not on the
-    raw total.** This one matters most and she should push back on it if she
-    disagrees. Her evidence column names five houses for business and one for
-    partnerships, so business has five chances at the 5-point evidence.
-    Ranked on the raw total, business came first for 46% of a thousand charts
-    and partnerships never came first at all; employment came first 3% of the
-    time. Her weights are untouched and the raw score is still what the audit
-    trail shows — only the comparison between routes changed. With it, the six
-    routes rank first 14–20% each.
+- **The orb policy needs her approval.** `app/orb_policy.py`, and it is printed
+  at the top of the blind table. 8° for a conjunction or opposition between
+  planets, 7° square or trine, 5° sextile; 6/5/3° to an angle; 3° to the 2nd
+  cusp; two degrees wider when the Sun or Moon is involved. Exactness then
+  becomes a weight from 0.2 to 1.0, so a 1° contact counts roughly four times a
+  contact at the edge of its allowance — her instruction that an 8° conjunction
+  must not quietly equal a 1° one. It governs the career engines only, so
+  approving it cannot silently change every other reading in the product.
 
-  Also new, and the gap the earlier audit found: **aspects to the Midheaven
-  and the angles are now calculated** (`app/angle_aspects_service.py`), because
-  her weight table awards points for a planet conjunct the MC and nothing in
-  the system could see one.
+- **Two calls of mine inside her framework**, both flagged in the engine's own
+  output. Routes and themes are ranked on how unusual a score is for THAT route
+  or theme rather than on the raw total — without it, one route won 46% of
+  charts and two never won at all, because her evidence column names five
+  houses for one and one house for another. And under Placidus the MC is the
+  10th cusp, so "the MC ruler" and "the 10th ruler" are always the same planet;
+  they are counted once. If she meant them as two factors, that is a
+  house-system decision and hers.
 
-  **Not wired into any answer.** A test enforces that.
+- **Calibration, 1,000 invented charts** (`training/area3/career_distribution.py`):
+  themes rank first 7.6–11.9% each (even is 10%), routes 13.0–22.7% (even is
+  16.7%), nothing near 50%. The same timing window is chosen for all four
+  question types on only 12% of charts — it was effectively 100% before, because
+  every answer led with the largest transit in a two-year list. Timing is called
+  unclear on about half of charts, evenly across question types.
 
 - **Calibration table review and friendship weights.** The twelve-pair table is
   in `training/area2/`. Section 1 is blind — chart contacts with an empty

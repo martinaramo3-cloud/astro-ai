@@ -1,0 +1,25 @@
+{
+ "charts": 1000,
+ "theme_first": {
+  "Mercury": 0.11,
+  "Venus": 0.105,
+  "Mars": 0.076,
+  "Jupiter": 0.085,
+  "Saturn": 0.097,
+  "Sun": 0.115,
+  "Moon": 0.1,
+  "Uranus": 0.119,
+  "Neptune": 0.097,
+  "Pluto": 0.096
+ },
+ "route_first": {
+  "employment": 0.17,
+  "independent_expertise": 0.162,
+  "business_products": 0.13,
+  "partnerships_deals": 0.145,
+  "others_assets": 0.166,
+  "owned_assets": 0.227
+ },
+ "same_window_across_types": 0.122,
+ "median_activation": 4.5
+}

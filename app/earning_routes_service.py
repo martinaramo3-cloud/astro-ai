@@ -33,9 +33,10 @@ import bisect
 import json
 import pathlib
 
-from app.angle_aspects_service import CLOSE_CONJUNCTION, conjunct_cusp, get_angle_aspects
-from app.aspect_services import get_aspects
+from app.angle_aspects_service import conjunct_cusp, get_angle_aspects
 from app.chart_analysis_service import get_house_rulers
+from app.natal_career_data import _aspects_between
+from app.orb_policy import TO_CUSP, exactness, within_orb
 
 # ── Her six routes ─────────────────────────────────────────────────────────
 #
@@ -44,7 +45,7 @@ from app.chart_analysis_service import get_house_rulers
 # her weight table caps at a single point however many of them turn up.
 ROUTES: dict[str, dict] = {
     "employment": {
-        "label": "Employment or a professional position",
+        "label": "Employment and advancement within an organisation",
         "means": ("Paid for a role, responsibilities and advancement inside "
                   "an organisation"),
         "plain": "a role inside an organisation",
@@ -52,7 +53,7 @@ ROUTES: dict[str, dict] = {
         "natural": {"Saturn"},
     },
     "independent_expertise": {
-        "label": "Independent expertise",
+        "label": "Independent expertise, advice or personal services",
         "means": ("Paid for advice, judgment, specialist knowledge or a "
                   "personal service"),
         "plain": "specialist advice for clients",
@@ -60,7 +61,7 @@ ROUTES: dict[str, dict] = {
         "natural": {"Mercury", "Jupiter"},
     },
     "business_products": {
-        "label": "Business, products or scalable output",
+        "label": "Products, intellectual property or a scalable business",
         "means": ("Earns through something sold repeatedly, distributed, "
                   "licensed or built into a business"),
         "plain": "building something that sells more than once",
@@ -68,7 +69,7 @@ ROUTES: dict[str, dict] = {
         "natural": {"Mercury", "Venus"},
     },
     "partnerships_deals": {
-        "label": "Partnerships, clients and deals",
+        "label": "Direct clients, partnerships and negotiated deals",
         "means": ("Money depends substantially on direct agreements with "
                   "other people"),
         "plain": "deals and agreements with particular people",
@@ -76,7 +77,7 @@ ROUTES: dict[str, dict] = {
         "natural": {"Venus"},
     },
     "others_assets": {
-        "label": "Managing or working with other people's assets",
+        "label": "Professional work managing other people's resources",
         "means": ("Finance, tax, insurance, funding, investment management, "
                   "or administering shared resources"),
         "plain": "handling money that belongs to other people",
@@ -84,7 +85,7 @@ ROUTES: dict[str, dict] = {
         "natural": {"Pluto", "Saturn"},
     },
     "owned_assets": {
-        "label": "Assets, ownership or investment income",
+        "label": "Income from assets or ownership",
         "means": "Earns from property, equity, royalties or owned assets",
         "plain": "owning things that pay you",
         "houses": (4, 5, 8, 11),
@@ -200,12 +201,19 @@ def _facts(chart: dict) -> dict | None:
         "house_of": {p["planet"]: p.get("house") for p in planets},
         "dignity": {r["ruler"]: r.get("ruler_dignity") for r in rulers},
         "retrograde": {p["planet"]: p.get("retrograde") for p in planets},
-        "aspects": _aspect_index(get_aspects(planets)),
+        "aspects": _aspect_index(_aspects_between(planets)),
         "angle_aspects": angle_aspects,
-        "on_mc": {a["planet_1"] for a in angle_aspects
-                  if a["planet_2"] == "Midheaven" and a["aspect"] == "conjunction"
-                  and a["orb"] <= CLOSE_CONJUNCTION},
-        "on_second_cusp": {p["planet"] for p in conjunct_cusp(planets, houses, 2)},
+        # Her rules document widens this from her PDF: "a close relevant
+        # ASPECT to the MC or 2nd cusp", not only a conjunction to it. A
+        # square to the career point is evidence about the career.
+        "mc_aspect": {
+            a["planet_1"]: {**a, "exactness": exactness(
+                a["aspect"], a["orb"], a["planet_1"], "Midheaven")}
+            for a in angle_aspects
+            if a["planet_2"] == "Midheaven"
+            and within_orb(a["aspect"], a["orb"], a["planet_1"], "Midheaven")},
+        "on_second_cusp": {p["planet"]: p
+                           for p in conjunct_cusp(planets, houses, 2, orb=TO_CUSP)},
         "in_house": _tenants(planets),
     }
 
@@ -235,9 +243,14 @@ def _evidence_for(route_key: str, facts: dict) -> list[dict]:
     second, tenth = facts["ruler_of"][2], facts["ruler_of"][10]
     found: list[dict] = []
 
-    def add(kind, why, fact, qualifies=None):
+    def add(kind, why, fact, qualifies=None, weight=1.0):
+        weight = max(0.0, min(1.0, weight))
         found.append({
             "points": POINTS[kind], "kind": kind, "why": why, "fact": fact,
+            # Her section 4: closer aspects weigh more. A placement has no orb
+            # and so weighs its full value.
+            "weight": round(weight, 3),
+            "counts_as": round(POINTS[kind] * weight, 2),
             "qualifies": QUALIFYING.__contains__(kind) if qualifies is None else qualifies,
         })
 
@@ -265,7 +278,8 @@ def _evidence_for(route_key: str, facts: dict) -> list[dict]:
             add("second_tenth_link",
                 f"your money ruler and your career ruler are in close contact "
                 f"({link['aspect']}, {link['orb']}°)",
-                f"aspect:{'-'.join(sorted((second, tenth)))}")
+                f"aspect:{'-'.join(sorted((second, tenth)))}",
+                weight=link.get("exactness", 1.0))
 
     # 4 — a relevant house ruler in direct contact with the money or career
     # ruler. The 2nd–10th aspect itself is excluded: it was already counted.
@@ -282,18 +296,27 @@ def _evidence_for(route_key: str, facts: dict) -> list[dict]:
                     f"what rules your {_ord(house)} is in contact with your "
                     f"{anchor_name} ruler ({contact['aspect']}, {contact['orb']}°)",
                     f"aspect:{'-'.join(sorted((house_ruler, anchor)))}",
-                    qualifies=(anchor == second))
+                    qualifies=(anchor == second),
+                    weight=contact.get("exactness", 1.0))
 
     # 3 — a planet closely conjunct the 2nd cusp or the Midheaven, where that
     # planet is relevant to this route.
-    for planet in sorted(facts["on_second_cusp"] | facts["on_mc"]):
+    for planet in sorted(set(facts["on_second_cusp"]) | set(facts["mc_aspect"])):
         rules_relevant = set(facts["rules_houses"].get(planet, [])) & relevant
         if not (rules_relevant or planet in route["natural"]):
             continue
-        where = "money house cusp" if planet in facts["on_second_cusp"] else "career point"
-        add("on_cusp", f"{planet} sits right on your {where}",
-            f"cusp:{planet}:{where}",
-            qualifies=planet in facts["on_second_cusp"])
+        if planet in facts["on_second_cusp"]:
+            contact = facts["on_second_cusp"][planet]
+            add("on_cusp", f"{planet} sits right on your money house cusp "
+                           f"({contact['orb']}°)",
+                f"cusp:{planet}:second", qualifies=True,
+                weight=1.0 - (contact["orb"] / (TO_CUSP * 2)))
+        else:
+            contact = facts["mc_aspect"][planet]
+            add("on_cusp", f"{planet} {contact['aspect']} your career point "
+                           f"({contact['orb']}°)",
+                f"cusp:{planet}:mc", qualifies=False,
+                weight=contact["exactness"])
 
     # 2 — a planet standing in a relevant house. The weakest evidence in the
     # table, and the one her rules single out as unable to establish a route
@@ -318,9 +341,9 @@ def _evidence_for(route_key: str, facts: dict) -> list[dict]:
     # description it arrived under. Keep the highest-weighted reading of it.
     best: dict[str, dict] = {}
     for item in found:
-        if item["fact"] not in best or item["points"] > best[item["fact"]]["points"]:
+        if item["fact"] not in best or item["counts_as"] > best[item["fact"]]["counts_as"]:
             best[item["fact"]] = item
-    return sorted(best.values(), key=lambda i: -i["points"])
+    return sorted(best.values(), key=lambda i: -i["counts_as"])
 
 
 def _counterevidence(route_key: str, facts: dict, evidence: list[dict]) -> list[str]:
@@ -363,23 +386,29 @@ def _counterevidence(route_key: str, facts: dict, evidence: list[dict]) -> list[
     return list(dict.fromkeys(against))[:6]
 
 
-def _score(evidence: list[dict]) -> int:
-    """Sum the weights, honouring the two caps."""
-    total = 0
-    symbolism_spent = 0
-    tenancy_spent = 0
-    for item in sorted(evidence, key=lambda i: -i["points"]):
+def _score(evidence: list[dict]) -> float:
+    """Sum her weights, each scaled by how exact its aspect is.
+
+    Her section 4: closer aspects weigh more, and an 8° conjunction must not
+    quietly count as a 1° one. A placement has no orb and keeps its full
+    value. Her symbolism cap applies to the scaled value.
+    """
+    total = 0.0
+    symbolism_spent = 0.0
+    tenancy_spent = 0.0
+    for item in sorted(evidence, key=lambda i: -i["counts_as"]):
+        value = item["counts_as"]
         if item["kind"] == "symbolism":
-            allowed = min(item["points"], SYMBOLISM_CAP - symbolism_spent)
-            symbolism_spent += allowed
-            total += max(0, allowed)
+            allowed = min(value, SYMBOLISM_CAP - symbolism_spent)
+            symbolism_spent += max(0.0, allowed)
+            total += max(0.0, allowed)
         elif item["kind"] == "planet_in_house" and TENANCY_CAP is not None:
-            allowed = min(item["points"], TENANCY_CAP - tenancy_spent)
-            tenancy_spent += max(0, allowed)
-            total += max(0, allowed)
+            allowed = min(value, TENANCY_CAP - tenancy_spent)
+            tenancy_spent += max(0.0, allowed)
+            total += max(0.0, allowed)
         else:
-            total += item["points"]
-    return total
+            total += value
+    return round(total, 2)
 
 
 # ── Her five dimensions ────────────────────────────────────────────────────
@@ -403,10 +432,10 @@ DIMENSIONS = {
         "for": (6, 7, 9), "against": (3, 5, 11),
         "through_rulers": True,
     },
-    "control": {
-        "poles": ("your own venture or assets",
-                  "responsibility for an employer's or a client's resources"),
-        "for": (1, 2, 5), "against": (6, 8, 10),
+    "delivery": {
+        "poles": ("work you deliver personally",
+                  "growth through a team or a network"),
+        "for": (1, 6), "against": (10, 11),
         "through_rulers": False,
     },
 }
@@ -528,7 +557,9 @@ def score_earning_routes(chart: dict, *, birth_time_confident: bool = True) -> d
             # house or links career to income directly.
             "strong": signals >= 2 and qualifying,
             "has_qualifying_signal": qualifying,
-            "evidence": [{"points": i["points"], "why": i["why"]} for i in evidence],
+            "evidence": [{"points": i["points"], "weight": i["weight"],
+                          "counts_as": i["counts_as"], "why": i["why"]}
+                         for i in evidence],
             "counterevidence": _counterevidence(key, facts, evidence),
         }
 

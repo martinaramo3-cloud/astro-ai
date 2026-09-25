@@ -77,9 +77,10 @@ def test_the_weights_are_hers():
 
 def test_symbolism_is_capped_at_one_however_many_significators():
     """"1 maximum" — and two routes carry two natural significators each."""
-    items = [{"kind": "symbolism", "points": 1, "why": "", "fact": "a", "qualifies": False},
-             {"kind": "symbolism", "points": 1, "why": "", "fact": "b", "qualifies": False}]
-    assert _score(items) == 1
+    def item(fact):
+        return {"kind": "symbolism", "points": 1, "counts_as": 1.0, "weight": 1.0,
+                "why": "", "fact": fact, "qualifies": False}
+    assert _score([item("a"), item("b")]) == 1
 
 
 def test_the_six_routes_are_hers():
@@ -264,8 +265,13 @@ def test_the_distributions_exist_and_cover_every_route():
 def test_the_raw_score_is_still_reported_for_the_audit():
     """Her number stays visible. Only the comparison between routes changed."""
     for route in score_earning_routes(chart())["all_routes"]:
-        assert isinstance(route["score"], int)
+        assert isinstance(route["score"], (int, float))
         assert 0.0 <= route["how_unusual"] <= 1.0
+        for item in route["evidence"]:
+            # Her point value, how exact the contact is, and the product.
+            assert item["points"] in (1, 2, 3, 4, 5)
+            assert 0.0 <= item["weight"] <= 1.0
+            assert item["counts_as"] <= item["points"]
 
 
 def test_it_says_which_numbers_are_not_hers():
@@ -314,8 +320,10 @@ def test_the_score_is_described_as_a_consistency_device():
 
 def test_the_five_dimensions_are_hers():
     dimensions = score_earning_routes(chart())["dimensions"]
+    # Her rules document replaces "control" with personal delivery versus
+    # growth through a team or a network.
     assert set(dimensions) == {"visibility", "customer_structure", "what_is_sold",
-                               "control", "income_rhythm"}
+                               "delivery", "income_rhythm"}
     for reading in dimensions.values():
         assert len(reading["poles"]) == 2
         assert reading["reads_as"]
@@ -335,19 +343,26 @@ def test_a_dimension_can_read_as_undecided():
 
 def test_the_engine_is_not_wired_into_any_answer():
     """Live only after she has reviewed the blind table. This test is what
-    keeps that true."""
+    keeps that true.
+
+    The internal career reading may import it — that object is itself dark,
+    and test_career_reading holds the line for the pair of them. Nothing else
+    may.
+    """
     import subprocess
-    importers = subprocess.run(
-        ["grep", "-rl", "--include=*.py", "earning_routes_service", "app/"],
-        capture_output=True, text=True).stdout.split()
-    assert importers == [], f"now reached from {importers} — was it meant to go live?"
+    importers = {
+        path.replace("//", "/") for path in subprocess.run(
+            ["grep", "-rl", "--include=*.py", "earning_routes_service", "app/"],
+            capture_output=True, text=True).stdout.split()
+        if not path.endswith("earning_routes_service.py")
+    }
+    assert importers <= {"app/career_reading_service.py"}, importers
 
 
-def test_the_blind_table_exists_for_her():
+def test_the_blind_table_covers_this_engine_too():
+    """Superseded by blind_career.html, which carries both rankings — see
+    test_career_reading. The routes-only table was removed rather than left to
+    go stale beside it."""
     here = pathlib.Path(main.__file__).resolve().parents[1] / "training" / "area3"
-    page = (here / "blind_routes.html").read_text()
-    assert page.count('class="chart"') == 24        # twelve blind, twelve scored
-    assert page.count("data-chart=") == 60          # twelve charts, five fields each
-    assert "Download my answers" in page
-    # Tab two starts hidden, so the engine's answer cannot be read first.
-    assert 'id="pane2" hidden' in page
+    assert not (here / "blind_routes.html").exists()
+    assert "earning routes" in (here / "blind_career.html").read_text()
