@@ -101,6 +101,9 @@ from app.time_service import convert_to_utc
 from app.interpretation_service import build_chart_interpretation
 from app.month_outlook_service import build_month_outlook
 from app.relocation_reading_service import prepare_relocation
+from app.relocation_compare_service import (
+    ADDS_CITIES, asks_to_compare_places, build_relocation_reading,
+)
 from app.conversation_service import (
     BUDGETS,
     DETAILED_BUDGET,
@@ -1038,6 +1041,56 @@ def _prepare_astrologer_call(
     image_context, images_for_model, image_tokens = interpret_attachments(attachments, user_id=user_id)
 
     natal_data = build_natal_chart_data(data)
+
+    # The comparison engine, which the old detector could not reach. "Where
+    # would I have the best life for career, love and happiness?" matched none
+    # of its trigger phrases, so every city calculation this app can do sat
+    # unused while the answer came from the ordinary chat path.
+    carried = (state.get("recent_turns") or [{}])
+    carried_state = None
+    for turn in reversed(normalized_history or []):
+        if isinstance(turn, dict) and turn.get("relocation_state"):
+            carried_state = turn["relocation_state"]
+            break
+    # A solar return is a different question with a different chart — where to
+    # BE for one birthday, not where to live — and it keeps its own path. The
+    # first version of this intercepted it and broke it.
+    already_detected = detect_relocation_request(data.question)
+    is_solar_return = bool(already_detected
+                           and already_detected.get("technique") == "solar_return")
+    wants_comparison = not is_solar_return and (
+        asks_to_compare_places(data.question)
+        or (bool(ADDS_CITIES.search(data.question or "")) and carried_state))
+    if wants_comparison:
+        try:
+            remembered = []
+            if current_user.get("memory_enabled"):
+                remembered = relevant_memories(user_id, "general", limit=3)
+            comparison = build_relocation_reading(
+                natal_data, data.question, history=normalized_history,
+                memories=remembered, carried=carried_state,
+                technical=(state["mode"] == "astrology_on_request"))
+        except Exception as exc:  # noqa: BLE001
+            print("City comparison failed:", repr(exc))
+            comparison = None
+        if comparison and comparison.get("ranking"):
+            state["relocation_scope"] = comparison["you_may_say"]
+            state["may_ask_priorities"] = bool(comparison.get("ask_one_short_question"))
+            state["must_mention"] = [c["city"] for c in comparison["ranking"][:2]]
+            return {
+                "user_id": user_id, "tier": 4, "tier_config": tier_config,
+                "max_output_tokens": RELOCATION_BUDGET[0], "model": model,
+                "effort": effort, "images": None, "image_tokens": image_tokens,
+                "question_type": "relocation",
+                "chat_context": {
+                    "question": data.question,
+                    "history": normalized_history,
+                    "conversation": state,
+                    "answer_tier": 4,
+                    "where_to_live": comparison,
+                    "sources": {"where_to_live": "relocated_natal_chart_per_city"},
+                },
+            }
 
     relocation_question = data.question
     relocation = detect_relocation_request(relocation_question)

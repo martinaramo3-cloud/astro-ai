@@ -4,6 +4,50 @@ Things found while working, deliberately left for later. Newest first.
 
 ---
 
+## Two-person relocation — a feature, not a fix (26 September 2026)
+
+Martina's, parked deliberately for a later round. A saved person's chart is
+included in the comparison, and Zoli finds the places where BOTH charts light
+up together — "if you two were ever going to click in person, this is a strong
+place for it".
+
+Most of the machinery is already here. `compare_places` scores one chart
+against a list of cities and `astrocartography_service` computes one chart's
+planetary lines; the two-person version is the same work twice plus the
+question of what "both light up" means — shared strong areas, lines that cross
+near the same city, or the relocated synastry between the two. That last
+question is the astrologer's, not mine.
+
+---
+
+## For Nicole: relocation (26 September 2026)
+
+- **Six of the seven scoring tables are not hers.** `BY_AN_ASTROLOGER` in
+  `relocation_scoring.py` says only MONEY is, and the reading passes that
+  through. CAREER, LOVE, VISIBILITY, SOCIAL, STUDY and HOME were written by
+  analogy and now decide where somebody is told to live. The whole set wants
+  her eye.
+
+- **"Day-to-day happiness" is a blend I invented.** There is no happiness
+  table, so it averages SOCIAL and HOME AND FAMILY. Marked in
+  `relocation_compare_service.AREAS`.
+
+- **The astrocartography distance bands are mine.** On the line within 75 km,
+  counts within 250 km, in range to 600 km, nothing beyond. Measured on the
+  ground rather than in degrees of longitude, because a degree in Oslo is half
+  what it is in Nairobi and a rule in degrees quietly favours the tropics.
+  `astrocartography_service.describe_bands()`.
+
+- **The line meanings are mine too** — what each planet on each angle says
+  about living somewhere, in plain words. Twenty-eight of them.
+
+- **Calibration, 1,000 charts:** no city comes first for more than 6.2% and no
+  region for more than 37.8%, against a 50% gate. All forty shortlisted cities
+  come first for somebody. Best-for-career is a different city from
+  best-overall on 67% of charts, best-for-love on 74%.
+
+---
+
 ## For Nicole: the strengths/weaknesses content (25 September 2026)
 
 - **The existing gifts/challenge table is NOT hers, and she should see it.**

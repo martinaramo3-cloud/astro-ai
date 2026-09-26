@@ -192,15 +192,42 @@ WORLD_CITIES = [
 ]
 
 
+# Which timezone prefixes belong to which region a question might name. The
+# filter used to honour "europe" and silently ignore everything else — asking
+# for the best US city searched all 157 worldwide and reported the winner as
+# though the question had been answered.
+# Europe keeps its curated list rather than a timezone prefix. Nicosia is in
+# it deliberately and sits in Asia/Nicosia, so filtering Europe by prefix
+# quietly dropped a city the list was written to include.
+REGIONS = {
+    "usa": ("America/New_York", "America/Chicago", "America/Denver",
+            "America/Los_Angeles", "America/Phoenix", "America/Anchorage",
+            "Pacific/Honolulu"),
+    "americas": ("America/", "Pacific/Honolulu"),
+    "asia": ("Asia/",),
+    "africa": ("Africa/",),
+    "oceania": ("Australia/", "Pacific/"),
+    "middle east": ("Asia/Dubai", "Asia/Riyadh", "Asia/Qatar", "Asia/Jerusalem",
+                    "Asia/Beirut", "Asia/Amman", "Asia/Baghdad", "Asia/Tehran",
+                    "Asia/Kuwait", "Asia/Bahrain", "Asia/Muscat", "Asia/Istanbul"),
+}
+
+
 def as_places(region: str = "world") -> list[dict]:
     """Candidates for a relocation search.
 
-    "europe" when the question asks for it; otherwise everywhere, because the
-    best place for a given return is frequently not on the asker's continent
+    A named region narrows it; anything else searches everywhere, because the
+    best place for a given chart is frequently not on the asker's continent
     and a search that cannot leave one will never say so.
     """
-    cities = EUROPEAN_CITIES if region == "europe" else EUROPEAN_CITIES + WORLD_CITIES
-    return [
+    everything = [
         {"label": label, "latitude": lat, "longitude": lon, "timezone": tz}
-        for label, lat, lon, tz in cities
+        for label, lat, lon, tz in EUROPEAN_CITIES + WORLD_CITIES
     ]
+    wanted = (region or "world").lower()
+    if wanted == "europe":
+        return everything[:len(EUROPEAN_CITIES)]
+    prefixes = REGIONS.get(wanted)
+    if not prefixes:
+        return everything
+    return [c for c in everything if c["timezone"].startswith(prefixes)]

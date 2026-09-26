@@ -87,6 +87,9 @@ SERIOUS = ("empty answer", "unsupported personal fact", "unsupported age",
            # the safety floor names outright.
            "invents a money figure", "tells them where to invest",
            "promises money as certain",
+           # A city comparison that was not made, and a person promised in a
+           # place — both are claims nobody can check from the outside.
+           "claims a search that did not run", "promises them a person",
            # A claim about the inside of someone's head is the same class of
            # wrong as a claim about their biography.
            "claims to know what they feel or fear")
@@ -402,6 +405,39 @@ OFFERED_AS_POSSIBLE = re.compile(
     r"the version of this that|where this costs you|it is worth (?:watching|noticing)|"
     r"see if|does (?:that|this) sound)\b", re.I)
 
+# Relocation: three things a city comparison must not do.
+#
+# A promise of a person. Her rule is that the reading may be bold where the
+# calculation supports it — "this city strongly favours love for you" is a
+# good sentence — and that certainty is the only thing banned.
+PROMISES_A_PERSON = re.compile(
+    r"\byou(?:'ll| will) (?:meet|find) (?:someone|somebody|the one|your person|"
+    r"a partner|love)\b"
+    r"|\byou(?:'re| are) going to meet\b"
+    r"|\b(?:you will|you'll) fall in love (?:there|here|in)\b"
+    r"|\bis where you(?:'ll| will) meet\b"
+    r"|\bguaranteed to (?:meet|find)\b", re.I)
+
+# A claim about how wide the search was. "I compared cities worldwide" and "no
+# US city made the top tier" are checkable facts about what ran, and saying
+# either when it did not is the kind of wrong nobody can catch from the
+# outside.
+CLAIMS_A_SCOPE = re.compile(
+    r"\b(?:compared|searched|looked at|ranked|checked)\b[^.!?]{0,40}"
+    r"\b(?:worldwide|around the world|across the globe|every city|all the cities|"
+    r"the whole world|globally)\b"
+    r"|\bno (?:us|u\.s\.|american|european|asian|african|australian) (?:city|cities)\b"
+    r"|\bnowhere in (?:the us|america|europe|asia)\b", re.I)
+
+# A fact about a place, attributed to the chart. The two sources have to stay
+# apart: what the chart says about living somewhere is a reading, and what a
+# city costs is general knowledge.
+CITY_FACT_AS_CHART = re.compile(
+    r"\b(?:your |the )?chart\b[^.!?]{0,50}"
+    r"\b(?:cost of living|rent|rents|visa|visas|job market|tax|taxes|"
+    r"healthcare|weather|climate|winters?|summers?|public transport|"
+    r"property prices|salaries)\b", re.I)
+
 # Money promised rather than read. A window is a stretch of time in which
 # something is more available; it is not an event with a payout attached.
 PROMISED_WEALTH = re.compile(
@@ -518,7 +554,8 @@ def career_offenders(answer, state) -> list:
     words = money_figures_not_theirs(answer, state) + qualifications_not_theirs(answer, state)
     for pattern in (INVESTMENT_VEHICLE, INVESTMENT_VEHICLE_CASED,
                     INVESTMENT_INSTRUCTION, PROMISED_WEALTH, MONEY_MANAGEMENT,
-                    OCCUPATION_LIST, UNSUPPORTED_PSYCHOLOGY):
+                    OCCUPATION_LIST, UNSUPPORTED_PSYCHOLOGY,
+                    PROMISES_A_PERSON, CLAIMS_A_SCOPE, CITY_FACT_AS_CHART):
         words += [m.group(0) for m in pattern.finditer(answer)]
     return sorted(set(words))
 
@@ -663,7 +700,14 @@ def review_issues(answer, state):
     # clarifying question, but ending on one leaves them holding the question
     # they came to ask.
     closing = _sentences(answer)[-1] if _sentences(answer) else ''
-    if closing.endswith('?') and HANDS_BACK.search(closing):
+    # One exception: a relocation answer with no stated priorities is allowed
+    # to ask what matters most, because it also gives the equal-weight leader
+    # in the same breath. It is a sharpening question, not a hand-back.
+    asking_priorities = bool(
+        state.get('may_ask_priorities')
+        and re.search(r"\bcareer\b.{0,40}\blove\b|\bmatters most\b"
+                      r"|\ball (?:of it )?equally\b", closing, re.I))
+    if closing.endswith('?') and HANDS_BACK.search(closing) and not asking_priorities:
         issues.append('ends by asking them to supply what they asked about')
     user_reports=state['reported_facts']['user_statements']
     saved=state['reported_facts']['saved_profile']
@@ -701,6 +745,13 @@ def review_issues(answer, state):
     guess = UNSUPPORTED_PSYCHOLOGY.search(answer)
     if guess:
         issues.append('claims to know what they feel or fear: ' + guess.group(0))
+    # Relocation.
+    if PROMISES_A_PERSON.search(answer):
+        issues.append('promises them a person in a city')
+    if CLAIMS_A_SCOPE.search(answer) and not state.get('relocation_scope'):
+        issues.append('claims a search that did not run')
+    if CITY_FACT_AS_CHART.search(answer):
+        issues.append('presents a fact about the city as something the chart said')
     if MONEY_MANAGEMENT.search(answer):
         # Not in SERIOUS. It is out of scope rather than wrong about their
         # life, and replacing a good money answer with the stock apology over
